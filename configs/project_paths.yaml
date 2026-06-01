@@ -1,0 +1,11 @@
+project_root: E:/Projects/ULP_Project
+venv: E:/Projects/ULP_Project/venv
+review_point: V001_pohon_sono
+review_images_selected: data/dataset_yolo/00_review_candidates/V001_pohon_sono/images_selected
+review_labels_selected: data/dataset_yolo/00_review_candidates/V001_pohon_sono/labels_selected
+review_classes: data/dataset_yolo/00_review_candidates/V001_pohon_sono/classes.txt
+makesense_export: data/exports/make_sense/V001_pohon_sono
+field_dataset: data/dataset_yolo/field_multiclass_v1
+field_data_yaml: data/dataset_yolo/field_multiclass_v1/data.yaml
+metadata_dir: data/metadata
+gps_field_points: data/gps/01_field_points

@@ -1,9 +1,11 @@
 ﻿venv/
 .venv/
+.venv-labelimg/
 __pycache__/
 *.pyc
 .vscode/
 .idea/
+.mypy_cache/
 
 data/raw/
 data/gps/
@@ -11,6 +13,10 @@ data/processed/
 data/exports/
 data/dataset_yolo/00_review_candidates/
 data/dataset_yolo/field_multiclass_v1/
+data/metadata/*.csv
+data/metadata/*.txt
+dataset_botol/
+results/
 runs/
 weights/
 models/
@@ -25,5 +31,6 @@ models/
 *.jpeg
 *.png
 *.webp
+*.zip
 
 !data/metadata/.gitkeep

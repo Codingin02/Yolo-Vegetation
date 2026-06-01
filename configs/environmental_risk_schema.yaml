@@ -1,0 +1,26 @@
+status: DATA_SOURCE_PENDING_DEEP_RESEARCH
+inputs:
+  species:
+    required: true
+    note: Nama spesies hasil pengamatan, bukan asumsi model.
+  distance_to_conductor_m:
+    required: false
+    note: Jarak aktual atau estimasi terkalibrasi ke konduktor.
+  canopy_density:
+    required: false
+    note: Kepadatan tajuk dari data lapangan atau hasil analisis citra.
+  rainfall_factor:
+    required: false
+    note: Menunggu sumber resmi seperti BMKG.
+  soil_factor:
+    required: false
+    note: Menunggu data tanah resmi atau literatur yang tersitasi.
+  season_factor:
+    required: false
+    note: Menunggu data musim/cuaca yang valid.
+outputs:
+  - risk_score
+  - risk_level
+  - explanation
+  - missing_inputs
+  - status

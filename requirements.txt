@@ -1,0 +1,10 @@
+ultralytics
+opencv-python
+pandas
+numpy
+pyyaml
+flask
+folium
+gpxpy
+openpyxl
+pytest
