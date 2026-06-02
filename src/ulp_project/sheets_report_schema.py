@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .spreadsheet_schema import PHASE8_SPREADSHEET_COLUMNS
+
 REPORT_COLUMNS = [
     "report_id",
     "timestamp_wib",
@@ -44,6 +46,8 @@ REPORT_COLUMNS = [
     "image_reference",
     "map_link",
 ]
+
+PHASE8_REPORT_COLUMNS = PHASE8_SPREADSHEET_COLUMNS
 
 
 def empty_report_row() -> dict[str, str]:

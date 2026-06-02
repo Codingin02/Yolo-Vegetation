@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+import argparse
+
 
 COMMAND_GROUPS = {
     "SAFE NOW": [
         ".\\venv\\Scripts\\python.exe scripts\\system_status_report.py",
+        ".\\venv\\Scripts\\python.exe scripts\\phase8_pln_realtime_risk_gate.py",
+        ".\\venv\\Scripts\\python.exe scripts\\run_field_capture_server.py",
+        "Open browser: http://<IP-LAPTOP>:5000/field-capture",
+        ".\\venv\\Scripts\\python.exe scripts\\export_vegetation_risk_report.py --mode dry-run",
+        ".\\venv\\Scripts\\python.exe scripts\\export_vegetation_risk_map.py --mode dry-run",
+        ".\\venv\\Scripts\\python.exe scripts\\run_manual_risk_estimate.py --sample pohon_sono --mode dry-run",
+        ".\\venv\\Scripts\\python.exe scripts\\run_realtime_field_pipeline.py --mode dry-run",
         ".\\venv\\Scripts\\python.exe scripts\\run_system_runtime.py --mode all-dry-run",
-        ".\\venv\\Scripts\\python.exe scripts\\phase6_mobile_environmental_gate.py",
         ".\\venv\\Scripts\\python.exe scripts\\fetch_environmental_data.py --point V001_pohon_sono --mode dry-run",
         ".\\venv\\Scripts\\python.exe scripts\\build_environmental_features.py --point V001_pohon_sono --mode dry-run",
         ".\\venv\\Scripts\\python.exe scripts\\run_vegetation_risk.py --point V001_pohon_sono --mode sample-risk",
-        ".\\venv\\Scripts\\python.exe scripts\\phase7_realtime_field_gate.py",
-        ".\\venv\\Scripts\\python.exe scripts\\run_manual_risk_estimate.py --sample pohon_sono --mode dry-run",
-        ".\\venv\\Scripts\\python.exe scripts\\run_field_capture_server.py",
         ".\\venv\\Scripts\\python.exe scripts\\run_flask_dev.py",
         ".\\venv\\Scripts\\python.exe scripts\\build_system_map.py --mode dry-run",
         ".\\venv\\Scripts\\python.exe scripts\\export_system_report.py --mode dry-run",
@@ -47,6 +52,9 @@ def render_command_center() -> str:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Print safe ULP operator commands.")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.parse_args()
     print(render_command_center())
     return 0
 

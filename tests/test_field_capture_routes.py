@@ -16,6 +16,7 @@ def test_field_capture_available_and_mobile_is_alias(tmp_path):
     assert mobile.status_code in {301, 302}
     assert mobile.headers["Location"].endswith("/field-capture")
     assert client.get("/api/field-capture/ping").get_json()["status"] == "PONG"
+    assert client.get("/api/latency/ping").get_json()["status"] == "PONG"
 
 
 def test_field_capture_upload_accepts_metadata_without_model(tmp_path):

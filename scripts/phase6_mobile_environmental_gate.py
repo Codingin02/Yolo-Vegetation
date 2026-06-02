@@ -71,7 +71,7 @@ def build_phase6_gate_status(project_root: Path = ROOT) -> dict[str, Any]:
         "dataset_status": dataset_status,
         "labeling_status": labeling_status,
         "environmental_source_status": env_status["status"],
-        "mobile_runtime_status": field_capture.get("status", "FIELD_CAPTURE_NOT_READY"),
+        "field_capture_status": field_capture.get("status", "FIELD_CAPTURE_NOT_READY"),
         "tunnel_config_status": "TUNNEL_CONFIG_READY_ENV_ONLY" if tunnel_config_exists else "TUNNEL_CONFIG_NOT_READY",
         "flask_endpoint_status": flask_status["status"],
         "map_report_status": "MAP_REPORT_READY_FOR_DRY_RUN" if map_report_ready else "MAP_REPORT_NOT_READY",

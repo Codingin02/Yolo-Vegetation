@@ -64,6 +64,26 @@ def load_phase6_environmental_manual_csv(path: Path) -> dict[str, object]:
         return {"status": "ENVIRONMENTAL_DATA_NOT_READY", "rows": [], "missing_fields": PHASE6_ENVIRONMENTAL_FIELDS}
     with path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
-        missing = [field for field in PHASE6_ENVIRONMENTAL_FIELDS if field not in (reader.fieldnames or [])]
+        fieldnames = reader.fieldnames or []
+        missing = [field for field in PHASE6_ENVIRONMENTAL_FIELDS if field not in fieldnames]
         rows = list(reader)
+    phase8_required = [
+        "point_id",
+        "latitude",
+        "longitude",
+        "observation_date",
+        "season_label",
+        "rainfall_7d_mm",
+        "rainfall_30d_mm",
+        "temperature_avg_c",
+        "humidity_avg_percent",
+        "soil_ph",
+        "soil_moisture_proxy",
+        "wind_speed_avg",
+        "data_source",
+        "freshness_status",
+        "source_confidence",
+    ]
+    if missing and all(field in fieldnames for field in phase8_required):
+        return {"status": "READY", "rows": rows, "missing_fields": []}
     return {"status": "READY" if not missing else "ENVIRONMENTAL_DATA_SCHEMA_INCOMPLETE", "rows": rows, "missing_fields": missing}

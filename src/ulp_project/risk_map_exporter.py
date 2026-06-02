@@ -13,6 +13,12 @@ MAP_HTML = REPORT_DIR / "vegetation_risk_map.html"
 GEOJSON = REPORT_DIR / "vegetation_risk_points.geojson"
 
 COLOR_BY_RISK = {
+    "DANGER_NOW": "red",
+    "CRITICAL": "red",
+    "HIGH": "orange",
+    "MEDIUM": "yellow",
+    "LOW": "green",
+    "INSUFFICIENT_DATA": "gray",
     "AMAN_MONITOR": "green",
     "PERLU_MONITORING": "blue",
     "JADWALKAN_PEMANGKASAN": "orange",
@@ -35,10 +41,16 @@ def row_to_geojson_feature(row: dict[str, Any]) -> dict[str, Any]:
             "properties": {
                 "point_id": row.get("point_id"),
                 "species": row.get("species"),
-                "risk_status": row.get("risk_status"),
-                "eta_months_mid": row.get("eta_months_mid"),
+                "risk_status": row.get("risk_status") or row.get("risk_priority"),
+                "risk_priority": row.get("risk_priority") or row.get("risk_status"),
+                "eta_months_mid": row.get("eta_months_mid") or row.get("months_to_contact_p50"),
+                "eta_days_mid": row.get("eta_days_mid") or row.get("days_to_contact_p50"),
+                "minimum_clearance_m": row.get("minimum_clearance_m"),
                 "recommended_action": row.get("recommended_action"),
                 "nearest_electrical_asset": row.get("nearest_electrical_asset"),
+                "asset_type": row.get("asset_type"),
+                "photo_path": row.get("photo_path") or row.get("image_reference"),
+                "report_link": row.get("map_link"),
             },
         },
     }
@@ -76,7 +88,10 @@ def _render_simple_map_html(features: list[dict[str, Any]]) -> str:
     for feature in features:
         props = feature["properties"]
         rows.append(
-            f"<li>{props.get('point_id')} - {props.get('risk_status')} - {props.get('recommended_action')}</li>"
+            f"<li>{props.get('point_id')} - {props.get('species')} - {props.get('risk_priority')} - "
+            f"ETA: {props.get('eta_days_mid')} hari / {props.get('eta_months_mid')} bulan - "
+            f"clearance: {props.get('minimum_clearance_m')} - {props.get('recommended_action')} - "
+            f"asset: {props.get('asset_type') or props.get('nearest_electrical_asset')}</li>"
         )
     return "<html><body><h1>Vegetation Risk Map Export</h1><ul>" + "".join(rows) + "</ul></body></html>"
 

@@ -1,0 +1,23 @@
+species:
+  pohon_sono:
+    species_name: pohon_sono
+    display_name: "Pohon Sono"
+    base_growth_rate_m_per_day:
+    min_growth_rate_m_per_day:
+    max_growth_rate_m_per_day:
+    source_name:
+    source_url_or_note: "Isi setelah kalibrasi lokal atau literatur valid tersedia."
+    confidence_level: LOW
+    applicable_region: "Surabaya Utara - Perak"
+    notes: "Do not invent growth rate. ETA must be GROWTH_RATE_NOT_READY until a real source exists."
+  generic_tree:
+    species_name: generic_tree
+    display_name: "Generic Tree"
+    base_growth_rate_m_per_day:
+    min_growth_rate_m_per_day:
+    max_growth_rate_m_per_day:
+    source_name:
+    source_url_or_note: "Generic fallback profile; requires operator-provided growth rate."
+    confidence_level: LOW
+    applicable_region:
+    notes: "No accuracy claim."

@@ -1,4 +1,4 @@
-mobile_runtime:
+field_capture_runtime:
   max_upload_image_mb: 8
   prefer_image_resize_width: 1280
   job_poll_interval_ms: 1000
@@ -7,7 +7,7 @@ mobile_runtime:
   allow_sync_small_image: true
   tunnel_provider: manual_ngrok_or_cloudflared
   secret_policy: env_only
-  runtime_upload_dir: data/runtime/mobile_uploads
+  runtime_upload_dir: data/runtime/field_capture_uploads
   runtime_jobs_dir: data/runtime/jobs
   runtime_results_dir: data/runtime/results
 network_modes:

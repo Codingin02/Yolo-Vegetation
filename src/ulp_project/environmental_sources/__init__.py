@@ -45,6 +45,15 @@ def environmental_source_status(config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def list_supported_environmental_adapters() -> dict[str, Any]:
+    return {
+        "status": "ENVIRONMENTAL_ADAPTERS_READY_DRY_RUN_ONLY",
+        "adapters": ["BMKG", "NASA_POWER", "SoilGrids", "manual_csv", "Open-Meteo"],
+        "cache_policy": "per_point_per_date_under_data_cache_or_runtime",
+        "no_fake_values": True,
+    }
+
+
 def _minimal_yaml_map(path: Path) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for line in path.read_text(encoding="utf-8").splitlines():

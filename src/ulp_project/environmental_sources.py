@@ -8,6 +8,7 @@ from typing import Any
 from .paths import PROJECT_ROOT
 
 DEFAULT_ENV_CONFIG = PROJECT_ROOT / "configs" / "surabaya_perak_environment.yaml"
+PHASE8_ENV_CONFIG = PROJECT_ROOT / "configs" / "environmental_sources.yaml"
 
 
 def load_environmental_source_config(path: Path = DEFAULT_ENV_CONFIG) -> dict[str, Any]:
@@ -38,6 +39,15 @@ def environmental_source_status(config: dict[str, Any]) -> dict[str, Any]:
         "configured_sources": configured,
         "missing_sources": [*weather.keys(), *soil.keys()] if not configured else [],
         "area": config.get("default_area_name", "Surabaya Utara - Perak"),
+    }
+
+
+def list_supported_environmental_adapters() -> dict[str, Any]:
+    return {
+        "status": "ENVIRONMENTAL_ADAPTERS_READY_DRY_RUN_ONLY",
+        "adapters": ["BMKG", "NASA_POWER", "SoilGrids", "manual_csv", "Open-Meteo"],
+        "cache_policy": "per_point_per_date_under_data_cache_or_runtime",
+        "no_fake_values": True,
     }
 
 

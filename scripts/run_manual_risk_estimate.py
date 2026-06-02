@@ -8,9 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from ulp_project.risk_decision_engine import build_risk_decision  # noqa: E402
-from ulp_project.species_growth_config import get_species_config  # noqa: E402
-from ulp_project.vegetation_report_writer import build_report_row, write_reports  # noqa: E402
+from ulp_project.risk_priority import evaluate_pln_vegetation_risk  # noqa: E402
+from ulp_project.spreadsheet_report_writer import build_phase8_report_row, write_phase8_report  # noqa: E402
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -24,39 +23,35 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    species_config = get_species_config(args.sample)
-    growth_inputs = {
-        "species_base_growth_rate_m_per_day": args.growth_rate_m_per_day or species_config.get("base_growth_rate_m_per_day"),
-        "season_multiplier": None,
-        "rainfall_multiplier": None,
-        "humidity_multiplier": None,
-        "temperature_multiplier": None,
-        "soil_ph_multiplier": None,
-        "soil_moisture_multiplier": None,
-        "pruning_history_multiplier": None,
-        "local_calibration_multiplier": None,
-    }
-    decision = build_risk_decision(args.clearance_m, growth_inputs, nearest_asset_type="span")
-    row = build_report_row(
+    decision = evaluate_pln_vegetation_risk(
+        args.clearance_m,
+        args.sample,
+        environment={"season_label": "manual", "rainfall_30d_mm": 100, "soil_ph": 6.5, "soil_moisture_proxy": "manual"}
+        if args.growth_rate_m_per_day is not None
+        else {},
+        allow_provisional=args.growth_rate_m_per_day is not None,
+        base_growth_rate_override=args.growth_rate_m_per_day,
+    )
+    row = build_phase8_report_row(
         {
             "point_id": "V001_pohon_sono",
             "species": args.sample,
-            "nearest_electrical_asset": "span",
-            "clearance_to_asset_m": args.clearance_m or "",
-            "risk_status": decision["risk_status"],
+            "asset_type": "span",
+            "minimum_clearance_m": args.clearance_m or "",
+            "risk_priority": decision["risk_priority"],
             "recommended_action": decision["recommended_action"],
-            "priority_rank": decision["priority_rank"],
-            "eta_days_min": decision["eta_days_min"] or "",
-            "eta_days_mid": decision["eta_days_mid"] or "",
-            "eta_days_max": decision["eta_days_max"] or "",
-            "eta_months_mid": decision["eta_months_mid"] or "",
+            "recommended_trim_deadline": decision["recommended_trim_deadline"],
+            "days_to_contact_p50": decision["days_to_contact_p50"] or "",
+            "months_to_contact_p50": decision["months_to_contact_p50"] or "",
+            "growth_rate_base_m_per_day": decision.get("growth_rate_base_m_per_day", ""),
+            "growth_rate_adjusted_m_per_day": decision.get("growth_rate_adjusted_m_per_day", ""),
             "model_status": "MODEL_NOT_READY",
             "calibration_status": "CALIBRATION_NOT_READY" if args.clearance_m is None else "CALIBRATION_PARTIAL",
             "environmental_data_status": "ENVIRONMENTAL_DATA_NOT_READY",
-            "data_quality_flags": ";".join(decision["data_quality_flags"]),
+            "confidence": decision["confidence"],
         }
     )
-    report = write_reports([row], mode=args.mode)
+    report = write_phase8_report([row], mode=args.mode)
     result = {"status": "MANUAL_RISK_DRY_RUN_READY" if args.mode == "dry-run" else report["status"], "decision": decision, "report": report}
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0

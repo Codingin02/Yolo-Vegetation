@@ -1,12 +1,16 @@
-status: CALIBRATION_NOT_READY
-pixel_scale:
-  known_object_width_m:
-  known_object_width_px:
-  meters_per_pixel:
-clearance_thresholds_m:
-  danger_below: 1.5
-  warning_below: 3.0
-  safe_at_or_above: 3.0
-notes:
-  - Threshold 3 meter dipakai sebagai ambang operasional perencanaan sistem.
-  - Jangan klaim sebagai jarak legal final PLN tanpa sumber aturan tertulis.
+calibration_schema:
+  supported_modes:
+    - manual_reference
+    - pixel_ratio
+    - no_calibration
+  required_manual_fields:
+    - reference_object_height_m
+    - reference_object_pixel_height
+  output_fields:
+    - estimated_tree_height_m
+    - estimated_asset_height_m
+    - clearance_m
+    - uncertainty_m
+    - calibration_status
+    - calibration_method
+  warning: "Do not claim accurate height or clearance until local calibration is verified."

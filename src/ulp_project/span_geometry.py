@@ -43,3 +43,10 @@ def infer_nearest_asset_type(asset_type: str | None) -> str:
     if normalized in {"pole", "tiang", "struktur_penyangga"}:
         return "pole"
     return "unknown"
+
+
+def estimate_span_lowest_height(span_start_height_m: float | None, span_end_height_m: float | None, sag_m: float | None) -> dict[str, Any]:
+    if span_start_height_m is None or span_end_height_m is None or sag_m is None:
+        return {"status": "SPAN_SAG_NOT_READY", "span_lowest_height_m": None, "missing_inputs": ["span_start_height_m", "span_end_height_m", "sag_m"]}
+    average_height = (float(span_start_height_m) + float(span_end_height_m)) / 2.0
+    return {"status": "SPAN_SAG_READY", "span_lowest_height_m": round(average_height - float(sag_m), 3), "missing_inputs": []}

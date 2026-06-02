@@ -21,3 +21,19 @@ def estimate_height_from_pixels(pixel_height: float | None, pixel_scale_m_per_px
         "calibration_status": "CALIBRATION_PARTIAL",
         "calibration_notes": "Provisional estimate from explicit pixel scale.",
     }
+
+
+def estimate_tree_asset_heights(
+    tree_pixel_height: float | None,
+    asset_pixel_height: float | None,
+    pixel_scale_m_per_px: float | None,
+) -> dict[str, Any]:
+    tree = estimate_height_from_pixels(tree_pixel_height, pixel_scale_m_per_px)
+    asset = estimate_height_from_pixels(asset_pixel_height, pixel_scale_m_per_px)
+    return {
+        "estimated_tree_height_m": tree["height_m"],
+        "estimated_asset_height_m": asset["height_m"],
+        "calibration_status": tree["calibration_status"] if tree["calibration_status"] == asset["calibration_status"] else "CALIBRATION_PARTIAL",
+        "calibration_method": tree["height_method"],
+        "height_confidence": tree["height_confidence"],
+    }
