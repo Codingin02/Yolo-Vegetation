@@ -8,7 +8,9 @@ from datetime import datetime
 from pathlib import Path
 
 from .classes import CLASS_ORDER
+from .auto_measurement import load_electrical_asset_profile
 from .field_capture_routes import register_field_capture_routes
+from .field_capture import latest_field_capture_measurement
 from .inference_runtime import run_image_inference
 from .job_queue import RUNTIME_ROOT
 from .map_runtime import build_system_map
@@ -19,6 +21,8 @@ from .system_status import collect_project_status
 from .vegetation_growth import predict_vegetation_growth_risk
 from .phase9_monitoring import MONITORING_CSV, RISK_MAP_HTML
 from .runtime_error_log import latest_api_error, write_api_error
+from .calibration_readiness import check_calibration_readiness
+from .yolo_model_resolver import resolve_yolo_model
 
 try:
     from flask import Flask, jsonify, request
@@ -181,6 +185,34 @@ def create_app(runtime_root: Path | None = None):
                 "field_capture": "/field-capture",
             }
         )
+
+    @app.get("/api/operator/auto-measurement/status")
+    def operator_auto_measurement_status():
+        model = resolve_yolo_model()
+        profile = load_electrical_asset_profile()
+        return jsonify(
+            {
+                "status": "AUTO_MEASUREMENT_READY_WAITING_FOR_MODEL_AND_REFERENCE"
+                if model["status"] == "MODEL_NOT_READY"
+                else "AUTO_MEASUREMENT_MODEL_FILE_DETECTED_UNVALIDATED",
+                "model_status": model["status"],
+                "reference_status": profile.get("reference_status", "CONFIG_NEEDS_FIELD_CONFIRMATION"),
+                "required_next": ["custom_model_best_pt", "pole_height_reference_m", "field_calibration", "ground_truth_validation"],
+                "not_accuracy_claim": True,
+            }
+        )
+
+    @app.get("/api/operator/model/status")
+    def operator_model_status():
+        return jsonify(resolve_yolo_model())
+
+    @app.get("/api/operator/calibration/status")
+    def operator_calibration_status():
+        return jsonify(check_calibration_readiness({}))
+
+    @app.get("/api/operator/latest-measurement")
+    def operator_latest_measurement():
+        return jsonify(latest_field_capture_measurement())
 
     return app
 

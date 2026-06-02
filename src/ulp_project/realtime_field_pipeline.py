@@ -21,7 +21,7 @@ def process_realtime_inspection(
     record = FieldInspectionRecord.from_payload(payload, photo_path=photo_path)
     result = estimate_realtime_eta(record)
     result_dict = result.to_dict()
-    row = build_phase9_monitoring_row({**record.to_dict(), **result_dict, "job_id": payload.get("job_id", record.inspection_id)})
+    row = build_phase9_monitoring_row({**payload, **record.to_dict(), **result_dict, "job_id": payload.get("job_id", record.inspection_id)})
 
     csv_result = {"written": False, "path": str(report_output) if report_output else "", "status": "DRY_RUN"}
     map_result = {"written": False, "path": str(map_output) if map_output else "", "status": "DRY_RUN", "reason": "DRY_RUN"}

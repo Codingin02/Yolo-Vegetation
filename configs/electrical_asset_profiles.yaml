@@ -1,0 +1,19 @@
+asset_system: JTM_20KV_DISTRIBUTION
+reference_status: CONFIG_NEEDS_FIELD_CONFIRMATION
+pole_height_reference_m:
+pole_height_candidates_m:
+  - 9
+  - 11
+  - 12
+  - 13
+  - 14
+pole_height_candidates_status: REFERENCE_REQUIRED
+conductor_attachment_height_m:
+span_sag_allowance_m:
+minimum_clearance_policy_m:
+transformer_clearance_policy_m:
+transformer_height_reference_m:
+notes:
+  - "Nilai final wajib divalidasi dengan standar PLN/ULP/lapangan."
+  - "Candidate pole heights hanya opsi konfigurasi awal, bukan klaim standar final."
+  - "Isi pole_height_reference_m dari data lapangan atau dokumen resmi sebelum auto measurement dipakai operasional."

@@ -169,6 +169,8 @@
     }
     try {
       const payload = await safeFetchJson("/api/field-capture/upload", { method: "POST", body: form });
+      if (payload.auto_measurement_status) setFieldStatus("auto-measurement-status", payload.auto_measurement_status);
+      if (payload.auto_model_status) setFieldStatus("mode-label", payload.auto_model_status === "MODEL_NOT_READY" ? "AUTO_YOLO_NOT_READY" : "AUTO_YOLO_READY_UNVALIDATED");
       setDebug(payload);
       setStatus(payload);
     } catch (error) {

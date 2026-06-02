@@ -20,10 +20,12 @@
         <div><dt>Kamera</dt><dd id="camera-status">NOT_TESTED</dd></div>
         <div><dt>GPS</dt><dd id="gps-status">NOT_TESTED</dd></div>
         <div><dt>Mode</dt><dd id="mode-label">AUTO_YOLO_NOT_READY</dd></div>
+        <div><dt>Auto YOLO Measurement</dt><dd id="auto-measurement-status">MODEL_NOT_READY</dd></div>
       </dl>
       <div class="actions">
         <button id="ping-btn" type="button">Test koneksi laptop</button>
         <a class="button-link" href="/api/operator/runtime-status" target="_blank">Runtime status</a>
+        <a class="button-link" href="/api/operator/auto-measurement/status" target="_blank">Auto measurement status</a>
       </div>
       <p class="hint">Protocol labels: HTTP_LAN untuk akses LAN biasa, HTTPS_SECURE untuk tunnel/HTTPS.</p>
     </section>
@@ -51,6 +53,7 @@
     </section>
     <section class="panel">
       <h2>Mode Manual Provisional / Advanced</h2>
+      <p class="hint">Mode utama adalah AUTO YOLO jika model dan kalibrasi sudah siap. Field manual di bawah hanya fallback provisional/demo kasar.</p>
       <label>Point ID
         <input id="point_id" value="V001_pohon_sono" autocomplete="off">
       </label>

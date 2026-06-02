@@ -22,6 +22,7 @@ Tes tanpa HP:
 .\venv\Scripts\python.exe scripts\phase12_end_to_end_rough_demo.py
 .\venv\Scripts\python.exe scripts\print_secure_capture_options.py
 .\venv\Scripts\python.exe scripts\phase13_field_capture_hardening_gate.py
+.\venv\Scripts\python.exe scripts\phase14_auto_yolo_measurement_gate.py
 ```
 
 Output utama:

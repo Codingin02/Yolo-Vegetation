@@ -1,0 +1,44 @@
+model_path: models/field/best.pt
+device: auto
+conf_threshold: 0.25
+iou_threshold: 0.5
+max_detections: 100
+image_size: 640
+allowed_classes:
+  struktur_penyangga:
+    aliases:
+      - struktur_penyangga
+      - pole
+      - tiang
+      - P001_struktur_penyangga
+      - p001_struktur_penyangga
+  konduktor:
+    aliases:
+      - konduktor
+      - conductor
+      - cable
+      - kabel
+      - K001_konduktor
+      - k001_konduktor
+  span:
+    aliases:
+      - span
+      - bentangan_kabel
+  trafo:
+    aliases:
+      - trafo
+      - transformer
+  pohon_sono:
+    aliases:
+      - pohon_sono
+      - V001_pohon_sono
+      - v001_pohon_sono
+  vegetation_other:
+    aliases:
+      - vegetation_other
+      - vegetasi_lain
+      - tree
+runtime_policy:
+  no_download_without_operator_approval: true
+  no_accuracy_claim_without_validation: true
+  fallback_when_missing: MODEL_NOT_READY

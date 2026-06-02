@@ -16,6 +16,7 @@ COMMAND_GROUPS = {
         ".\\venv\\Scripts\\python.exe scripts\\phase12_end_to_end_rough_demo.py",
         ".\\venv\\Scripts\\python.exe scripts\\print_secure_capture_options.py",
         ".\\venv\\Scripts\\python.exe scripts\\phase13_field_capture_hardening_gate.py",
+        ".\\venv\\Scripts\\python.exe scripts\\phase14_auto_yolo_measurement_gate.py",
         ".\\venv\\Scripts\\python.exe scripts\\run_realtime_field_pipeline.py --mode all-dry-run",
         ".\\venv\\Scripts\\python.exe scripts\\phase12_calibration_readiness_check.py",
         ".\\venv\\Scripts\\python.exe scripts\\phase12_environmental_readiness_check.py",
@@ -74,6 +75,7 @@ MODE_GROUPS = {
     "phase12-export-map": [".\\venv\\Scripts\\python.exe scripts\\export_vegetation_risk_map.py --mode dry-run"],
     "phase12-calibration-check": [".\\venv\\Scripts\\python.exe scripts\\phase12_calibration_readiness_check.py"],
     "phase12-environment-check": [".\\venv\\Scripts\\python.exe scripts\\phase12_environmental_readiness_check.py"],
+    "phase14-auto-measurement": [".\\venv\\Scripts\\python.exe scripts\\phase14_auto_yolo_measurement_gate.py"],
 }
 
 

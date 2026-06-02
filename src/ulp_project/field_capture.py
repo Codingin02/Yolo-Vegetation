@@ -13,12 +13,14 @@ from typing import Any
 
 from .job_queue import RUNTIME_ROOT, load_job, load_job_result, write_job_result
 from .mobile_upload import accept_mobile_upload
+from .auto_measurement import run_auto_measurement_for_image
 from .field_inspection_record import parse_float
 from .phase9_monitoring import append_monitoring_row, write_phase9_risk_map  # compatibility for older tests
 from .realtime_field_pipeline import process_realtime_inspection
 
 DEDUP_WINDOW_SEC = 5.0
 _RECENT_REQUESTS: dict[str, tuple[float, dict[str, Any]]] = {}
+_LATEST_MEASUREMENT: dict[str, Any] = {"status": "NO_MEASUREMENT_YET"}
 
 
 def accept_field_capture_upload(
@@ -35,7 +37,8 @@ def accept_field_capture_upload(
     result = accept_mobile_upload(form, image_file=image_file, video_file=video_file, runtime_root=runtime_root)
     job_id = str(result.get("job_id", ""))
     image_path = result.get("saved_files", {}).get("image_path", "") if isinstance(result.get("saved_files"), dict) else ""
-    pipeline = process_realtime_inspection({**form, "job_id": job_id}, photo_path=image_path, write_outputs=True)
+    auto = run_auto_measurement_for_image(image_path or None, point_id=str(form.get("point_id", "")))
+    pipeline = process_realtime_inspection({**form, "job_id": job_id, **_auto_fields_for_row(auto)}, photo_path=image_path, write_outputs=True)
     response = {
         "status": pipeline["status"],
         "mode": "IMAGE_CAPTURE_ONLY_MODEL_NOT_READY" if pipeline["status"] == "INSUFFICIENT_DATA" else "PROVISIONAL_MANUAL_DEMO",
@@ -62,6 +65,12 @@ def accept_field_capture_upload(
         "growth_rate_m_per_day": pipeline.get("growth_rate_m_per_day"),
         "adjusted_growth_rate_m_per_day": pipeline.get("adjusted_growth_rate_m_per_day"),
         "model_status": pipeline["model_status"],
+        "auto_measurement": auto,
+        "auto_measurement_status": auto.get("measurement_status"),
+        "auto_model_status": auto.get("model_status"),
+        "auto_selected_clearance_m": auto.get("selected_clearance_m"),
+        "auto_selected_hazard_target": auto.get("selected_hazard_target"),
+        "auto_measurement_confidence": auto.get("measurement_confidence"),
         "calibration_status": pipeline["calibration_status"],
         "environment_source_status": pipeline["environmental_data_status"],
         "environmental_data_status": pipeline["environmental_data_status"],
@@ -84,6 +93,7 @@ def accept_field_capture_upload(
         "monitoring_primary": "csv_google_sheets_and_map",
     }
     _RECENT_REQUESTS[fingerprint] = (time.monotonic(), final_response)
+    _set_latest_measurement(final_response)
     _trim_recent_requests()
     return final_response
 
@@ -94,6 +104,10 @@ def load_field_capture_job(job_id: str, runtime_root: Path = RUNTIME_ROOT) -> di
 
 def load_field_capture_result(job_id: str, runtime_root: Path = RUNTIME_ROOT) -> dict[str, object]:
     return load_job_result(job_id, runtime_root)
+
+
+def latest_field_capture_measurement() -> dict[str, Any]:
+    return dict(_LATEST_MEASUREMENT)
 
 
 def build_capture_fingerprint(
@@ -147,3 +161,30 @@ def _trim_recent_requests() -> None:
     for key, (created_at, _) in list(_RECENT_REQUESTS.items()):
         if now - created_at > DEDUP_WINDOW_SEC * 4:
             _RECENT_REQUESTS.pop(key, None)
+
+
+def _set_latest_measurement(payload: dict[str, Any]) -> None:
+    _LATEST_MEASUREMENT.clear()
+    _LATEST_MEASUREMENT.update(payload)
+
+
+def _auto_fields_for_row(auto: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "auto_measurement_status": auto.get("measurement_status", ""),
+        "auto_model_status": auto.get("model_status", ""),
+        "detected_objects": auto.get("detected_objects", []),
+        "auto_tree_height_m": auto.get("tree_height_m", ""),
+        "auto_pole_height_m": auto.get("pole_height_m", ""),
+        "auto_cable_height_m": auto.get("cable_height_m", ""),
+        "auto_span_lowest_point_height_m": auto.get("span_lowest_point_height_m", ""),
+        "auto_transformer_height_m": auto.get("transformer_height_m", ""),
+        "clearance_to_cable_m": auto.get("clearance_to_cable_m", ""),
+        "clearance_to_span_m": auto.get("clearance_to_span_m", ""),
+        "clearance_to_transformer_m": auto.get("clearance_to_transformer_m", ""),
+        "selected_clearance_m": auto.get("selected_clearance_m", ""),
+        "selected_hazard_target": auto.get("selected_hazard_target", ""),
+        "measurement_confidence": auto.get("measurement_confidence", ""),
+        "raw_selected_clearance_m": auto.get("selected_clearance_m", ""),
+        "stabilized_selected_clearance_m": auto.get("stabilized_clearance_m", ""),
+        "stabilization_status": auto.get("stabilization_status", ""),
+    }
