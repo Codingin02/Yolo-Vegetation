@@ -41,7 +41,8 @@ def calculate_growth_multipliers(environment: dict[str, Any], allow_provisional:
 
 def adjusted_growth_rate(species_name: str, environment: dict[str, Any], allow_provisional: bool = False, base_growth_rate_override: float | None = None) -> dict[str, Any]:
     profile = get_species_profile(species_name)
-    base = _to_float(base_growth_rate_override if base_growth_rate_override is not None else profile.get("base_growth_rate_m_per_day"))
+    profile_base = None if profile.get("reference_status") == "PROVISIONAL_OPERATOR_CONFIG" else profile.get("base_growth_rate_m_per_day")
+    base = _to_float(base_growth_rate_override if base_growth_rate_override is not None else profile_base)
     if base is None or base <= 0:
         return {
             "status": "GROWTH_RATE_NOT_READY",

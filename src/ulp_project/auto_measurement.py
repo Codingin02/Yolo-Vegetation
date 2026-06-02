@@ -142,6 +142,7 @@ def measure_from_detections(
         "detected_objects": _detected_summary(normalized),
         "tree_height_m": tree_height,
         "pole_height_m": pole_height,
+        "pole_height_reference_m": pole_height_ref,
         "cable_height_m": cable_height,
         "span_lowest_point_height_m": span_height,
         "transformer_height_m": transformer_height,
@@ -174,6 +175,7 @@ def run_auto_measurement_for_image(
         return {
             "measurement_status": "AUTO_MEASUREMENT_NOT_READY",
             "model_status": model["status"],
+            "model_path": model.get("model_path"),
             "detected_objects": [],
             "selected_clearance_m": None,
             "selected_hazard_target": "unknown",
@@ -185,6 +187,7 @@ def run_auto_measurement_for_image(
     return {
         "measurement_status": "AUTO_MEASUREMENT_NOT_READY",
         "model_status": "MODEL_READY_UNVALIDATED",
+        "model_path": model.get("model_path"),
         "detected_objects": [],
         "selected_clearance_m": None,
         "selected_hazard_target": "unknown",

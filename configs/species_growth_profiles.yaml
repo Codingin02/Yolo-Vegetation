@@ -2,19 +2,45 @@ species:
   pohon_sono:
     species_name: pohon_sono
     display_name: "Pohon Sono"
+    base_growth_rate_m_per_day: 0.01
+    min_growth_rate_m_per_day:
+    max_growth_rate_m_per_day:
+    season_factor: 1.0
+    rainfall_factor: 1.0
+    humidity_factor: 1.0
+    soil_moisture_factor: 1.0
+    soil_ph_factor: 1.0
+    temperature_factor: 1.0
+    species_factor: 1.0
+    confidence_level: LOW
+    reference_status: PROVISIONAL_OPERATOR_CONFIG
+    not_accuracy_claim: true
     growth_rate_min_m_per_day:
     growth_rate_typical_m_per_day:
     growth_rate_max_m_per_day:
     pruning_buffer_m:
+    source_name:
+    source_url_or_note: "0.01 m/day hanya provisional operator config untuk demo kasar; ganti setelah kalibrasi/literatur valid."
+    source_status: LITERATURE_OR_FIELD_CALIBRATION_REQUIRED
+    applicable_region: "Surabaya Utara - Perak"
+    notes: "Do not use as final accuracy claim. Final value requires local field confirmation."
+  vegetation_other:
+    species_name: vegetation_other
+    display_name: "Vegetation Other"
     base_growth_rate_m_per_day:
     min_growth_rate_m_per_day:
     max_growth_rate_m_per_day:
-    source_name:
-    source_url_or_note: "Isi setelah kalibrasi lokal atau literatur valid tersedia."
+    season_factor:
+    rainfall_factor:
+    humidity_factor:
+    soil_moisture_factor:
+    soil_ph_factor:
+    temperature_factor:
+    species_factor:
     confidence_level: LOW
-    source_status: LITERATURE_OR_FIELD_CALIBRATION_REQUIRED
-    applicable_region: "Surabaya Utara - Perak"
-    notes: "Do not invent growth rate. ETA must be GROWTH_RATE_NOT_READY until a real source exists."
+    reference_status: GROWTH_PROFILE_REQUIRES_FIELD_CONFIRMATION
+    not_accuracy_claim: true
+    notes: "Provide local calibration or operator provisional config before ETA."
   generic_fast_tree:
     species_name: generic_fast_tree
     display_name: "Generic Fast Tree"

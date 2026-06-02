@@ -21,9 +21,18 @@
         <div><dt>GPS</dt><dd id="gps-status">NOT_TESTED</dd></div>
         <div><dt>Mode</dt><dd id="mode-label">AUTO_YOLO_NOT_READY</dd></div>
         <div><dt>Auto YOLO Measurement</dt><dd id="auto-measurement-status">MODEL_NOT_READY</dd></div>
+        <div><dt>Model</dt><dd id="model-status">MODEL_NOT_READY</dd></div>
+        <div><dt>Calibration</dt><dd id="calibration-status">CALIBRATION_NOT_READY</dd></div>
+        <div><dt>Environmental</dt><dd id="environmental-status">ENVIRONMENT_NOT_READY</dd></div>
+        <div><dt>Latest ETA</dt><dd id="latest-eta">-</dd></div>
+        <div><dt>Risk Priority</dt><dd id="risk-priority">-</dd></div>
+        <div><dt>Report Path</dt><dd id="report-path">-</dd></div>
+        <div><dt>Map Path</dt><dd id="map-path">-</dd></div>
       </dl>
       <div class="actions">
         <button id="ping-btn" type="button">Test koneksi laptop</button>
+        <button id="open-camera" type="button">Test camera permission</button>
+        <button id="gps-btn" type="button">Test GPS permission</button>
         <a class="button-link" href="/api/operator/runtime-status" target="_blank">Runtime status</a>
         <a class="button-link" href="/api/operator/auto-measurement/status" target="_blank">Auto measurement status</a>
       </div>
@@ -34,7 +43,6 @@
       <video id="camera" playsinline autoplay muted></video>
       <canvas id="frame" hidden></canvas>
       <div class="actions">
-        <button id="open-camera" type="button">Buka Kamera</button>
         <button id="capture-frame" type="button">Capture Frame</button>
       </div>
       <label>Upload file foto fallback
@@ -48,7 +56,7 @@
         <input id="lon" placeholder="longitude" inputmode="decimal">
       </div>
       <div class="actions">
-        <button id="gps-btn" type="button">Ambil GPS HP</button>
+        <button id="gps-btn-secondary" type="button">Ambil GPS HP</button>
       </div>
     </section>
     <section class="panel">

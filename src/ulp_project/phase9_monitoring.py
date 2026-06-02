@@ -59,6 +59,16 @@ PHASE9_MONITORING_COLUMNS = [
     "calibration_status",
     "model_status",
     "operator_notes",
+    "detected_classes",
+    "tree_height_m_raw",
+    "tree_height_m_stable",
+    "pole_height_reference_m",
+    "cable_height_m_raw",
+    "span_lowest_point_height_m_raw",
+    "selected_clearance_m_raw",
+    "selected_clearance_m_stable",
+    "environmental_freshness",
+    "model_path",
     "auto_measurement_status",
     "auto_model_status",
     "detected_objects",
@@ -124,6 +134,16 @@ def build_phase9_monitoring_row(payload: dict[str, Any]) -> dict[str, Any]:
         "calibration_status": payload.get("calibration_status", "MANUAL_CLEARANCE_PROVISIONAL"),
         "model_status": payload.get("model_status", "MODEL_NOT_READY"),
         "operator_notes": payload.get("operator_notes") or payload.get("notes", ""),
+        "detected_classes": payload.get("detected_classes", ""),
+        "tree_height_m_raw": payload.get("tree_height_m_raw") or payload.get("auto_tree_height_m", ""),
+        "tree_height_m_stable": payload.get("tree_height_m_stable") or payload.get("auto_tree_height_m", ""),
+        "pole_height_reference_m": payload.get("pole_height_reference_m", ""),
+        "cable_height_m_raw": payload.get("cable_height_m_raw") or payload.get("auto_cable_height_m", ""),
+        "span_lowest_point_height_m_raw": payload.get("span_lowest_point_height_m_raw") or payload.get("auto_span_lowest_point_height_m", ""),
+        "selected_clearance_m_raw": payload.get("selected_clearance_m_raw") or payload.get("raw_selected_clearance_m", ""),
+        "selected_clearance_m_stable": payload.get("selected_clearance_m_stable") or payload.get("stabilized_selected_clearance_m") or payload.get("selected_clearance_m", ""),
+        "environmental_freshness": payload.get("environmental_freshness") or payload.get("environmental_data_status", ""),
+        "model_path": payload.get("model_path", ""),
         "auto_measurement_status": payload.get("auto_measurement_status", ""),
         "auto_model_status": payload.get("auto_model_status", ""),
         "detected_objects": payload.get("detected_objects", ""),
@@ -215,6 +235,9 @@ def write_phase9_risk_map(row: dict[str, Any], output: Path = RISK_MAP_HTML) -> 
         f"risk_priority: {row.get('risk_priority')}<br>"
         f"action: {row.get('action_recommendation')}<br>"
         f"confidence: {row.get('confidence_status')}<br>"
+        f"hazard_target: {row.get('selected_hazard_target')}<br>"
+        f"model_status: {row.get('model_status')}<br>"
+        f"environment: {row.get('environmental_data_status')}<br>"
         f"status: {row.get('status')}<br>"
         f"notes: {row.get('operator_notes')}"
     )

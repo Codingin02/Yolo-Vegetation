@@ -169,15 +169,23 @@ def _set_latest_measurement(payload: dict[str, Any]) -> None:
 
 
 def _auto_fields_for_row(auto: dict[str, Any]) -> dict[str, Any]:
+    detected = auto.get("detected_objects", [])
+    detected_classes = ",".join(sorted({str(item.get("class_name", "")) for item in detected if isinstance(item, dict)}))
     return {
         "auto_measurement_status": auto.get("measurement_status", ""),
         "auto_model_status": auto.get("model_status", ""),
-        "detected_objects": auto.get("detected_objects", []),
+        "detected_objects": detected,
+        "detected_classes": detected_classes,
         "auto_tree_height_m": auto.get("tree_height_m", ""),
         "auto_pole_height_m": auto.get("pole_height_m", ""),
         "auto_cable_height_m": auto.get("cable_height_m", ""),
         "auto_span_lowest_point_height_m": auto.get("span_lowest_point_height_m", ""),
         "auto_transformer_height_m": auto.get("transformer_height_m", ""),
+        "tree_height_m_raw": auto.get("tree_height_m", ""),
+        "tree_height_m_stable": auto.get("tree_height_m", ""),
+        "pole_height_reference_m": auto.get("pole_height_reference_m", ""),
+        "cable_height_m_raw": auto.get("cable_height_m", ""),
+        "span_lowest_point_height_m_raw": auto.get("span_lowest_point_height_m", ""),
         "clearance_to_cable_m": auto.get("clearance_to_cable_m", ""),
         "clearance_to_span_m": auto.get("clearance_to_span_m", ""),
         "clearance_to_transformer_m": auto.get("clearance_to_transformer_m", ""),
@@ -185,6 +193,9 @@ def _auto_fields_for_row(auto: dict[str, Any]) -> dict[str, Any]:
         "selected_hazard_target": auto.get("selected_hazard_target", ""),
         "measurement_confidence": auto.get("measurement_confidence", ""),
         "raw_selected_clearance_m": auto.get("selected_clearance_m", ""),
+        "selected_clearance_m_raw": auto.get("selected_clearance_m", ""),
         "stabilized_selected_clearance_m": auto.get("stabilized_clearance_m", ""),
+        "selected_clearance_m_stable": auto.get("stabilized_clearance_m") or auto.get("selected_clearance_m", ""),
         "stabilization_status": auto.get("stabilization_status", ""),
+        "model_path": auto.get("model_path", ""),
     }

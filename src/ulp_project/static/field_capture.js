@@ -103,7 +103,7 @@
     }, "image/jpeg", 0.82);
   });
 
-  document.getElementById("gps-btn").addEventListener("click", function () {
+  function requestGps() {
     if (!navigator.geolocation) {
       setFieldStatus("gps-status", "SIGNAL_NOT_READY");
       setStatus("GPS_NOT_AVAILABLE_IN_BROWSER");
@@ -123,7 +123,10 @@
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
     );
-  });
+  }
+
+  document.getElementById("gps-btn").addEventListener("click", requestGps);
+  document.getElementById("gps-btn-secondary").addEventListener("click", requestGps);
 
   document.getElementById("ping-btn").addEventListener("click", async function () {
     const payload = await safeFetchJson("/api/network/whoami");
@@ -170,6 +173,13 @@
     try {
       const payload = await safeFetchJson("/api/field-capture/upload", { method: "POST", body: form });
       if (payload.auto_measurement_status) setFieldStatus("auto-measurement-status", payload.auto_measurement_status);
+      if (payload.model_status) setFieldStatus("model-status", payload.model_status);
+      if (payload.calibration_status) setFieldStatus("calibration-status", payload.calibration_status);
+      if (payload.environmental_data_status) setFieldStatus("environmental-status", payload.environmental_data_status);
+      if (payload.eta_days !== undefined && payload.eta_days !== null) setFieldStatus("latest-eta", `${payload.eta_days} hari / ${payload.eta_months} bulan`);
+      if (payload.risk_priority) setFieldStatus("risk-priority", payload.risk_priority);
+      if (payload.report_path) setFieldStatus("report-path", payload.report_path);
+      if (payload.map_path) setFieldStatus("map-path", payload.map_path);
       if (payload.auto_model_status) setFieldStatus("mode-label", payload.auto_model_status === "MODEL_NOT_READY" ? "AUTO_YOLO_NOT_READY" : "AUTO_YOLO_READY_UNVALIDATED");
       setDebug(payload);
       setStatus(payload);

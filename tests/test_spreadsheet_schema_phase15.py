@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+from ulp_project.phase9_monitoring import PHASE9_MONITORING_COLUMNS
+
+
+def test_phase15_spreadsheet_schema_has_required_columns() -> None:
+    required = {
+        "inspection_id",
+        "timestamp",
+        "point_id",
+        "species",
+        "asset_type",
+        "latitude",
+        "longitude",
+        "detected_classes",
+        "tree_height_m_raw",
+        "tree_height_m_stable",
+        "pole_height_reference_m",
+        "cable_height_m_raw",
+        "span_lowest_point_height_m_raw",
+        "selected_hazard_target",
+        "selected_clearance_m_raw",
+        "selected_clearance_m_stable",
+        "adjusted_growth_rate_m_per_day",
+        "eta_days",
+        "eta_months",
+        "risk_priority",
+        "action_recommendation",
+        "season",
+        "rainfall_mm",
+        "temperature_c",
+        "relative_humidity_percent",
+        "soil_moisture",
+        "soil_ph",
+        "solar_radiation",
+        "evapotranspiration",
+        "wind_speed",
+        "environmental_source",
+        "environmental_freshness",
+        "measurement_source",
+        "model_status",
+        "model_path",
+        "calibration_status",
+        "confidence_status",
+        "image_path",
+        "map_link",
+        "operator_notes",
+        "reason",
+    }
+    assert required.issubset(set(PHASE9_MONITORING_COLUMNS))

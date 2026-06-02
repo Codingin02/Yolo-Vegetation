@@ -23,6 +23,31 @@ Tes tanpa HP:
 .\venv\Scripts\python.exe scripts\print_secure_capture_options.py
 .\venv\Scripts\python.exe scripts\phase13_field_capture_hardening_gate.py
 .\venv\Scripts\python.exe scripts\phase14_auto_yolo_measurement_gate.py
+.\venv\Scripts\python.exe scripts\phase15_realtime_eta_system_gate.py
+.\venv\Scripts\python.exe scripts\phase15_rough_realtime_auto_demo.py --mode mock-auto
+```
+
+## Phase 15 Realtime ETA Monitoring
+
+```powershell
+Set-Location E:\Projects\ULP_Project
+.\venv\Scripts\python.exe scripts\diagnose_field_capture_deploy.py
+.\venv\Scripts\python.exe scripts\print_secure_capture_options.py
+.\venv\Scripts\python.exe scripts\run_realtime_field_pipeline.py --mode server --host 0.0.0.0 --port 5000
+```
+
+HP buka:
+
+```text
+http://<IP-LAPTOP>:5000/field-capture
+```
+
+Demo rough auto:
+
+```powershell
+.\venv\Scripts\python.exe scripts\phase15_rough_realtime_auto_demo.py --mode mock-auto
+.\venv\Scripts\python.exe scripts\export_vegetation_risk_report.py --mode dry-run
+.\venv\Scripts\python.exe scripts\export_vegetation_risk_map.py --mode dry-run
 ```
 
 Output utama:
