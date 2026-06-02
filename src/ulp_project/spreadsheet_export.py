@@ -7,7 +7,7 @@ import csv
 from pathlib import Path
 
 from .metadata import list_images, list_label_files, parse_point_name
-from .paths import GPS_FIELD_POINTS_DIR, METADATA_DIR, REVIEW_CANDIDATES_DIR
+from .paths import GPS_FIELD_POINTS_DIR, PROJECT_ROOT, REVIEW_CANDIDATES_DIR
 
 
 FIELDNAMES = [
@@ -57,17 +57,20 @@ def write_csv(rows: list[dict[str, object]], output: Path) -> None:
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Export local project metadata CSV.")
-    parser.add_argument("--output", type=Path, default=METADATA_DIR / "project_points_manifest.csv")
+    parser.add_argument("--mode", choices=["dry-run", "write"], default="dry-run")
+    parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "docs" / "sample_project_points_manifest.csv")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
     rows = build_rows()
-    write_csv(rows, args.output)
+    if args.mode == "write":
+        write_csv(rows, args.output)
     print(f"status: {'READY' if rows else 'NO_REVIEW_POINTS_FOUND'}")
     print(f"rows: {len(rows)}")
     print(f"output: {args.output}")
+    print(f"written: {args.mode == 'write'}")
     return 0
 
 

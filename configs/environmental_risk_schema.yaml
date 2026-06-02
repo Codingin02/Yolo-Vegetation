@@ -1,5 +1,30 @@
 status: DATA_SOURCE_PENDING_DEEP_RESEARCH
+phase4_contract: RULE_BASED_STUB_ONLY
 inputs:
+  soil_ph:
+    required: false
+    note: Menunggu data tanah resmi/literatur tersitasi.
+  rainfall_mm:
+    required: false
+    note: Menunggu sumber resmi seperti BMKG.
+  humidity_percent:
+    required: false
+    note: Menunggu sumber cuaca resmi.
+  temperature_c:
+    required: false
+    note: Menunggu sumber cuaca resmi.
+  season_label:
+    required: false
+    note: Menunggu definisi musim berbasis sumber.
+  tree_species:
+    required: false
+    note: Nama spesies dari data lapangan.
+  growth_stage:
+    required: false
+    note: Tahap pertumbuhan harus dari observasi atau sumber valid.
+  maintenance_history:
+    required: false
+    note: Riwayat pemangkasan/pemeliharaan jika tersedia.
   species:
     required: true
     note: Nama spesies hasil pengamatan, bukan asumsi model.

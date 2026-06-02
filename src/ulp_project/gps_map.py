@@ -124,12 +124,19 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Build a Folium field map from real GPS files only.")
     parser.add_argument("--gps-dir", type=Path, default=GPS_FIELD_POINTS_DIR)
     parser.add_argument("--output", type=Path, default=RESULTS_MAP_DIR / "field_points_map.html")
+    parser.add_argument("--mode", choices=["dry-run", "write"], default="dry-run")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
     points = read_field_points(args.gps_dir)
+    if args.mode == "dry-run":
+        print(f"status: {'READY' if points else 'GPS_DATA_NOT_READY'}")
+        print(f"points_found: {len(points)}")
+        print(f"output: {args.output}")
+        print("written: False")
+        return 0
     status = build_map(points, args.output)
     print(f"status: {status}")
     print(f"points_found: {len(points)}")

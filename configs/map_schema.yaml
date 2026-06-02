@@ -1,0 +1,11 @@
+status_default: GPS_DATA_NOT_READY
+mode_default: dry-run
+input_formats:
+  - GPX
+  - KML
+  - TXT
+  - CSV
+output:
+  default_path: results/maps/field_points_map.html
+  write_requires_mode: write
+no_fake_coordinates: true

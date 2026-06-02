@@ -1,0 +1,14 @@
+status_default: WAITING_FOR_LABELS
+mode_default: dry-run
+output:
+  default_path: docs/sample_project_points_manifest.csv
+  write_requires_mode: write
+columns:
+  - point_id
+  - object_type
+  - point_name
+  - image_count
+  - label_count
+  - gps_available
+  - status
+  - notes
