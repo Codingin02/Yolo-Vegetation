@@ -1,4 +1,4 @@
-"""Mobile job result contracts."""
+"""Field capture job result contracts."""
 
 from __future__ import annotations
 

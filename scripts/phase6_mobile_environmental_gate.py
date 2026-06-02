@@ -54,7 +54,7 @@ def build_phase6_gate_status(project_root: Path = ROOT) -> dict[str, Any]:
     model_status = status["model"]["status"]
     dataset_status = status["field_dataset"]["status"]
     labeling_status = status["labels_selected"]["status"]
-    mobile_runtime = status.get("mobile_runtime", {})
+    field_capture = status.get("field_capture", {})
     tunnel_config_exists = (project_root / "configs" / "runtime_network.yaml").exists()
     map_report_ready = bool(
         (project_root / "src" / "ulp_project" / "map_runtime.py").exists()
@@ -71,7 +71,7 @@ def build_phase6_gate_status(project_root: Path = ROOT) -> dict[str, Any]:
         "dataset_status": dataset_status,
         "labeling_status": labeling_status,
         "environmental_source_status": env_status["status"],
-        "mobile_runtime_status": mobile_runtime.get("status", "MOBILE_RUNTIME_NOT_READY"),
+        "mobile_runtime_status": field_capture.get("status", "FIELD_CAPTURE_NOT_READY"),
         "tunnel_config_status": "TUNNEL_CONFIG_READY_ENV_ONLY" if tunnel_config_exists else "TUNNEL_CONFIG_NOT_READY",
         "flask_endpoint_status": flask_status["status"],
         "map_report_status": "MAP_REPORT_READY_FOR_DRY_RUN" if map_report_ready else "MAP_REPORT_NOT_READY",
@@ -79,7 +79,7 @@ def build_phase6_gate_status(project_root: Path = ROOT) -> dict[str, Any]:
         "details": {
             "images_selected_count": status["images_selected"]["image_count"],
             "labels_selected_count": status["labels_selected"]["label_count"],
-            "mobile_page_exists": mobile_runtime.get("mobile_page_exists", False),
+            "mobile_page_exists": field_capture.get("field_capture_page_exists", False),
             "secret_policy": "env_only",
         },
     }

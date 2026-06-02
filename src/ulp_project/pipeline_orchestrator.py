@@ -36,7 +36,8 @@ def run_pipeline_mode(mode: str, project_root: Path = PROJECT_ROOT) -> dict[str,
         return {
             "status": "SYSTEM_RUNTIME_DRY_RUN_READY",
             "dashboard": "READY_TO_RUN_LOCALLY",
-            "mobile_page": "/mobile",
+            "field_capture_page": "/field-capture",
+            "legacy_mobile_alias": "/mobile",
             "model": "MODEL_NOT_READY",
             "network_modes": describe_network_modes(),
         }

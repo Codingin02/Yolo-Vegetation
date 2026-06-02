@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/field_capture.css">
+  <title>ULP Field Capture</title>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <h1>Field Capture Browser</h1>
+      <p>HP hanya input lapangan; laptop memproses dan laporan utama masuk CSV/Sheets + peta.</p>
+    </header>
+    <section class="panel">
+      <label>Point ID
+        <input id="point_id" value="V001_pohon_sono" autocomplete="off">
+      </label>
+      <label>Jenis objek manual
+        <input id="manual_object_type" value="pohon_sono" autocomplete="off">
+      </label>
+      <video id="camera" playsinline autoplay muted></video>
+      <canvas id="frame" hidden></canvas>
+      <div class="actions">
+        <button id="open-camera" type="button">Buka Kamera</button>
+        <button id="capture-frame" type="button">Capture Frame</button>
+      </div>
+      <label>Upload file foto
+        <input id="image" type="file" accept="image/*" capture="environment">
+      </label>
+      <label>Catatan operator
+        <textarea id="operator_note" rows="3"></textarea>
+      </label>
+      <div class="coords">
+        <input id="lat" placeholder="lat" inputmode="decimal">
+        <input id="lon" placeholder="lon" inputmode="decimal">
+      </div>
+      <div class="actions">
+        <button id="gps-btn" type="button">Ambil GPS</button>
+        <button id="ping-btn" type="button">Ping</button>
+        <button id="upload-btn" type="button">Upload</button>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Hasil Ringkas</h2>
+      <pre id="status-output">FIELD_CAPTURE_READY_MODEL_NOT_READY</pre>
+    </section>
+  </main>
+  <script src="/static/field_capture.js"></script>
+</body>
+</html>

@@ -6,22 +6,21 @@ import time
 from pathlib import Path
 
 from .classes import CLASS_ORDER
+from .field_capture_routes import register_field_capture_routes
 from .inference_runtime import run_image_inference
-from .job_queue import RUNTIME_ROOT, load_job, load_job_result
+from .job_queue import RUNTIME_ROOT
 from .map_runtime import build_system_map
-from .mobile_upload import accept_mobile_upload
-from .network_mode import describe_network_modes
 from .paths import PROJECT_ROOT
+from .risk_map_exporter import risk_map_status
+from .vegetation_report_writer import latest_report_status
 from .system_status import collect_project_status
 from .vegetation_growth import predict_vegetation_growth_risk
 
 try:
-    from flask import Flask, jsonify, render_template, request
+    from flask import Flask, jsonify
 except ImportError:  # pragma: no cover
     Flask = None
     jsonify = None
-    render_template = None
-    request = None
 
 
 def get_model_state() -> dict[str, str]:
@@ -34,6 +33,7 @@ def create_app(runtime_root: Path | None = None):
 
     app = Flask(__name__)
     app.config["ULP_RUNTIME_ROOT"] = str(runtime_root or RUNTIME_ROOT)
+    register_field_capture_routes(app)
 
     @app.get("/")
     def index():
@@ -46,6 +46,7 @@ def create_app(runtime_root: Path | None = None):
         <p>Model status: {status['model']['status']}</p>
         <p>Map status: {status['map']['status']}</p>
         <p>Environmental data status: {status['environmental_data']['status']}</p>
+        <p>Field capture browser: /field-capture</p>
         <p>Next after makesense export: run phase gates, import dry-run, import copy, validate labels.</p>
         </body></html>
         """
@@ -94,45 +95,29 @@ def create_app(runtime_root: Path | None = None):
         result = run_image_inference("uploaded-image-placeholder")
         return jsonify(result), 503 if result["status"] == "MODEL_NOT_READY" else 200
 
-    @app.get("/mobile")
-    def mobile_page():
-        return render_template("mobile.html")
-
-    @app.post("/api/mobile/upload-inspection")
-    def upload_inspection():
-        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
-        result = accept_mobile_upload(
-            dict(request.form),
-            image_file=request.files.get("image"),
-            video_file=request.files.get("video"),
-            runtime_root=runtime,
-        )
-        return jsonify(result), 202
-
-    @app.get("/api/mobile/job/<job_id>")
-    def mobile_job(job_id: str):
-        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
-        return jsonify(load_job(job_id, runtime))
-
-    @app.get("/api/mobile/result/<job_id>")
-    def mobile_result(job_id: str):
-        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
-        return jsonify(load_job_result(job_id, runtime))
-
-    @app.get("/api/mobile/network/status")
-    def mobile_network_status():
-        return jsonify(
-            {
-                "status": "MOBILE_NETWORK_MODES_READY",
-                "modes": describe_network_modes(),
-                "secret_policy": "env_only",
-            }
-        )
-
     @app.get("/api/latency/ping")
     def latency_ping():
         started = time.perf_counter()
         return jsonify({"status": "PONG", "latency_ms": int((time.perf_counter() - started) * 1000)})
+
+    @app.get("/operator")
+    def operator_dashboard():
+        return jsonify(
+            {
+                "status": "OPERATOR_DASHBOARD_READY",
+                "field_capture": "/field-capture",
+                "latest_report": "/api/operator/latest-report",
+                "map_status": "/api/operator/map-status",
+            }
+        )
+
+    @app.get("/api/operator/latest-report")
+    def operator_latest_report():
+        return jsonify(latest_report_status())
+
+    @app.get("/api/operator/map-status")
+    def operator_map_status():
+        return jsonify(risk_map_status())
 
     return app
 

@@ -120,8 +120,8 @@ def collect_project_status(project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
     model_path = next((path for path in model_candidates if path.exists()), None)
     environmental_ready = False
     env_source = environmental_source_status(load_environmental_source_config(project_root / "configs" / "surabaya_perak_environment.yaml"))
-    mobile_page = project_root / "src" / "ulp_project" / "templates" / "mobile.html"
-    mobile_static = project_root / "src" / "ulp_project" / "static" / "mobile_app.js"
+    field_capture_page = project_root / "src" / "ulp_project" / "templates" / "field_capture.html"
+    field_capture_static = project_root / "src" / "ulp_project" / "static" / "field_capture.js"
     runtime_network_config = project_root / "configs" / "runtime_network.yaml"
 
     return {
@@ -164,7 +164,7 @@ def collect_project_status(project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
             "map_builder": (project_root / "src" / "ulp_project" / "map_builder.py").exists(),
             "spreadsheet_exporter": (project_root / "src" / "ulp_project" / "spreadsheet_export.py").exists(),
             "environmental_risk_schema": (project_root / "configs" / "environmental_risk_schema.yaml").exists(),
-            "mobile_upload": (project_root / "src" / "ulp_project" / "mobile_upload.py").exists(),
+            "field_capture": (project_root / "src" / "ulp_project" / "field_capture.py").exists(),
             "vegetation_risk_model": (project_root / "src" / "ulp_project" / "vegetation_risk_model.py").exists(),
         },
         "model": {
@@ -182,11 +182,12 @@ def collect_project_status(project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
                 "/api/risk/sample",
                 "/api/map/status",
                 "/api/infer/image",
-                "/mobile",
-                "/api/mobile/upload-inspection",
-                "/api/mobile/job/<job_id>",
-                "/api/mobile/result/<job_id>",
-                "/api/mobile/network/status",
+                "/field-capture",
+                "/api/field-capture/upload",
+                "/api/field-capture/job/<job_id>",
+                "/api/field-capture/result/<job_id>",
+                "/api/field-capture/ping",
+                "/mobile (legacy alias)",
                 "/api/latency/ping",
             ],
         },
@@ -207,12 +208,14 @@ def collect_project_status(project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
             "status": "RULE_BASED_STUB_READY",
             "requires": "manual environmental CSV and source registry",
         },
-        "mobile_runtime": {
-            "status": "MOBILE_RUNTIME_READY_MODEL_NOT_READY",
+        "field_capture": {
+            "status": "FIELD_CAPTURE_BROWSER_READY_MODEL_NOT_READY",
             "runtime_root": str(project_root / "data" / "runtime"),
-            "mobile_page_exists": mobile_page.exists(),
-            "mobile_static_exists": mobile_static.exists(),
+            "field_capture_page_exists": field_capture_page.exists(),
+            "field_capture_static_exists": field_capture_static.exists(),
             "runtime_network_config_exists": runtime_network_config.exists(),
+            "hp_role": "input_client_only",
+            "monitoring_primary": "csv_google_sheets_and_map",
         },
         "overall_status": "READY_FOR_DATASET_BUILD" if labels_ready else "WAITING_FOR_LABELS",
         "blocked_items": [
@@ -258,7 +261,7 @@ def render_status_text(status: dict[str, Any]) -> str:
         f"spreadsheet_status: {status['spreadsheet']['status']}",
         f"environmental_data_status: {status['environmental_data']['status']}",
         f"risk_engine_status: {status['risk_engine']['status']}",
-        f"mobile_runtime_status: {status.get('mobile_runtime', {}).get('status', 'UNKNOWN')}",
+        f"field_capture_status: {status.get('field_capture', {}).get('status', 'UNKNOWN')}",
         "blocked_items: " + ", ".join(status["blocked_items"]),
     ]
     return "\n".join(lines)

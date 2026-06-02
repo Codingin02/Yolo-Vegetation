@@ -1,0 +1,24 @@
+calibration:
+  status: "CALIBRATION_NOT_READY"
+  methods:
+    pole_height_reference:
+      enabled: true
+      known_height_m:
+    transformer_height_reference:
+      enabled: true
+      known_height_m:
+    operator_distance_input:
+      enabled: true
+      distance_to_object_m:
+    calibration_board:
+      enabled: true
+      known_board_height_m:
+    camera_metadata:
+      enabled: true
+      focal_length_mm:
+      sensor_width_mm:
+  confidence_policy:
+    no_reference: "LOW"
+    single_reference: "MEDIUM"
+    multiple_references: "HIGH"
+  notes: "Do not claim precise clearance before local calibration and field validation."

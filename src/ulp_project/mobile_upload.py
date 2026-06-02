@@ -1,4 +1,4 @@
-"""Mobile upload handling for field runtime.
+"""Compatibility upload handling for browser-based HP field capture.
 
 Runtime writes are restricted to data/runtime, which is ignored by Git.
 """
@@ -14,7 +14,7 @@ from .job_queue import RUNTIME_ROOT, create_job, write_job_result
 from .mobile_result import build_mobile_dry_result
 from .network_mode import normalize_network_mode
 
-UPLOADS_DIRNAME = "mobile_uploads"
+UPLOADS_DIRNAME = "field_capture_uploads"
 
 
 def _safe_filename(filename: str) -> str:
@@ -32,7 +32,7 @@ def build_upload_metadata(form: dict[str, Any]) -> dict[str, Any]:
         "operator_note": str(form.get("operator_note") or ""),
         "network_mode": network["network_mode"],
         "network_status": network["status"],
-        "source_device": str(form.get("source_device") or "mobile_browser"),
+        "source_device": str(form.get("source_device") or "hp_input_browser"),
     }
 
 
@@ -63,7 +63,7 @@ def accept_mobile_upload(
 
     metadata.update(saved_files)
     job = create_job(metadata, runtime_root)
-    input_path = saved_files.get("image_path") or saved_files.get("video_path") or "mobile-metadata-only"
+    input_path = saved_files.get("image_path") or saved_files.get("video_path") or "field-capture-metadata-only"
     dry_result = build_mobile_dry_result(job, input_path=input_path, started_at=started)
     write_result = write_job_result(str(job["job_id"]), dry_result, runtime_root)
     return {
