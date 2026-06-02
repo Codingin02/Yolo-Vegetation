@@ -6,6 +6,6 @@ input_formats:
   - TXT
   - CSV
 output:
-  default_path: results/maps/field_points_map.html
+  default_path: outputs/maps/field_system_map.html
   write_requires_mode: write
 no_fake_coordinates: true

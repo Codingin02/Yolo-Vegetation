@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 from typing import Any
 
 from .classes import CLASS_ORDER
@@ -109,9 +110,21 @@ def collect_project_status(project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
         and dataset_counts["train_image_count"] == dataset_counts["train_label_count"]
         and dataset_counts["val_image_count"] == dataset_counts["val_label_count"]
     )
+    branch = _git_value(project_root, ["branch", "--show-current"])
+    commit = _git_value(project_root, ["rev-parse", "--short", "HEAD"])
+    model_candidates = [
+        project_root / "weights" / "field_multiclass_v1.pt",
+        project_root / "runs" / "detect" / "field_multiclass_v1" / "weights" / "best.pt",
+    ]
+    model_path = next((path for path in model_candidates if path.exists()), None)
+    environmental_ready = False
 
     return {
         "project_root": str(project_root),
+        "git": {
+            "branch": branch,
+            "commit": commit,
+        },
         "class_order": config_class_order,
         "class_order_ok": config_class_order == CLASS_ORDER,
         "review_point": "V001_pohon_sono",
@@ -147,6 +160,29 @@ def collect_project_status(project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
             "spreadsheet_exporter": (project_root / "src" / "ulp_project" / "spreadsheet_export.py").exists(),
             "environmental_risk_schema": (project_root / "configs" / "environmental_risk_schema.yaml").exists(),
         },
+        "model": {
+            "status": "MODEL_READY" if model_path else "MODEL_NOT_READY",
+            "path": str(model_path) if model_path else "",
+        },
+        "flask": {
+            "status": "READY_WITH_MODEL_NOT_READY_STATE",
+            "routes_contract": ["/", "/health", "/api/status", "/api/classes", "/api/points", "/api/risk/sample", "/api/map/status", "/api/infer/image"],
+        },
+        "map": {
+            "status": "READY_FOR_DRY_RUN",
+            "output_root": str(project_root / "outputs" / "maps"),
+        },
+        "spreadsheet": {
+            "status": "READY_FOR_DRY_RUN",
+            "output_root": str(project_root / "outputs" / "reports"),
+        },
+        "environmental_data": {
+            "status": "ENVIRONMENTAL_DATA_NOT_READY" if not environmental_ready else "READY",
+        },
+        "risk_engine": {
+            "status": "RULE_BASED_STUB_READY",
+            "requires": "manual environmental CSV and source registry",
+        },
         "overall_status": "READY_FOR_DATASET_BUILD" if labels_ready else "WAITING_FOR_LABELS",
         "blocked_items": [
             item
@@ -158,6 +194,14 @@ def collect_project_status(project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
             }.items()
             if blocked
         ],
+        "next_actions": [
+            "Finish makesense.ai export",
+            "Run import makesense dry-run",
+            "Run import makesense copy only after label count matches image count",
+            "Validate YOLO labels",
+            "Build dataset only after validation PASS",
+            "Run training only with explicit operator approval",
+        ],
     }
 
 
@@ -167,6 +211,8 @@ def render_status_text(status: dict[str, Any]) -> str:
     dataset = status["field_dataset"]
     lines = [
         "ULP Project System Status",
+        f"branch: {status['git']['branch']}",
+        f"commit: {status['git']['commit']}",
         f"overall_status: {status['overall_status']}",
         f"class_order_ok: {status['class_order_ok']}",
         f"images_selected_count: {status['images_selected']['image_count']}",
@@ -175,6 +221,12 @@ def render_status_text(status: dict[str, Any]) -> str:
         f"makesense_export_label_count: {export['label_count']}",
         f"data_yaml_exists: {dataset['data_yaml_exists']}",
         f"dataset_status: {dataset['status']}",
+        f"model_status: {status['model']['status']}",
+        f"flask_status: {status['flask']['status']}",
+        f"map_status: {status['map']['status']}",
+        f"spreadsheet_status: {status['spreadsheet']['status']}",
+        f"environmental_data_status: {status['environmental_data']['status']}",
+        f"risk_engine_status: {status['risk_engine']['status']}",
         "blocked_items: " + ", ".join(status["blocked_items"]),
     ]
     return "\n".join(lines)
@@ -183,3 +235,15 @@ def render_status_text(status: dict[str, Any]) -> str:
 def render_status_markdown(status: dict[str, Any]) -> str:
     text = render_status_text(status)
     return "# Phase 4 Current System Status\n\n```text\n" + text + "\n```\n"
+
+
+def _git_value(root: Path, args: list[str]) -> str:
+    completed = subprocess.run(
+        ["git", *args],
+        cwd=root,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    return completed.stdout.strip() if completed.returncode == 0 else ""

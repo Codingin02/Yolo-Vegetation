@@ -18,6 +18,9 @@ data/metadata/*.csv
 data/metadata/*.txt
 dataset_botol/
 results/
+outputs/*
+!outputs/templates/
+!outputs/templates/README.md
 runs/
 weights/
 models/

@@ -1,0 +1,22 @@
+sources:
+  BPS:
+    url:
+    status: TODO
+  BMKG:
+    url:
+    status: TODO
+  KLHK:
+    url:
+    status: TODO
+  BIG:
+    url:
+    status: TODO
+  city_open_data:
+    url:
+    status: TODO
+  manual_survey:
+    url:
+    status: TODO
+notes:
+  - Nilai lingkungan tidak diisi dari asumsi.
+  - Sumber resmi akan dilengkapi setelah Deep Research.

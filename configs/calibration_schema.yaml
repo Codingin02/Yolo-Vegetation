@@ -1,0 +1,12 @@
+status: CALIBRATION_NOT_READY
+pixel_scale:
+  known_object_width_m:
+  known_object_width_px:
+  meters_per_pixel:
+clearance_thresholds_m:
+  danger_below: 1.5
+  warning_below: 3.0
+  safe_at_or_above: 3.0
+notes:
+  - Threshold 3 meter dipakai sebagai ambang operasional perencanaan sistem.
+  - Jangan klaim sebagai jarak legal final PLN tanpa sumber aturan tertulis.
