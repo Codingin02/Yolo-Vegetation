@@ -23,13 +23,15 @@ def register_field_capture_routes(app) -> None:
     @app.post("/api/field-capture/upload")
     def field_capture_upload():
         runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        payload = request.get_json(silent=True) if request.is_json else None
+        form_payload = dict(payload or request.form)
         result = accept_field_capture_upload(
-            dict(request.form),
+            form_payload,
             image_file=request.files.get("image"),
             video_file=request.files.get("video"),
             runtime_root=runtime,
         )
-        return jsonify(result), 202
+        return jsonify(result), 200 if result.get("status") == "OK" else 202
 
     @app.get("/api/field-capture/job/<job_id>")
     def field_capture_job(job_id: str):
@@ -59,8 +61,10 @@ def register_field_capture_routes(app) -> None:
     @app.post("/api/mobile/upload-inspection")
     def legacy_mobile_upload_alias():
         runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        payload = request.get_json(silent=True) if request.is_json else None
+        form_payload = dict(payload or request.form)
         result = accept_field_capture_upload(
-            dict(request.form),
+            form_payload,
             image_file=request.files.get("image"),
             video_file=request.files.get("video"),
             runtime_root=runtime,

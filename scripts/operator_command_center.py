@@ -6,9 +6,11 @@ import argparse
 COMMAND_GROUPS = {
     "SAFE NOW": [
         ".\\venv\\Scripts\\python.exe scripts\\system_status_report.py",
+        ".\\venv\\Scripts\\python.exe scripts\\diagnose_field_capture_deploy.py",
         ".\\venv\\Scripts\\python.exe scripts\\phase8_pln_realtime_risk_gate.py",
         ".\\venv\\Scripts\\python.exe scripts\\run_field_capture_server.py",
         "Open browser: http://<IP-LAPTOP>:5000/field-capture",
+        ".\\venv\\Scripts\\python.exe scripts\\phase9_rough_realtime_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\export_vegetation_risk_report.py --mode dry-run",
         ".\\venv\\Scripts\\python.exe scripts\\export_vegetation_risk_map.py --mode dry-run",
         ".\\venv\\Scripts\\python.exe scripts\\run_manual_risk_estimate.py --sample pohon_sono --mode dry-run",

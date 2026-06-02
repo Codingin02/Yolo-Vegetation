@@ -17,7 +17,8 @@ def test_mobile_upload_accepts_metadata_without_model(tmp_path):
     )
     assert response.status_code == 202
     payload = response.get_json()
-    assert payload["status"] == "MODEL_NOT_READY_BUT_UPLOAD_ACCEPTED"
+    assert payload["status"] == "INSUFFICIENT_DATA"
+    assert payload["model_status"] == "MODEL_NOT_READY"
     assert payload["not_accuracy_claim"] is True
     assert (tmp_path / "jobs").exists()
     assert (tmp_path / "results").exists()

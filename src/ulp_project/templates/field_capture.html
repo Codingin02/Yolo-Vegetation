@@ -17,7 +17,26 @@
         <input id="point_id" value="V001_pohon_sono" autocomplete="off">
       </label>
       <label>Jenis objek manual
-        <input id="manual_object_type" value="pohon_sono" autocomplete="off">
+        <input id="species" value="pohon_sono" autocomplete="off">
+      </label>
+      <label>Asset type
+        <select id="asset_type">
+          <option value="span">span</option>
+          <option value="kabel">kabel</option>
+          <option value="trafo">trafo</option>
+        </select>
+      </label>
+      <label>Clearance manual (m)
+        <input id="clearance_m" placeholder="contoh 0.3" inputmode="decimal">
+      </label>
+      <label>Growth rate manual (m/day)
+        <input id="growth_rate_m_per_day" placeholder="contoh 0.01" inputmode="decimal">
+      </label>
+      <label>Tinggi pohon manual (m)
+        <input id="tree_height_m" placeholder="opsional" inputmode="decimal">
+      </label>
+      <label>Tinggi kabel/span manual (m)
+        <input id="cable_or_span_height_m" placeholder="opsional" inputmode="decimal">
       </label>
       <video id="camera" playsinline autoplay muted></video>
       <canvas id="frame" hidden></canvas>
@@ -38,7 +57,7 @@
       <div class="actions">
         <button id="gps-btn" type="button">Ambil GPS</button>
         <button id="ping-btn" type="button">Ping</button>
-        <button id="upload-btn" type="button">Upload</button>
+        <button id="upload-btn" type="button">Submit Inspection</button>
       </div>
     </section>
     <section class="panel">

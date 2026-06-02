@@ -58,7 +58,12 @@
   document.getElementById("upload-btn").addEventListener("click", async function () {
     const form = new FormData();
     form.append("point_id", document.getElementById("point_id").value);
-    form.append("manual_object_type", document.getElementById("manual_object_type").value);
+    form.append("species", document.getElementById("species").value);
+    form.append("asset_type", document.getElementById("asset_type").value);
+    form.append("clearance_m", document.getElementById("clearance_m").value);
+    form.append("growth_rate_m_per_day", document.getElementById("growth_rate_m_per_day").value);
+    form.append("tree_height_m", document.getElementById("tree_height_m").value);
+    form.append("cable_or_span_height_m", document.getElementById("cable_or_span_height_m").value);
     form.append("lat", document.getElementById("lat").value);
     form.append("lon", document.getElementById("lon").value);
     form.append("timestamp", new Date().toISOString());
