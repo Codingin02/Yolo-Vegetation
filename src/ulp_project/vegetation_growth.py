@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+from .vegetation_risk_model import score_pohon_sono_risk
+
 REQUIRED_GROWTH_FIELDS = [
     "point_id",
     "vegetation_class",
@@ -88,3 +90,8 @@ def predict_vegetation_growth_risk(input_dict: dict[str, Any]) -> dict[str, Any]
         "source_quality": input_dict.get("confidence_source") or "UNKNOWN",
         "explanation": "Rule-based planning estimate; not a final scientific prediction.",
     }
+
+
+def predict_phase6_pohon_sono_risk(input_dict: dict[str, Any]) -> dict[str, Any]:
+    """Phase 6 richer risk output for mobile/runtime integration."""
+    return score_pohon_sono_risk(input_dict)

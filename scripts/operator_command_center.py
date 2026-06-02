@@ -5,6 +5,10 @@ COMMAND_GROUPS = {
     "SAFE NOW": [
         ".\\venv\\Scripts\\python.exe scripts\\system_status_report.py",
         ".\\venv\\Scripts\\python.exe scripts\\run_system_runtime.py --mode all-dry-run",
+        ".\\venv\\Scripts\\python.exe scripts\\phase6_mobile_environmental_gate.py",
+        ".\\venv\\Scripts\\python.exe scripts\\fetch_environmental_data.py --point V001_pohon_sono --mode dry-run",
+        ".\\venv\\Scripts\\python.exe scripts\\build_environmental_features.py --point V001_pohon_sono --mode dry-run",
+        ".\\venv\\Scripts\\python.exe scripts\\run_vegetation_risk.py --point V001_pohon_sono --mode sample-risk",
         ".\\venv\\Scripts\\python.exe scripts\\run_flask_dev.py",
         ".\\venv\\Scripts\\python.exe scripts\\build_system_map.py --mode dry-run",
         ".\\venv\\Scripts\\python.exe scripts\\export_system_report.py --mode dry-run",

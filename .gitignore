@@ -16,11 +16,14 @@ data/dataset_yolo/00_review_candidates/
 data/dataset_yolo/field_multiclass_v1/
 data/metadata/*.csv
 data/metadata/*.txt
+data/cache/
+data/runtime/
 dataset_botol/
 results/
 outputs/*
 !outputs/templates/
 !outputs/templates/README.md
+!outputs/templates/*.md
 runs/
 weights/
 models/

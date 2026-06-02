@@ -1,0 +1,9 @@
+{
+  "name": "ULP Field Runtime",
+  "short_name": "ULP Field",
+  "start_url": "/mobile",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#185a4d",
+  "description": "Mobile inspection queue for ULP Project system runtime."
+}

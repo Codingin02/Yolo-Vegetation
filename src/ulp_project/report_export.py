@@ -26,9 +26,11 @@ def build_operator_report(project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
         "gps_status": "READY_OR_PARTIAL",
         "model_status": status.get("model", {"status": "MODEL_NOT_READY"}),
         "risk_engine_status": status.get("risk_engine", {"status": "ENVIRONMENTAL_DATA_NOT_READY"}),
+        "mobile_runtime_status": status.get("mobile_runtime", {"status": "MOBILE_RUNTIME_NOT_CONFIGURED"}),
         "map_dashboard_status": {
             "flask": status["components"].get("flask_scaffold"),
             "map_builder": status["components"].get("map_builder"),
+            "mobile_page": status.get("mobile_runtime", {}).get("mobile_page_exists", False),
         },
         "blocked_items": status["blocked_items"],
         "next_operator_actions": status["next_actions"],

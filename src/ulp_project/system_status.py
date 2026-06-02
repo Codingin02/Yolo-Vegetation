@@ -7,6 +7,7 @@ import subprocess
 from typing import Any
 
 from .classes import CLASS_ORDER
+from .environmental_sources import environmental_source_status, load_environmental_source_config
 from .metadata import IMAGE_EXTENSIONS
 from .paths import PROJECT_ROOT
 
@@ -118,6 +119,10 @@ def collect_project_status(project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
     ]
     model_path = next((path for path in model_candidates if path.exists()), None)
     environmental_ready = False
+    env_source = environmental_source_status(load_environmental_source_config(project_root / "configs" / "surabaya_perak_environment.yaml"))
+    mobile_page = project_root / "src" / "ulp_project" / "templates" / "mobile.html"
+    mobile_static = project_root / "src" / "ulp_project" / "static" / "mobile_app.js"
+    runtime_network_config = project_root / "configs" / "runtime_network.yaml"
 
     return {
         "project_root": str(project_root),
@@ -159,6 +164,8 @@ def collect_project_status(project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
             "map_builder": (project_root / "src" / "ulp_project" / "map_builder.py").exists(),
             "spreadsheet_exporter": (project_root / "src" / "ulp_project" / "spreadsheet_export.py").exists(),
             "environmental_risk_schema": (project_root / "configs" / "environmental_risk_schema.yaml").exists(),
+            "mobile_upload": (project_root / "src" / "ulp_project" / "mobile_upload.py").exists(),
+            "vegetation_risk_model": (project_root / "src" / "ulp_project" / "vegetation_risk_model.py").exists(),
         },
         "model": {
             "status": "MODEL_READY" if model_path else "MODEL_NOT_READY",
@@ -166,7 +173,22 @@ def collect_project_status(project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
         },
         "flask": {
             "status": "READY_WITH_MODEL_NOT_READY_STATE",
-            "routes_contract": ["/", "/health", "/api/status", "/api/classes", "/api/points", "/api/risk/sample", "/api/map/status", "/api/infer/image"],
+            "routes_contract": [
+                "/",
+                "/health",
+                "/api/status",
+                "/api/classes",
+                "/api/points",
+                "/api/risk/sample",
+                "/api/map/status",
+                "/api/infer/image",
+                "/mobile",
+                "/api/mobile/upload-inspection",
+                "/api/mobile/job/<job_id>",
+                "/api/mobile/result/<job_id>",
+                "/api/mobile/network/status",
+                "/api/latency/ping",
+            ],
         },
         "map": {
             "status": "READY_FOR_DRY_RUN",
@@ -178,10 +200,19 @@ def collect_project_status(project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
         },
         "environmental_data": {
             "status": "ENVIRONMENTAL_DATA_NOT_READY" if not environmental_ready else "READY",
+            "source_status": env_source["status"],
+            "area": env_source.get("area"),
         },
         "risk_engine": {
             "status": "RULE_BASED_STUB_READY",
             "requires": "manual environmental CSV and source registry",
+        },
+        "mobile_runtime": {
+            "status": "MOBILE_RUNTIME_READY_MODEL_NOT_READY",
+            "runtime_root": str(project_root / "data" / "runtime"),
+            "mobile_page_exists": mobile_page.exists(),
+            "mobile_static_exists": mobile_static.exists(),
+            "runtime_network_config_exists": runtime_network_config.exists(),
         },
         "overall_status": "READY_FOR_DATASET_BUILD" if labels_ready else "WAITING_FOR_LABELS",
         "blocked_items": [
@@ -227,6 +258,7 @@ def render_status_text(status: dict[str, Any]) -> str:
         f"spreadsheet_status: {status['spreadsheet']['status']}",
         f"environmental_data_status: {status['environmental_data']['status']}",
         f"risk_engine_status: {status['risk_engine']['status']}",
+        f"mobile_runtime_status: {status.get('mobile_runtime', {}).get('status', 'UNKNOWN')}",
         "blocked_items: " + ", ".join(status["blocked_items"]),
     ]
     return "\n".join(lines)

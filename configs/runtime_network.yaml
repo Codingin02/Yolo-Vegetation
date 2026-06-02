@@ -1,0 +1,21 @@
+mobile_runtime:
+  max_upload_image_mb: 8
+  prefer_image_resize_width: 1280
+  job_poll_interval_ms: 1000
+  request_timeout_sec: 20
+  allow_async_processing: true
+  allow_sync_small_image: true
+  tunnel_provider: manual_ngrok_or_cloudflared
+  secret_policy: env_only
+  runtime_upload_dir: data/runtime/mobile_uploads
+  runtime_jobs_dir: data/runtime/jobs
+  runtime_results_dir: data/runtime/results
+network_modes:
+  same_lan_mode:
+    description: HP dan laptop berada pada WiFi atau hotspot yang sama.
+    example_url: http://<laptop-ip>:5000
+  tunnel_mode:
+    description: HP memakai jaringan seluler dan laptop online lewat ngrok atau cloudflared manual.
+    token_policy: Do not store tunnel tokens in Git.
+  offline_queue_mode:
+    description: Browser menyimpan antrean sementara dan mengirim ulang saat koneksi kembali.

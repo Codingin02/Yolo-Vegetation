@@ -20,3 +20,29 @@ sources:
 notes:
   - Nilai lingkungan tidak diisi dari asumsi.
   - Sumber resmi akan dilengkapi setelah Deep Research.
+supported_parameters:
+  weather:
+    - temperature_2m_c
+    - relative_humidity_2m_percent
+    - precipitation_mm
+    - rainfall_7d_mm
+    - rainfall_30d_mm
+    - dry_days_count_14d
+    - wind_speed_10m_ms
+    - wind_gust_ms
+    - solar_radiation
+  soil:
+    - soil_ph
+    - soil_clay_percent
+    - soil_sand_percent
+    - soil_silt_percent
+    - soil_organic_carbon
+    - soil_bulk_density
+    - soil_moisture_proxy
+    - elevation_m
+  vision_future:
+    - distance_to_conductor_m
+    - crown_area_proxy
+    - vegetation_height_proxy
+    - point_age_days
+    - observation_interval_days
