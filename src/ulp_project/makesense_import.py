@@ -121,6 +121,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mode", choices=["dry-run", "copy"], default="dry-run")
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--manifest", type=Path)
+    parser.add_argument(
+        "--write-manifest",
+        action="store_true",
+        help="Write manifest during dry-run. Copy mode writes manifest unless --no-manifest is used.",
+    )
     parser.add_argument("--no-manifest", action="store_true")
     return parser
 
@@ -140,10 +145,13 @@ def main(argv: list[str] | None = None) -> int:
         overwrite=args.overwrite,
     )
     print(format_summary(summary))
-    if not args.no_manifest:
+    should_write_manifest = not args.no_manifest and (args.mode == "copy" or args.write_manifest or args.manifest)
+    if should_write_manifest:
         manifest = args.manifest or METADATA_DIR / f"makesense_import_{args.point}.csv"
         write_import_manifest(summary, manifest)
         print(f"manifest: {manifest}")
+    else:
+        print("manifest: SKIPPED_BY_DRY_RUN")
     if summary.invalid_export_labels:
         return 1
     return 0

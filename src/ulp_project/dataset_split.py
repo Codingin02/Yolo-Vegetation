@@ -159,6 +159,9 @@ def main(argv: list[str] | None = None) -> int:
         overwrite=args.overwrite,
     )
     print(format_summary(summary))
+    if summary.status == "LABELS_NOT_READY" and args.mode == "dry-run":
+        print("result: WAITING_FOR_LABELS")
+        return 0
     return 0 if summary.status in {"DRY_RUN_READY", "BUILT"} else 1
 
 

@@ -87,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"reason: {readiness.reason}")
     if readiness.status != "READY":
         print("result: DATASET_NOT_READY")
-        return 1
+        return 1 if args.run else 0
     command = build_train_command(args)
     print("command:")
     print(" ".join(str(part) for part in command))
