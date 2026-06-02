@@ -5,6 +5,7 @@ __pycache__/
 *.pyc
 .vscode/
 .idea/
+.codex/environments/
 .mypy_cache/
 
 data/raw/

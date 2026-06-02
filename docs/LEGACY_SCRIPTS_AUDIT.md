@@ -2,6 +2,13 @@
 
 Audit ini mengklasifikasikan script lama yang masih untracked di `scripts/`. Tidak ada script lama yang dihapus, di-rename, atau otomatis distage pada Phase 2.
 
+Phase 3 menambahkan status operasional:
+
+- `KEEP_UNTRACKED_REFERENCE`: tetap disimpan sebagai referensi lokal.
+- `DO_NOT_STAGE`: tidak boleh masuk commit otomatis.
+- `DO_NOT_DELETE`: tidak boleh dihapus tanpa konfirmasi user.
+- `REVIEW_LATER`: boleh dinilai ulang setelah pipeline utama stabil.
+
 ## Ringkasan Kategori
 
 | File | Kategori | Alasan | Aksi Phase 2 |
@@ -20,6 +27,25 @@ Audit ini mengklasifikasikan script lama yang masih untracked di `scripts/`. Tid
 | `scripts/tracking_count_horizontal.py` | KEEP_AS_LEGACY_REFERENCE | Tracking kamera COCO/person, bukan dataset PLN final. | Jangan stage; referensi teknis lama. |
 | `scripts/tracking_count_vertical.py` | KEEP_AS_LEGACY_REFERENCE | Tracking kamera COCO/person, bukan dataset PLN final. | Jangan stage; referensi teknis lama. |
 | `scripts/uji_stability.py` | KEEP_AS_LEGACY_REFERENCE | Uji kamera/tracking COCO/person. | Jangan stage; referensi stabilizer lama. |
+
+## Status Phase 3
+
+| File | Status Phase 3 | Catatan |
+|---|---|---|
+| `scripts/auto_capture.py` | KEEP_UNTRACKED_REFERENCE, DO_NOT_STAGE, DO_NOT_DELETE, REVIEW_LATER | Menulis ke `dataset_botol`, jadi tidak cocok untuk branch no-label-touch. |
+| `scripts/check_env.py` | KEEP_UNTRACKED_REFERENCE, DO_NOT_STAGE, DO_NOT_DELETE, REVIEW_LATER | Berguna sebagai referensi environment, tetapi cek kamera tidak dipakai dalam validasi sistem. |
+| `scripts/extract_video_frames.py` | KEEP_UNTRACKED_REFERENCE, DO_NOT_STAGE, DO_NOT_DELETE, REVIEW_LATER | Mode ekstraksi menulis ke `data/processed`; tidak dijalankan Phase 3. |
+| `scripts/patch_labelimg_qt_float_bug.py` | KEEP_UNTRACKED_REFERENCE, DO_NOT_STAGE, DO_NOT_DELETE, REVIEW_LATER | LabelImg sudah bukan jalur utama. |
+| `scripts/prepare_v001_review_set.py` | KEEP_UNTRACKED_REFERENCE, DO_NOT_STAGE, DO_NOT_DELETE, REVIEW_LATER | Bisa menyentuh review candidates; tidak boleh dijalankan saat labeling manual berjalan. |
+| `scripts/sort_field_data.py` | KEEP_UNTRACKED_REFERENCE, DO_NOT_STAGE, DO_NOT_DELETE, REVIEW_LATER | Bisa menyentuh raw/GPS; tidak dipakai di Phase 3. |
+| `scripts/sort_field_data_old_buggy.py` | KEEP_UNTRACKED_REFERENCE, DO_NOT_STAGE, DO_NOT_DELETE, REVIEW_LATER | Referensi lama, bukan pipeline final. |
+| `scripts/tempCodeRunnerFile.py` | KEEP_UNTRACKED_REFERENCE, DO_NOT_STAGE, DO_NOT_DELETE, REVIEW_LATER | File sementara editor. |
+| `scripts/test_flask_ngrok.py` | KEEP_UNTRACKED_REFERENCE, DO_NOT_STAGE, DO_NOT_DELETE, REVIEW_LATER | Ngrok tidak dipakai untuk scaffold lokal. |
+| `scripts/test_folium_map.py` | KEEP_UNTRACKED_REFERENCE, DO_NOT_STAGE, DO_NOT_DELETE, REVIEW_LATER | Menghasilkan output `results`; tidak dipakai Phase 3. |
+| `scripts/test_yolo.py` | KEEP_UNTRACKED_REFERENCE, DO_NOT_STAGE, DO_NOT_DELETE, REVIEW_LATER | Membuka kamera/model COCO; bukan validasi dataset PLN. |
+| `scripts/tracking_count_horizontal.py` | KEEP_UNTRACKED_REFERENCE, DO_NOT_STAGE, DO_NOT_DELETE, REVIEW_LATER | Tracking COCO/person lama. |
+| `scripts/tracking_count_vertical.py` | KEEP_UNTRACKED_REFERENCE, DO_NOT_STAGE, DO_NOT_DELETE, REVIEW_LATER | Tracking COCO/person lama. |
+| `scripts/uji_stability.py` | KEEP_UNTRACKED_REFERENCE, DO_NOT_STAGE, DO_NOT_DELETE, REVIEW_LATER | Uji stabilitas kamera lama. |
 
 ## Kebijakan
 
