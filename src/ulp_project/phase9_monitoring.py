@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,7 @@ from .paths import PROJECT_ROOT
 REPORT_DIR = PROJECT_ROOT / "outputs" / "reports"
 MONITORING_CSV = REPORT_DIR / "vegetation_risk_monitoring.csv"
 RISK_MAP_HTML = REPORT_DIR / "vegetation_risk_map.html"
+SPOOL_DIR = REPORT_DIR / "spool"
 
 PHASE9_MONITORING_COLUMNS = [
     "inspection_id",
@@ -108,7 +110,46 @@ def build_phase9_monitoring_row(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def append_monitoring_row(row: dict[str, Any], output: Path = MONITORING_CSV) -> dict[str, Any]:
+def append_monitoring_row(row: dict[str, Any], output: Path = MONITORING_CSV, retries: int = 3, retry_delay_sec: float = 0.15) -> dict[str, Any]:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    last_error = ""
+    for attempt in range(1, retries + 1):
+        try:
+            _append_row_to_csv(row, output)
+            return {
+                "status": "REPORT_WRITTEN_MAIN_CSV",
+                "path": str(output),
+                "written": True,
+                "attempts": attempt,
+                "operator_warning": "",
+            }
+        except PermissionError as exc:
+            last_error = str(exc)
+            time.sleep(retry_delay_sec)
+    try:
+        spool_path = _spool_path()
+        _append_row_to_csv(row, spool_path)
+        return {
+            "status": "REPORT_WRITTEN_SPOOL_CSV_LOCKED",
+            "path": str(spool_path),
+            "main_csv_path": str(output),
+            "written": True,
+            "attempts": retries,
+            "operator_warning": "CSV sedang terkunci. Tutup Excel atau gunakan fallback spool.",
+            "error": last_error,
+        }
+    except OSError as exc:
+        return {
+            "status": "REPORT_WRITE_FAILED",
+            "path": str(output),
+            "written": False,
+            "attempts": retries,
+            "operator_warning": "CSV tidak bisa ditulis. Cek permission folder outputs/reports.",
+            "error": str(exc),
+        }
+
+
+def _append_row_to_csv(row: dict[str, Any], output: Path) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     exists = output.exists()
     with output.open("a", newline="", encoding="utf-8") as handle:
@@ -116,7 +157,12 @@ def append_monitoring_row(row: dict[str, Any], output: Path = MONITORING_CSV) ->
         if not exists:
             writer.writeheader()
         writer.writerow({column: row.get(column, "") for column in PHASE9_MONITORING_COLUMNS})
-    return {"status": "CSV_REPORT_WRITTEN", "path": str(output), "written": True}
+
+
+def _spool_path() -> Path:
+    SPOOL_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    return SPOOL_DIR / f"vegetation_risk_monitoring_{stamp}.csv"
 
 
 def write_phase9_risk_map(row: dict[str, Any], output: Path = RISK_MAP_HTML) -> dict[str, Any]:

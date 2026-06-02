@@ -14,6 +14,8 @@ COMMAND_GROUPS = {
         ".\\venv\\Scripts\\python.exe scripts\\phase9_rough_realtime_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\phase11_provisional_eta_demo.py",
         ".\\venv\\Scripts\\python.exe scripts\\phase12_end_to_end_rough_demo.py",
+        ".\\venv\\Scripts\\python.exe scripts\\print_secure_capture_options.py",
+        ".\\venv\\Scripts\\python.exe scripts\\phase13_field_capture_hardening_gate.py",
         ".\\venv\\Scripts\\python.exe scripts\\run_realtime_field_pipeline.py --mode all-dry-run",
         ".\\venv\\Scripts\\python.exe scripts\\phase12_calibration_readiness_check.py",
         ".\\venv\\Scripts\\python.exe scripts\\phase12_environmental_readiness_check.py",

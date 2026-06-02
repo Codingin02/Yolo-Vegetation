@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 import csv
+from datetime import datetime
 from pathlib import Path
 
 from .classes import CLASS_ORDER
@@ -17,12 +18,16 @@ from .vegetation_report_writer import latest_report_status
 from .system_status import collect_project_status
 from .vegetation_growth import predict_vegetation_growth_risk
 from .phase9_monitoring import MONITORING_CSV, RISK_MAP_HTML
+from .runtime_error_log import latest_api_error, write_api_error
 
 try:
-    from flask import Flask, jsonify
+    from flask import Flask, jsonify, request
+    from werkzeug.exceptions import HTTPException
 except ImportError:  # pragma: no cover
     Flask = None
     jsonify = None
+    request = None
+    HTTPException = None
 
 
 def get_model_state() -> dict[str, str]:
@@ -36,6 +41,25 @@ def create_app(runtime_root: Path | None = None):
     app = Flask(__name__)
     app.config["ULP_RUNTIME_ROOT"] = str(runtime_root or RUNTIME_ROOT)
     register_field_capture_routes(app)
+
+    @app.errorhandler(Exception)
+    def api_error_handler(error):
+        if request is not None and request.path.startswith("/api/"):
+            logged = write_api_error(error, request.path)
+            status_code = error.code if HTTPException is not None and isinstance(error, HTTPException) else 500
+            return (
+                jsonify(
+                    {
+                        "status": "ERROR",
+                        "error_type": logged["error_type"],
+                        "message": logged["message"][:300],
+                        "request_path": request.path,
+                        "timestamp": logged["timestamp"],
+                    }
+                ),
+                status_code,
+            )
+        raise error
 
     @app.get("/")
     def index():
@@ -136,6 +160,27 @@ def create_app(runtime_root: Path | None = None):
     @app.get("/api/operator/map-status")
     def operator_map_status():
         return jsonify({**risk_map_status(), "phase10_12_map": str(RISK_MAP_HTML), "phase10_12_map_exists": RISK_MAP_HTML.exists()})
+
+    @app.get("/api/operator/latest-error")
+    def operator_latest_error():
+        return jsonify(latest_api_error())
+
+    @app.get("/api/operator/runtime-status")
+    def operator_runtime_status():
+        return jsonify(
+            {
+                "status": "RUNTIME_STATUS_READY",
+                "timestamp": datetime.now().isoformat(),
+                "monitoring_csv": str(MONITORING_CSV),
+                "monitoring_csv_exists": MONITORING_CSV.exists(),
+                "risk_map": str(RISK_MAP_HTML),
+                "risk_map_exists": RISK_MAP_HTML.exists(),
+                "runtime_root": app.config["ULP_RUNTIME_ROOT"],
+                "model_status": "MODEL_NOT_READY",
+                "dataset_status": "WAITING_FOR_LABELS",
+                "field_capture": "/field-capture",
+            }
+        )
 
     return app
 

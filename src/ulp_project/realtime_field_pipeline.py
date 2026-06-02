@@ -42,6 +42,8 @@ def process_realtime_inspection(
         "gps": {"latitude": record.latitude, "longitude": record.longitude},
         "report_written": bool(csv_result.get("written")),
         "report_path": csv_result.get("path"),
+        "report_status": csv_result.get("status"),
+        "report_operator_warning": csv_result.get("operator_warning", ""),
         "map_marker_written": bool(map_result.get("written")),
         "map_path": map_result.get("path"),
         "map_reason": map_result.get("reason") or map_result.get("status"),

@@ -11,8 +11,46 @@
     <header>
       <h1>Field Capture Browser</h1>
       <p>HP hanya input lapangan; laptop memproses dan laporan utama masuk CSV/Sheets + peta.</p>
+      <p class="notice">Kamera/GPS otomatis membutuhkan HTTPS atau permission browser. Upload file tetap bisa dipakai untuk demo kasar.</p>
     </header>
     <section class="panel">
+      <h2>Status Koneksi</h2>
+      <dl class="status-grid">
+        <div><dt>Protocol</dt><dd id="protocol-status">NOT_TESTED</dd></div>
+        <div><dt>Kamera</dt><dd id="camera-status">NOT_TESTED</dd></div>
+        <div><dt>GPS</dt><dd id="gps-status">NOT_TESTED</dd></div>
+        <div><dt>Mode</dt><dd id="mode-label">AUTO_YOLO_NOT_READY</dd></div>
+      </dl>
+      <div class="actions">
+        <button id="ping-btn" type="button">Test koneksi laptop</button>
+        <a class="button-link" href="/api/operator/runtime-status" target="_blank">Runtime status</a>
+      </div>
+      <p class="hint">Protocol labels: HTTP_LAN untuk akses LAN biasa, HTTPS_SECURE untuk tunnel/HTTPS.</p>
+    </section>
+    <section class="panel">
+      <h2>Kamera/File</h2>
+      <video id="camera" playsinline autoplay muted></video>
+      <canvas id="frame" hidden></canvas>
+      <div class="actions">
+        <button id="open-camera" type="button">Buka Kamera</button>
+        <button id="capture-frame" type="button">Capture Frame</button>
+      </div>
+      <label>Upload file foto fallback
+        <input id="image" type="file" accept="image/*" capture="environment">
+      </label>
+    </section>
+    <section class="panel">
+      <h2>GPS</h2>
+      <div class="coords">
+        <input id="lat" placeholder="latitude" inputmode="decimal">
+        <input id="lon" placeholder="longitude" inputmode="decimal">
+      </div>
+      <div class="actions">
+        <button id="gps-btn" type="button">Ambil GPS HP</button>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Mode Manual Provisional / Advanced</h2>
       <label>Point ID
         <input id="point_id" value="V001_pohon_sono" autocomplete="off">
       </label>
@@ -56,25 +94,10 @@
       <label>Kelembapan relatif (%)
         <input id="relative_humidity_percent" placeholder="opsional" inputmode="decimal">
       </label>
-      <video id="camera" playsinline autoplay muted></video>
-      <canvas id="frame" hidden></canvas>
-      <div class="actions">
-        <button id="open-camera" type="button">Buka Kamera</button>
-        <button id="capture-frame" type="button">Capture Frame</button>
-      </div>
-      <label>Upload file foto
-        <input id="image" type="file" accept="image/*" capture="environment">
-      </label>
       <label>Catatan operator
         <textarea id="operator_note" rows="3"></textarea>
       </label>
-      <div class="coords">
-        <input id="lat" placeholder="lat" inputmode="decimal">
-        <input id="lon" placeholder="lon" inputmode="decimal">
-      </div>
       <div class="actions">
-        <button id="gps-btn" type="button">Ambil GPS</button>
-        <button id="ping-btn" type="button">Test koneksi laptop</button>
         <button id="upload-btn" type="button">Submit Inspection</button>
       </div>
       <div class="actions">
@@ -86,6 +109,8 @@
     <section class="panel">
       <h2>Hasil Ringkas</h2>
       <pre id="status-output">FIELD_CAPTURE_READY_MODEL_NOT_READY</pre>
+      <h2>Network Debug</h2>
+      <pre id="network-debug">NETWORK_DEBUG_EMPTY</pre>
     </section>
   </main>
   <script src="/static/field_capture.js"></script>

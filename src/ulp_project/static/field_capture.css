@@ -27,6 +27,34 @@ h1 {
   margin: 12px 0;
 }
 
+.notice {
+  padding: 10px;
+  border-left: 4px solid #b88700;
+  background: #fff7d7;
+}
+
+.status-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.status-grid div {
+  border: 1px solid #d7dfdc;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.status-grid dt {
+  font-size: 12px;
+  color: #52645e;
+}
+
+.status-grid dd {
+  margin: 4px 0 0;
+  font-weight: 700;
+}
+
 label {
   display: block;
   margin-bottom: 10px;

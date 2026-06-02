@@ -1,26 +1,96 @@
 (function () {
   const output = document.getElementById("status-output");
+  const debug = document.getElementById("network-debug");
   const video = document.getElementById("camera");
   const canvas = document.getElementById("frame");
+  const submitButton = document.getElementById("upload-btn");
   let capturedBlob = null;
+  let inFlight = false;
+  let lastSubmitAt = 0;
+  const debounceMs = 2000;
 
   function setStatus(payload) {
     output.textContent = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
   }
 
+  function setDebug(payload) {
+    debug.textContent = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+  }
+
+  function setFieldStatus(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  function updateProtocolStatus() {
+    const secure = window.isSecureContext || window.location.protocol === "https:";
+    setFieldStatus("protocol-status", secure ? "HTTPS_SECURE" : "HTTP_LAN");
+    if (!secure) {
+      setFieldStatus("camera-status", "BLOCKED_INSECURE_CONTEXT");
+      setFieldStatus("gps-status", "BLOCKED_INSECURE_CONTEXT");
+    }
+  }
+
+  async function safeFetchJson(endpoint, options) {
+    const response = await fetch(endpoint, options);
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      const text = await response.text();
+      return {
+        status: "API_ERROR_NON_JSON_RESPONSE",
+        endpoint,
+        status_code: response.status,
+        response_ok: response.ok,
+        preview: text.slice(0, 300)
+      };
+    }
+    const payload = await response.json();
+    if (!response.ok) {
+      return {
+        status: "API_ERROR_JSON_RESPONSE",
+        endpoint,
+        status_code: response.status,
+        payload
+      };
+    }
+    return payload;
+  }
+
+  function captureFingerprint() {
+    const bucket = Math.floor(Date.now() / 5000);
+    const selected = document.getElementById("image").files[0];
+    return [
+      document.getElementById("point_id").value,
+      bucket,
+      selected ? selected.name : capturedBlob ? "captured-frame" : "",
+      document.getElementById("lat").value,
+      document.getElementById("lon").value
+    ].join("|");
+  }
+
   document.getElementById("open-camera").addEventListener("click", async function () {
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setFieldStatus("camera-status", window.isSecureContext ? "NOT_AVAILABLE" : "BLOCKED_INSECURE_CONTEXT");
+        setStatus("CAMERA_NOT_AVAILABLE_USE_FILE_UPLOAD_FALLBACK");
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
       video.srcObject = stream;
+      setFieldStatus("camera-status", "AVAILABLE");
+      setFieldStatus("mode-label", "FILE_UPLOAD_FALLBACK");
       setStatus("CAMERA_READY");
     } catch (error) {
-      setStatus({ status: "CAMERA_NOT_READY", message: String(error) });
+      const message = String(error);
+      const blocked = !window.isSecureContext;
+      setFieldStatus("camera-status", blocked ? "BLOCKED_INSECURE_CONTEXT" : "PERMISSION_DENIED");
+      setStatus({ status: blocked ? "CAMERA_BLOCKED_INSECURE_CONTEXT" : "CAMERA_PERMISSION_DENIED", message, fallback: "Gunakan upload file foto." });
     }
   });
 
   document.getElementById("capture-frame").addEventListener("click", function () {
     if (!video.videoWidth) {
-      setStatus("CAMERA_FRAME_NOT_READY");
+      setStatus("CAMERA_FRAME_NOT_READY_USE_FILE_UPLOAD_FALLBACK");
       return;
     }
     canvas.width = video.videoWidth;
@@ -28,12 +98,14 @@
     canvas.getContext("2d").drawImage(video, 0, 0);
     canvas.toBlob(function (blob) {
       capturedBlob = blob;
+      setFieldStatus("mode-label", "FILE_UPLOAD_FALLBACK");
       setStatus("FRAME_CAPTURED_READY_TO_UPLOAD");
     }, "image/jpeg", 0.82);
   });
 
   document.getElementById("gps-btn").addEventListener("click", function () {
     if (!navigator.geolocation) {
+      setFieldStatus("gps-status", "SIGNAL_NOT_READY");
       setStatus("GPS_NOT_AVAILABLE_IN_BROWSER");
       return;
     }
@@ -41,21 +113,34 @@
       function (position) {
         document.getElementById("lat").value = position.coords.latitude.toFixed(7);
         document.getElementById("lon").value = position.coords.longitude.toFixed(7);
+        setFieldStatus("gps-status", "AVAILABLE");
         setStatus("GPS_READY");
       },
-      function () {
-        setStatus("GPS_PERMISSION_OR_SIGNAL_NOT_READY");
+      function (error) {
+        const blocked = !window.isSecureContext;
+        setFieldStatus("gps-status", blocked ? "BLOCKED_INSECURE_CONTEXT" : error.code === 1 ? "PERMISSION_DENIED" : "SIGNAL_NOT_READY");
+        setStatus({ status: "GPS_PERMISSION_OR_SIGNAL_NOT_READY", message: String(error.message || error), fallback: "Isi latitude/longitude manual jika tersedia." });
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
     );
   });
 
   document.getElementById("ping-btn").addEventListener("click", async function () {
-    const response = await fetch("/api/network/whoami");
-    setStatus(await response.json());
+    const payload = await safeFetchJson("/api/network/whoami");
+    setDebug(payload);
+    setStatus(payload);
   });
 
   document.getElementById("upload-btn").addEventListener("click", async function () {
+    const now = Date.now();
+    if (inFlight || now - lastSubmitAt < debounceMs) {
+      setStatus({ status: "SUBMIT_DEBOUNCED", message: "Tunggu minimal 2 detik sebelum submit ulang." });
+      return;
+    }
+    inFlight = true;
+    lastSubmitAt = now;
+    submitButton.disabled = true;
+    submitButton.textContent = "Submitting...";
     const form = new FormData();
     form.append("point_id", document.getElementById("point_id").value);
     form.append("species", document.getElementById("species").value);
@@ -75,6 +160,7 @@
     form.append("timestamp", new Date().toISOString());
     form.append("operator_note", document.getElementById("operator_note").value);
     form.append("network_mode", navigator.onLine ? "same_lan_mode" : "offline_queue_mode");
+    form.append("capture_fingerprint", captureFingerprint());
     const selected = document.getElementById("image").files[0];
     if (capturedBlob) {
       form.append("image", capturedBlob, "field_capture_frame.jpg");
@@ -82,11 +168,18 @@
       form.append("image", selected);
     }
     try {
-      const response = await fetch("/api/field-capture/upload", { method: "POST", body: form });
-      setStatus(await response.json());
+      const payload = await safeFetchJson("/api/field-capture/upload", { method: "POST", body: form });
+      setDebug(payload);
+      setStatus(payload);
     } catch (error) {
       localStorage.setItem("field_capture_pending_upload", "true");
       setStatus({ status: "OFFLINE_QUEUE_PENDING", message: String(error) });
+    } finally {
+      inFlight = false;
+      submitButton.disabled = false;
+      submitButton.textContent = "Submit Inspection";
     }
   });
+
+  updateProtocolStatus();
 })();
