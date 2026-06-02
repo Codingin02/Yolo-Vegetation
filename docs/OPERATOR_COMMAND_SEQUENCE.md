@@ -1,5 +1,34 @@
 # Operator Command Sequence
 
+## Phase 10-12 Field Capture LAN Deploy dan Demo Kasar
+
+```powershell
+Set-Location E:\Projects\ULP_Project
+.\venv\Scripts\python.exe scripts\diagnose_field_capture_deploy.py
+.\venv\Scripts\python.exe scripts\run_field_capture_server.py --host 0.0.0.0 --port 5000
+```
+
+Buka dari HP browser:
+
+```text
+http://<IP-LAPTOP>:5000/field-capture
+```
+
+Tes tanpa HP:
+
+```powershell
+.\venv\Scripts\python.exe scripts\phase10_lan_deploy_smoke.py
+.\venv\Scripts\python.exe scripts\phase11_provisional_eta_demo.py
+.\venv\Scripts\python.exe scripts\phase12_end_to_end_rough_demo.py
+```
+
+Output utama:
+
+- CSV monitoring: `outputs\reports\vegetation_risk_monitoring.csv`
+- Map risiko: `outputs\reports\vegetation_risk_map.html`
+
+Catatan: HP hanya field capture browser. Laptop adalah processing server. Jangan membuat APK/mobile app.
+
 Semua command dijalankan dari:
 
 ```powershell

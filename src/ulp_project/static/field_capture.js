@@ -51,7 +51,7 @@
   });
 
   document.getElementById("ping-btn").addEventListener("click", async function () {
-    const response = await fetch("/api/field-capture/ping");
+    const response = await fetch("/api/network/whoami");
     setStatus(await response.json());
   });
 
@@ -64,6 +64,12 @@
     form.append("growth_rate_m_per_day", document.getElementById("growth_rate_m_per_day").value);
     form.append("tree_height_m", document.getElementById("tree_height_m").value);
     form.append("cable_or_span_height_m", document.getElementById("cable_or_span_height_m").value);
+    form.append("asset_height_m", document.getElementById("asset_height_m").value);
+    form.append("span_lowest_point_height_m", document.getElementById("span_lowest_point_height_m").value);
+    form.append("season", document.getElementById("season").value);
+    form.append("rainfall_mm", document.getElementById("rainfall_mm").value);
+    form.append("temperature_c", document.getElementById("temperature_c").value);
+    form.append("relative_humidity_percent", document.getElementById("relative_humidity_percent").value);
     form.append("lat", document.getElementById("lat").value);
     form.append("lon", document.getElementById("lon").value);
     form.append("timestamp", new Date().toISOString());

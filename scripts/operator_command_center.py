@@ -7,10 +7,16 @@ COMMAND_GROUPS = {
     "SAFE NOW": [
         ".\\venv\\Scripts\\python.exe scripts\\system_status_report.py",
         ".\\venv\\Scripts\\python.exe scripts\\diagnose_field_capture_deploy.py",
+        ".\\venv\\Scripts\\python.exe scripts\\phase10_lan_deploy_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\phase8_pln_realtime_risk_gate.py",
-        ".\\venv\\Scripts\\python.exe scripts\\run_field_capture_server.py",
+        ".\\venv\\Scripts\\python.exe scripts\\run_field_capture_server.py --host 0.0.0.0 --port 5000",
         "Open browser: http://<IP-LAPTOP>:5000/field-capture",
         ".\\venv\\Scripts\\python.exe scripts\\phase9_rough_realtime_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\phase11_provisional_eta_demo.py",
+        ".\\venv\\Scripts\\python.exe scripts\\phase12_end_to_end_rough_demo.py",
+        ".\\venv\\Scripts\\python.exe scripts\\run_realtime_field_pipeline.py --mode all-dry-run",
+        ".\\venv\\Scripts\\python.exe scripts\\phase12_calibration_readiness_check.py",
+        ".\\venv\\Scripts\\python.exe scripts\\phase12_environmental_readiness_check.py",
         ".\\venv\\Scripts\\python.exe scripts\\export_vegetation_risk_report.py --mode dry-run",
         ".\\venv\\Scripts\\python.exe scripts\\export_vegetation_risk_map.py --mode dry-run",
         ".\\venv\\Scripts\\python.exe scripts\\run_manual_risk_estimate.py --sample pohon_sono --mode dry-run",
@@ -42,9 +48,40 @@ COMMAND_GROUPS = {
     ],
 }
 
+MODE_GROUPS = {
+    "phase10-deploy": [
+        ".\\venv\\Scripts\\python.exe scripts\\diagnose_field_capture_deploy.py",
+        ".\\venv\\Scripts\\python.exe scripts\\phase10_lan_deploy_smoke.py",
+    ],
+    "field-capture-server": [
+        ".\\venv\\Scripts\\python.exe scripts\\run_field_capture_server.py --host 0.0.0.0 --port 5000",
+        "Open HP browser: http://<IP-LAPTOP>:5000/field-capture",
+    ],
+    "rough-smoke": [
+        ".\\venv\\Scripts\\python.exe scripts\\phase10_lan_deploy_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\phase11_provisional_eta_demo.py",
+        ".\\venv\\Scripts\\python.exe scripts\\phase12_end_to_end_rough_demo.py",
+    ],
+    "phase12-status": [
+        ".\\venv\\Scripts\\python.exe scripts\\run_realtime_field_pipeline.py --mode status",
+        ".\\venv\\Scripts\\python.exe scripts\\phase12_calibration_readiness_check.py",
+        ".\\venv\\Scripts\\python.exe scripts\\phase12_environmental_readiness_check.py",
+    ],
+    "phase12-demo": [".\\venv\\Scripts\\python.exe scripts\\phase12_end_to_end_rough_demo.py"],
+    "phase12-export-report": [".\\venv\\Scripts\\python.exe scripts\\export_google_sheets_ready_csv.py --mode dry-run"],
+    "phase12-export-map": [".\\venv\\Scripts\\python.exe scripts\\export_vegetation_risk_map.py --mode dry-run"],
+    "phase12-calibration-check": [".\\venv\\Scripts\\python.exe scripts\\phase12_calibration_readiness_check.py"],
+    "phase12-environment-check": [".\\venv\\Scripts\\python.exe scripts\\phase12_environmental_readiness_check.py"],
+}
 
-def render_command_center() -> str:
+
+def render_command_center(mode: str = "all") -> str:
     lines = ["ULP Project Operator Command Center", "Set-Location E:\\Projects\\ULP_Project", ""]
+    if mode != "all":
+        lines.append(mode)
+        for command in MODE_GROUPS.get(mode, []):
+            lines.append(f"  {command}")
+        return "\n".join(lines)
     for group, commands in COMMAND_GROUPS.items():
         lines.append(group)
         for command in commands:
@@ -56,8 +93,9 @@ def render_command_center() -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Print safe ULP operator commands.")
     parser.add_argument("--dry-run", action="store_true")
-    parser.parse_args()
-    print(render_command_center())
+    parser.add_argument("--mode", choices=["all", *MODE_GROUPS.keys()], default="all")
+    args = parser.parse_args()
+    print(render_command_center(args.mode))
     return 0
 
 

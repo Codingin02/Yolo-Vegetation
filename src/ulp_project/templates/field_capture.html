@@ -38,6 +38,24 @@
       <label>Tinggi kabel/span manual (m)
         <input id="cable_or_span_height_m" placeholder="opsional" inputmode="decimal">
       </label>
+      <label>Tinggi asset manual (m)
+        <input id="asset_height_m" placeholder="opsional" inputmode="decimal">
+      </label>
+      <label>Titik terendah span (m)
+        <input id="span_lowest_point_height_m" placeholder="opsional" inputmode="decimal">
+      </label>
+      <label>Musim / cuaca ringkas
+        <input id="season" placeholder="opsional">
+      </label>
+      <label>Curah hujan (mm)
+        <input id="rainfall_mm" placeholder="opsional" inputmode="decimal">
+      </label>
+      <label>Suhu (C)
+        <input id="temperature_c" placeholder="opsional" inputmode="decimal">
+      </label>
+      <label>Kelembapan relatif (%)
+        <input id="relative_humidity_percent" placeholder="opsional" inputmode="decimal">
+      </label>
       <video id="camera" playsinline autoplay muted></video>
       <canvas id="frame" hidden></canvas>
       <div class="actions">
@@ -56,8 +74,13 @@
       </div>
       <div class="actions">
         <button id="gps-btn" type="button">Ambil GPS</button>
-        <button id="ping-btn" type="button">Ping</button>
+        <button id="ping-btn" type="button">Test koneksi laptop</button>
         <button id="upload-btn" type="button">Submit Inspection</button>
+      </div>
+      <div class="actions">
+        <a class="button-link" href="/api/network/whoami" target="_blank">Network debug</a>
+        <a class="button-link" href="/api/operator/latest-report" target="_blank">Export CSV status</a>
+        <a class="button-link" href="/api/operator/map-status" target="_blank">Map status</a>
       </div>
     </section>
     <section class="panel">

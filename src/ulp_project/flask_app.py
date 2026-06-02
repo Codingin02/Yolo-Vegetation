@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import csv
 from pathlib import Path
 
 from .classes import CLASS_ORDER
@@ -15,6 +16,7 @@ from .risk_map_exporter import risk_map_status
 from .vegetation_report_writer import latest_report_status
 from .system_status import collect_project_status
 from .vegetation_growth import predict_vegetation_growth_risk
+from .phase9_monitoring import MONITORING_CSV, RISK_MAP_HTML
 
 try:
     from flask import Flask, jsonify
@@ -102,24 +104,47 @@ def create_app(runtime_root: Path | None = None):
 
     @app.get("/operator")
     def operator_dashboard():
-        return jsonify(
-            {
-                "status": "OPERATOR_DASHBOARD_READY",
-                "field_capture": "/field-capture",
-                "latest_report": "/api/operator/latest-report",
-                "map_status": "/api/operator/map-status",
-            }
-        )
+        count = _monitoring_row_count()
+        html = f"""
+        <html><body>
+        <h1>Operator Server Dashboard</h1>
+        <p>Server status: OPERATOR_DASHBOARD_READY</p>
+        <p>Last inspection count: {count}</p>
+        <p>CSV report: {MONITORING_CSV}</p>
+        <p>Risk map: {RISK_MAP_HTML}</p>
+        <p>Model status: MODEL_NOT_READY</p>
+        <p>Calibration status: MANUAL_CLEARANCE_PROVISIONAL / CALIBRATION_WAITING_FOR_FIELD_DATA</p>
+        <p>Environmental status: ENVIRONMENT_PARTIAL_OR_MANUAL_REQUIRED</p>
+        <p>Warning: ETA masih provisional sampai YOLO, kalibrasi, data lingkungan, dan ground truth valid.</p>
+        </body></html>
+        """
+        return html
 
     @app.get("/api/operator/latest-report")
     def operator_latest_report():
-        return jsonify(latest_report_status())
+        scaffold = latest_report_status()
+        return jsonify(
+            {
+                **scaffold,
+                "phase10_12_monitoring_csv": str(MONITORING_CSV),
+                "monitoring_csv_exists": MONITORING_CSV.exists(),
+                "inspection_count": _monitoring_row_count(),
+                "status": "LOCAL_MONITORING_CSV_READY" if MONITORING_CSV.exists() else "LOCAL_MONITORING_CSV_NOT_WRITTEN_YET",
+            }
+        )
 
     @app.get("/api/operator/map-status")
     def operator_map_status():
-        return jsonify(risk_map_status())
+        return jsonify({**risk_map_status(), "phase10_12_map": str(RISK_MAP_HTML), "phase10_12_map_exists": RISK_MAP_HTML.exists()})
 
     return app
+
+
+def _monitoring_row_count() -> int:
+    if not MONITORING_CSV.exists():
+        return 0
+    with MONITORING_CSV.open("r", newline="", encoding="utf-8") as handle:
+        return max(sum(1 for _ in csv.DictReader(handle)), 0)
 
 
 def main() -> int:

@@ -9,20 +9,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from ulp_project.google_sheets_export import export_google_sheets_ready_csv  # noqa: E402
-from ulp_project.phase9_monitoring import MONITORING_CSV, PHASE9_MONITORING_COLUMNS  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Export spreadsheet-ready vegetation monitoring report status.")
+    parser = argparse.ArgumentParser(description="Report Google Sheets-ready local CSV status.")
     parser.add_argument("--mode", choices=["dry-run", "write"], default="dry-run")
     args = parser.parse_args(argv)
-    result = {
-        **export_google_sheets_ready_csv(mode=args.mode),
-        "monitoring_csv": str(MONITORING_CSV),
-        "columns": PHASE9_MONITORING_COLUMNS,
-        "local_csv_exists": MONITORING_CSV.exists(),
-    }
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    print(json.dumps(export_google_sheets_ready_csv(mode=args.mode), indent=2, ensure_ascii=False))
     return 0
 
 

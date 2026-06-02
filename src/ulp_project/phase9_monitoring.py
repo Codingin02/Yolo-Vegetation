@@ -14,6 +14,7 @@ MONITORING_CSV = REPORT_DIR / "vegetation_risk_monitoring.csv"
 RISK_MAP_HTML = REPORT_DIR / "vegetation_risk_map.html"
 
 PHASE9_MONITORING_COLUMNS = [
+    "inspection_id",
     "timestamp",
     "job_id",
     "point_id",
@@ -22,17 +23,37 @@ PHASE9_MONITORING_COLUMNS = [
     "latitude",
     "longitude",
     "tree_height_m",
+    "asset_height_m",
+    "span_lowest_point_height_m",
+    "cable_height_m",
     "cable_or_span_height_m",
     "clearance_m",
     "growth_rate_m_per_day",
+    "adjusted_growth_rate_m_per_day",
     "eta_days",
     "eta_months",
     "risk_priority",
+    "action_recommendation",
     "status",
     "mode",
     "reason",
+    "season",
+    "rainfall_mm",
+    "temperature_c",
+    "relative_humidity_percent",
+    "soil_moisture",
+    "soil_ph",
+    "solar_radiation",
+    "evapotranspiration",
+    "wind_speed",
+    "environmental_source",
+    "measurement_source",
+    "confidence_status",
     "image_path",
+    "photo_path",
+    "map_link",
     "environment_source_status",
+    "environmental_data_status",
     "calibration_status",
     "model_status",
     "operator_notes",
@@ -41,6 +62,7 @@ PHASE9_MONITORING_COLUMNS = [
 
 def build_phase9_monitoring_row(payload: dict[str, Any]) -> dict[str, Any]:
     return {
+        "inspection_id": payload.get("inspection_id", ""),
         "timestamp": payload.get("timestamp") or datetime.now().isoformat(),
         "job_id": payload.get("job_id", ""),
         "point_id": payload.get("point_id", ""),
@@ -49,20 +71,40 @@ def build_phase9_monitoring_row(payload: dict[str, Any]) -> dict[str, Any]:
         "latitude": payload.get("latitude", ""),
         "longitude": payload.get("longitude", ""),
         "tree_height_m": payload.get("tree_height_m", ""),
+        "asset_height_m": payload.get("asset_height_m", ""),
+        "span_lowest_point_height_m": payload.get("span_lowest_point_height_m", ""),
+        "cable_height_m": payload.get("cable_height_m", ""),
         "cable_or_span_height_m": payload.get("cable_or_span_height_m", ""),
         "clearance_m": payload.get("clearance_m", ""),
         "growth_rate_m_per_day": payload.get("growth_rate_m_per_day", ""),
+        "adjusted_growth_rate_m_per_day": payload.get("adjusted_growth_rate_m_per_day", ""),
         "eta_days": payload.get("eta_days", ""),
         "eta_months": payload.get("eta_months", ""),
         "risk_priority": payload.get("risk_priority", ""),
+        "action_recommendation": payload.get("action_recommendation", ""),
         "status": payload.get("status", ""),
         "mode": payload.get("mode", ""),
-        "reason": payload.get("reason", ""),
-        "image_path": payload.get("image_path", ""),
-        "environment_source_status": payload.get("environment_source_status", "ENVIRONMENT_NOT_REQUIRED_FOR_MANUAL_DEMO"),
+        "reason": payload.get("reason") or payload.get("status_reason", ""),
+        "season": payload.get("season", ""),
+        "rainfall_mm": payload.get("rainfall_mm", ""),
+        "temperature_c": payload.get("temperature_c", ""),
+        "relative_humidity_percent": payload.get("relative_humidity_percent", ""),
+        "soil_moisture": payload.get("soil_moisture", ""),
+        "soil_ph": payload.get("soil_ph", ""),
+        "solar_radiation": payload.get("solar_radiation", ""),
+        "evapotranspiration": payload.get("evapotranspiration", ""),
+        "wind_speed": payload.get("wind_speed", ""),
+        "environmental_source": payload.get("environmental_source", ""),
+        "measurement_source": payload.get("measurement_source", "manual"),
+        "confidence_status": payload.get("confidence_status", "PROVISIONAL"),
+        "image_path": payload.get("image_path") or payload.get("photo_path", ""),
+        "photo_path": payload.get("photo_path") or payload.get("image_path", ""),
+        "map_link": payload.get("map_link", ""),
+        "environment_source_status": payload.get("environment_source_status") or payload.get("environmental_data_status", "ENVIRONMENT_NOT_REQUIRED_FOR_MANUAL_DEMO"),
+        "environmental_data_status": payload.get("environmental_data_status") or payload.get("environment_source_status", "ENVIRONMENT_NOT_REQUIRED_FOR_MANUAL_DEMO"),
         "calibration_status": payload.get("calibration_status", "MANUAL_CLEARANCE_PROVISIONAL"),
         "model_status": payload.get("model_status", "MODEL_NOT_READY"),
-        "operator_notes": payload.get("operator_notes", ""),
+        "operator_notes": payload.get("operator_notes") or payload.get("notes", ""),
     }
 
 
@@ -91,6 +133,8 @@ def write_phase9_risk_map(row: dict[str, Any], output: Path = RISK_MAP_HTML) -> 
         f"eta_days: {row.get('eta_days')}<br>"
         f"eta_months: {row.get('eta_months')}<br>"
         f"risk_priority: {row.get('risk_priority')}<br>"
+        f"action: {row.get('action_recommendation')}<br>"
+        f"confidence: {row.get('confidence_status')}<br>"
         f"status: {row.get('status')}<br>"
         f"notes: {row.get('operator_notes')}"
     )

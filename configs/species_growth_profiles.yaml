@@ -2,14 +2,46 @@ species:
   pohon_sono:
     species_name: pohon_sono
     display_name: "Pohon Sono"
+    growth_rate_min_m_per_day:
+    growth_rate_typical_m_per_day:
+    growth_rate_max_m_per_day:
+    pruning_buffer_m:
     base_growth_rate_m_per_day:
     min_growth_rate_m_per_day:
     max_growth_rate_m_per_day:
     source_name:
     source_url_or_note: "Isi setelah kalibrasi lokal atau literatur valid tersedia."
     confidence_level: LOW
+    source_status: LITERATURE_OR_FIELD_CALIBRATION_REQUIRED
     applicable_region: "Surabaya Utara - Perak"
     notes: "Do not invent growth rate. ETA must be GROWTH_RATE_NOT_READY until a real source exists."
+  generic_fast_tree:
+    species_name: generic_fast_tree
+    display_name: "Generic Fast Tree"
+    growth_rate_min_m_per_day:
+    growth_rate_typical_m_per_day:
+    growth_rate_max_m_per_day:
+    pruning_buffer_m:
+    source_status: LITERATURE_OR_FIELD_CALIBRATION_REQUIRED
+    notes: "Use only with operator-provided/manual calibrated growth rate."
+  generic_medium_tree:
+    species_name: generic_medium_tree
+    display_name: "Generic Medium Tree"
+    growth_rate_min_m_per_day:
+    growth_rate_typical_m_per_day:
+    growth_rate_max_m_per_day:
+    pruning_buffer_m:
+    source_status: LITERATURE_OR_FIELD_CALIBRATION_REQUIRED
+    notes: "Use only with operator-provided/manual calibrated growth rate."
+  generic_slow_tree:
+    species_name: generic_slow_tree
+    display_name: "Generic Slow Tree"
+    growth_rate_min_m_per_day:
+    growth_rate_typical_m_per_day:
+    growth_rate_max_m_per_day:
+    pruning_buffer_m:
+    source_status: LITERATURE_OR_FIELD_CALIBRATION_REQUIRED
+    notes: "Use only with operator-provided/manual calibrated growth rate."
   generic_tree:
     species_name: generic_tree
     display_name: "Generic Tree"

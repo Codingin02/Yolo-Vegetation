@@ -66,6 +66,19 @@ button {
   font-weight: 700;
 }
 
+.button-link {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px;
+  border-radius: 6px;
+  background: #345d8a;
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+
 pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
