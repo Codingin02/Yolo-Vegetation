@@ -1,12 +1,20 @@
 columns:
+  - report_id
   - timestamp
+  - session_id
+  - frame_id_snapshot
   - point_id
+  - object_id
   - inspection_id
   - operator_name
   - species
+  - class_name
   - detected_classes
   - gps_lat
   - gps_lon
+  - latitude
+  - longitude
+  - gps_accuracy_m
   - region
   - asset_type
   - pole_id
@@ -16,7 +24,16 @@ columns:
   - horizontal_distance_m
   - vertical_clearance_m
   - minimum_clearance_m
+  - selected_clearance_m_raw
+  - selected_clearance_m_stable
+  - selected_clearance_display_m
+  - safe_clearance_min_m
+  - distance_zone_status
   - clearance_status
+  - eta_min_days
+  - eta_expected_days
+  - eta_max_days
+  - eta_expected_months
   - season_label
   - rainfall_7d_mm
   - rainfall_30d_mm
@@ -31,12 +48,18 @@ columns:
   - recommended_action
   - recommended_trim_deadline
   - confidence
+  - measurement_quality_score
+  - measurement_quality_label
   - model_status
   - calibration_status
   - environmental_data_status
   - photo_path
+  - image_evidence_path
   - map_link
   - notes
+  - report_trigger
+  - map_marker_status
+  - reason_codes
 output:
   csv_default_path: outputs/reports/vegetation_risk_report.csv
   xlsx_default_path: outputs/reports/vegetation_risk_report.xlsx

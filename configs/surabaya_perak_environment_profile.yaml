@@ -1,0 +1,17 @@
+region:
+  name: Surabaya Utara - Perak
+  city: Surabaya
+  province: Jawa Timur
+  country: Indonesia
+  default_timezone: Asia/Jakarta
+  default_latitude:
+  default_longitude:
+  coordinate_source: operator_or_field_gps_required
+status_policy:
+  missing: ENVIRONMENT_NOT_READY
+  manual_csv: MANUAL_ENVIRONMENT_READY
+  online: ONLINE_ENVIRONMENT_READY
+cache_dir: data/runtime/environmental
+notes:
+  - "Jangan mengunci satu koordinat untuk seluruh ULP Perak."
+  - "Setiap titik inspeksi sebaiknya memakai GPS field point masing-masing."

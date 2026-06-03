@@ -20,6 +20,7 @@ from .auto_measurement import measure_from_detections, run_auto_measurement_for_
 from .job_queue import RUNTIME_ROOT
 from .phase9_monitoring import append_monitoring_row, build_phase9_monitoring_row, write_phase9_risk_map
 from .realtime_eta_pipeline import run_realtime_eta_pipeline
+from .realtime_inference_contract import infer_realtime_frame
 from .safety_clearance_policy import classify_distance_zone, eta_status_from_days
 from .temporal_stabilizer import TemporalStabilizer
 from .yolo_model_resolver import resolve_yolo_model
@@ -147,6 +148,7 @@ def process_realtime_frame(payload: dict[str, Any], *, demo_mock: bool = False, 
 
     image_status = _image_payload_status(payload)
     model = resolve_yolo_model()
+    inference_contract = infer_realtime_frame(None, demo_mock=demo_mock)
     if demo_mock:
         measurement = measure_from_detections(_mock_phase16_detections(), asset_profile={"pole_height_reference_m": 12}, point_id=str(payload.get("point_id", "")))
         measurement["model_status"] = "DEMO_MOCK_NOT_REAL_FIELD_RESULT"
@@ -185,6 +187,7 @@ def process_realtime_frame(payload: dict[str, Any], *, demo_mock: bool = False, 
         queue_status=queue_status,
         started=started,
         image_status=image_status,
+        inference_contract=inference_contract,
         model_status=measurement.get("model_status", model["status"]),
         detection_status="NO_FAKE_DETECTION_MODEL_NOT_READY" if measurement.get("model_status") == "MODEL_NOT_READY" else measurement.get("measurement_status"),
         measurement_status=measurement.get("measurement_status"),

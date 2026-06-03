@@ -1,0 +1,17 @@
+runtime_store: data/runtime/calibration
+template_csv: data/templates/calibration_session_template.csv
+reference_types:
+  - struktur_penyangga_20kv
+  - known_marker
+  - manual_reference
+quality_limits:
+  min_known_height_m: 0.1
+  max_known_height_m: 40
+  min_reference_bbox_height_px: 10
+  max_scale_m_per_px: 1.0
+  min_image_width_px: 320
+  min_image_height_px: 240
+default_status: CALIBRATION_NOT_READY
+notes:
+  - "Tinggi referensi wajib dari input PLN/manual/lapangan, bukan asumsi."
+  - "Hasil session runtime disimpan di data/runtime/calibration yang di-ignore."

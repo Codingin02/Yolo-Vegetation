@@ -1,0 +1,73 @@
+# Final Operator Command Sequence
+
+Semua command dijalankan dari:
+
+```powershell
+Set-Location E:\Projects\ULP_Project
+```
+
+## Diagnose
+
+```powershell
+.\venv\Scripts\python.exe scripts\operator_command_center.py --diagnose
+```
+
+## Print Links
+
+```powershell
+.\venv\Scripts\python.exe scripts\operator_command_center.py --print-links
+```
+
+## Run Remote Server
+
+```powershell
+.\venv\Scripts\python.exe scripts\run_remote_realtime_server.py --host 0.0.0.0 --port 5000
+```
+
+## Tunnel Manual
+
+```powershell
+ngrok http 5000
+# atau
+cloudflared tunnel --url http://localhost:5000
+```
+
+HP membuka:
+
+```text
+https://<public-tunnel-url>/field-capture
+```
+
+## Field Trial Dry Run
+
+```powershell
+.\venv\Scripts\python.exe scripts\run_field_trial_operator.py --mode dry-run
+```
+
+## Export Report
+
+```powershell
+.\venv\Scripts\python.exe scripts\export_google_sheets_ready_csv.py --mode local
+```
+
+## Export Map
+
+```powershell
+.\venv\Scripts\python.exe scripts\export_latest_risk_map.py
+```
+
+## Setelah Labeling dan Training Selesai
+
+Masukkan `best.pt` ke salah satu path kandidat yang di-ignore, misalnya:
+
+```text
+models/field/best.pt
+```
+
+Lalu jalankan:
+
+```powershell
+.\venv\Scripts\python.exe scripts\check_model_handoff_ready.py --dry-load
+```
+
+Jangan training aktual, import label copy, atau build dataset final tanpa aba-aba operator.

@@ -1,4 +1,10 @@
 model_path: models/field/best.pt
+model_path_env_override: ULP_YOLO_MODEL_PATH
+handoff_candidate_paths:
+  - weights/best.pt
+  - models/best.pt
+  - models/field/best.pt
+  - runs/detect/train/weights/best.pt
 device: auto
 conf_threshold: 0.25
 iou_threshold: 0.5
@@ -42,3 +48,7 @@ runtime_policy:
   no_download_without_operator_approval: true
   no_accuracy_claim_without_validation: true
   fallback_when_missing: MODEL_NOT_READY
+  class_order_locked:
+    0: struktur_penyangga
+    1: konduktor
+    2: pohon_sono

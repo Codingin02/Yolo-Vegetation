@@ -8,14 +8,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from ulp_project.google_sheets_export import export_google_sheets_ready_csv  # noqa: E402
+from ulp_project.google_sheets_ready_export import export_google_sheets_ready_schema  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Report Google Sheets-ready local CSV status.")
-    parser.add_argument("--mode", choices=["dry-run", "write"], default="dry-run")
+    parser.add_argument("--mode", choices=["dry-run", "write", "local"], default="dry-run")
     args = parser.parse_args(argv)
-    print(json.dumps(export_google_sheets_ready_csv(mode=args.mode), indent=2, ensure_ascii=False))
+    print(json.dumps(export_google_sheets_ready_schema(mode=args.mode), indent=2, ensure_ascii=False))
     return 0
 
 

@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 COMMAND_GROUPS = {
@@ -111,8 +116,42 @@ def render_command_center(mode: str = "all") -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Print safe ULP operator commands.")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--status", action="store_true")
+    parser.add_argument("--diagnose", action="store_true")
+    parser.add_argument("--print-links", action="store_true")
+    parser.add_argument("--run-server", action="store_true")
+    parser.add_argument("--run-remote-server", action="store_true")
+    parser.add_argument("--check-model", action="store_true")
+    parser.add_argument("--check-calibration", action="store_true")
+    parser.add_argument("--check-environment", action="store_true")
+    parser.add_argument("--export-report", action="store_true")
+    parser.add_argument("--export-map", action="store_true")
+    parser.add_argument("--field-trial-dry-run", action="store_true")
+    parser.add_argument("--all-gates", action="store_true")
     parser.add_argument("--mode", choices=["all", *MODE_GROUPS.keys()], default="all")
     args = parser.parse_args()
+    actions = [
+        (args.status, ["scripts\\system_status_report.py"]),
+        (args.diagnose, ["scripts\\diagnose_remote_field_trial.py"]),
+        (args.print_links, ["scripts\\print_remote_realtime_links.py"]),
+        (args.run_server, ["scripts\\run_field_capture_server.py", "--host", "0.0.0.0", "--port", "5000"]),
+        (args.run_remote_server, ["scripts\\run_remote_realtime_server.py", "--host", "0.0.0.0", "--port", "5000"]),
+        (args.check_model, ["scripts\\check_model_handoff_ready.py"]),
+        (args.check_calibration, ["scripts\\phase18_calibration_gate.py"]),
+        (args.check_environment, ["scripts\\phase18_environmental_gate.py"]),
+        (args.export_report, ["scripts\\export_google_sheets_ready_csv.py", "--mode", "local"]),
+        (args.export_map, ["scripts\\export_latest_risk_map.py"]),
+        (args.field_trial_dry_run, ["scripts\\run_field_trial_operator.py", "--mode", "dry-run"]),
+        (args.all_gates, ["scripts\\phase17_20_final_system_completion_gate.py"]),
+    ]
+    selected = [cmd for enabled, cmd in actions if enabled]
+    if selected:
+        for cmd in selected:
+            print(f"> .\\venv\\Scripts\\python.exe {' '.join(cmd)}")
+            completed = subprocess.run([sys.executable, *cmd], cwd=ROOT, check=False)
+            if completed.returncode != 0:
+                return completed.returncode
+        return 0
     print(render_command_center(args.mode))
     return 0
 
