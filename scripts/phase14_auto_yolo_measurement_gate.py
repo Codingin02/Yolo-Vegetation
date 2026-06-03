@@ -51,7 +51,7 @@ def build_gate_status() -> dict[str, object]:
     }
     checks["csv_schema_auto_columns"] = required_columns.issubset(set(PHASE9_MONITORING_COLUMNS))
     html = client.get("/field-capture").get_data(as_text=True)
-    checks["ui_auto_not_manual_primary"] = "Auto YOLO Measurement" in html and "Mode utama adalah AUTO YOLO" in html
+    checks["ui_auto_not_manual_primary"] = "model_status" in html and "Mode utama Phase 16/Progress 5.2" in html
     forbidden_hits = []
     for root in ["src", "scripts", "docs", "tests", "configs"]:
         for path in (ROOT / root).rglob("*"):

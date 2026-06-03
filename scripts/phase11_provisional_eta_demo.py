@@ -16,7 +16,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--point-id", default="V001_pohon_sono")
     parser.add_argument("--species", default="pohon_sono")
     parser.add_argument("--asset-type", default="span")
-    parser.add_argument("--clearance-m", type=float, default=0.30)
+    parser.add_argument("--clearance-m", type=float, default=5.0)
     parser.add_argument("--growth-rate-m-per-day", type=float, default=0.01)
     parser.add_argument("--lat", default="")
     parser.add_argument("--lon", default="")
@@ -36,7 +36,7 @@ def main(argv: list[str] | None = None) -> int:
         },
         write_outputs=True,
     )
-    status = "PHASE11_PROVISIONAL_ETA_RISK_READY" if result["eta_days"] == 30.0 and result["risk_priority"] == "CRITICAL" else "PHASE11_PROVISIONAL_ETA_RISK_FAIL"
+    status = "PHASE11_PROVISIONAL_ETA_RISK_READY" if result["eta_days"] == 200.0 and result["risk_priority"] == "LOW" else "PHASE11_PROVISIONAL_ETA_RISK_FAIL"
     print(json.dumps({**result, "demo_status": status}, indent=2, ensure_ascii=False))
     print(status)
     return 0 if status.endswith("_READY") else 1

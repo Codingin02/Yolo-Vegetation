@@ -22,6 +22,9 @@ FINAL_SHEETS_COLUMNS = [
     "latitude",
     "longitude",
     "gps_accuracy_m",
+    "gps_source",
+    "inference_source",
+    "measurement_source",
     "tree_height_m",
     "asset_height_m",
     "span_lowest_point_height_m",
@@ -30,18 +33,29 @@ FINAL_SHEETS_COLUMNS = [
     "selected_clearance_m_stable",
     "selected_clearance_display_m",
     "safe_clearance_min_m",
+    "clearance_raw_m",
+    "clearance_stabilized_m",
+    "clearance_display_m",
+    "clearance_threshold_m",
+    "growth_rate_m_per_day",
+    "adjusted_growth_rate_m_per_day",
     "distance_zone_status",
+    "eta_days",
+    "eta_months",
     "eta_min_days",
     "eta_expected_days",
     "eta_max_days",
     "eta_expected_months",
     "risk_priority",
+    "risk_status",
     "action_recommendation",
+    "action_priority",
     "measurement_quality_score",
     "measurement_quality_label",
     "confidence_status",
     "model_status",
     "calibration_status",
+    "environment_status",
     "environmental_data_status",
     "season",
     "rainfall_mm_day",
@@ -55,6 +69,7 @@ FINAL_SHEETS_COLUMNS = [
     "report_trigger",
     "map_marker_status",
     "image_evidence_path",
+    "image_reference",
     "operator_notes",
     "reason_codes",
 ]
@@ -63,7 +78,7 @@ FINAL_SHEETS_COLUMNS = [
 def google_sheets_ready_status(credentials_env: str = "GOOGLE_APPLICATION_CREDENTIALS") -> dict[str, Any]:
     cred = os.environ.get(credentials_env)
     if not cred:
-        return {"sheets_status": "SHEETS_CREDENTIAL_NOT_CONFIGURED", "local_csv_status": "READY", "local_csv": str(MONITORING_CSV)}
+        return {"sheets_status": "GOOGLE_SHEETS_NOT_CONFIGURED_LOCAL_CSV_READY", "local_csv_status": "READY", "local_csv": str(MONITORING_CSV)}
     path = Path(cred)
     return {
         "sheets_status": "SHEETS_READY_DRY_RUN" if path.exists() else "SHEETS_CREDENTIAL_PATH_NOT_FOUND",

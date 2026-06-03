@@ -22,7 +22,7 @@ def main(argv: list[str] | None = None) -> int:
         "point_id": "V001_pohon_sono_demo",
         "species": "pohon_sono",
         "asset_type": "span",
-        "clearance_m": "0.3",
+        "clearance_m": "5.0",
         "growth_rate_m_per_day": "0.01",
         "notes": "synthetic_test_only rough realtime smoke",
     }
@@ -33,9 +33,9 @@ def main(argv: list[str] | None = None) -> int:
     passed = bool(
         response.status_code == 200
         and result
-        and result.get("eta_days") == 30.0
-        and 0.98 <= float(result.get("eta_months")) <= 0.99
-        and result.get("risk_priority") == "CRITICAL"
+        and result.get("eta_days") == 200.0
+        and 6.56 <= float(result.get("eta_months")) <= 6.58
+        and result.get("risk_priority") == "LOW"
         and result.get("report_written") is True
         and result.get("map_marker_written") is bool(args.with_sample_gps)
     )

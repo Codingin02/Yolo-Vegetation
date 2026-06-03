@@ -147,6 +147,21 @@ def process_realtime_frame(payload: dict[str, Any], *, demo_mock: bool = False, 
     session.processed_frames += 1
 
     image_status = _image_payload_status(payload)
+    if image_status in {"FRAME_TOO_LARGE_DROPPED", "IMAGE_BASE64_INVALID"}:
+        session.dropped_frames += 1
+        result = _result(
+            payload,
+            image_status,
+            queue_status=image_status,
+            started=started,
+            image_status=image_status,
+            detections=[],
+            model_status=resolve_yolo_model()["status"],
+            detection_status="NO_FAKE_DETECTION_FRAME_REJECTED",
+            reason_codes=[image_status],
+        )
+        session.latest_result = result
+        return result
     model = resolve_yolo_model()
     inference_contract = infer_realtime_frame(None, demo_mock=demo_mock)
     if demo_mock:

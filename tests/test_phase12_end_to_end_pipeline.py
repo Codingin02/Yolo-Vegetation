@@ -9,12 +9,12 @@ from ulp_project.yolo_inference_adapter import run_yolo_or_manual_fallback
 
 def test_phase12_pipeline_demo_generates_eta_without_label_or_model(tmp_path) -> None:
     result = process_realtime_inspection(
-        {"point_id": "V001_pohon_sono", "clearance_m": 0.3, "growth_rate_m_per_day": 0.01},
+        {"point_id": "V001_pohon_sono", "clearance_m": 5.0, "growth_rate_m_per_day": 0.01},
         write_outputs=True,
         report_output=tmp_path / "report.csv",
         map_output=tmp_path / "map.html",
     )
-    assert result["eta_days"] == 30.0
+    assert result["eta_days"] == 200.0
     assert result["report_written"] is True
     assert result["map_marker_written"] is False
     assert result["model_status"] == "MODEL_NOT_READY"

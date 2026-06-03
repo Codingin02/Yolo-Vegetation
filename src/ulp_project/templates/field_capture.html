@@ -8,135 +8,157 @@
 </head>
 <body>
   <main class="shell">
-    <header>
+    <header class="page-head">
       <h1>Field Capture Browser</h1>
-      <p>HP hanya input lapangan; laptop memproses dan laporan utama masuk CSV/Sheets + peta.</p>
-      <p class="notice">Kamera/GPS otomatis membutuhkan HTTPS atau permission browser. Upload file tetap bisa dipakai untuk demo kasar.</p>
+      <p>HP adalah browser field client untuk kamera, GPS, input manual, preview, dan hasil prediksi. Laptop tetap menjadi server AI dan output resmi tetap CSV/spreadsheet-ready plus map report.</p>
+      <p class="notice">Gunakan HTTPS tunnel untuk izin kamera/GPS di HP. Jika model custom belum ada, sistem tetap berjalan dalam `MODEL_NOT_READY` + manual/provisional safe mode tanpa fake detection.</p>
     </header>
+
     <section class="panel">
-      <h2>Status Koneksi</h2>
+      <h2>Status Field Trial</h2>
       <dl class="status-grid">
-        <div><dt>Protocol</dt><dd id="protocol-status">NOT_TESTED</dd></div>
-        <div><dt>Kamera</dt><dd id="camera-status">NOT_TESTED</dd></div>
-        <div><dt>GPS</dt><dd id="gps-status">NOT_TESTED</dd></div>
-        <div><dt>Mode</dt><dd id="mode-label">AUTO_YOLO_NOT_READY</dd></div>
-        <div><dt>Auto YOLO Measurement</dt><dd id="auto-measurement-status">MODEL_NOT_READY</dd></div>
+        <div><dt>Server</dt><dd id="server-status">NOT_TESTED</dd></div>
         <div><dt>Model</dt><dd id="model-status">MODEL_NOT_READY</dd></div>
         <div><dt>Calibration</dt><dd id="calibration-status">CALIBRATION_NOT_READY</dd></div>
-        <div><dt>Environmental</dt><dd id="environmental-status">ENVIRONMENT_NOT_READY</dd></div>
-        <div><dt>Latest ETA</dt><dd id="latest-eta">-</dd></div>
-        <div><dt>Risk Priority</dt><dd id="risk-priority">-</dd></div>
-        <div><dt>Report Path</dt><dd id="report-path">-</dd></div>
-        <div><dt>Map Path</dt><dd id="map-path">-</dd></div>
-        <div><dt>Realtime Transport</dt><dd id="realtime-transport-status">NOT_STARTED</dd></div>
-        <div><dt>Latency</dt><dd id="latency-display">-</dd></div>
+        <div><dt>Transport</dt><dd id="realtime-transport-status">HTTP_FALLBACK_READY</dd></div>
+        <div><dt>Secure Context</dt><dd id="secure-context-status">NOT_TESTED</dd></div>
+        <div><dt>GPS</dt><dd id="gps-status">NOT_TESTED</dd></div>
+        <div><dt>GPS Source</dt><dd id="gps-source-status">GPS_NOT_PROVIDED</dd></div>
+        <div><dt>Camera</dt><dd id="camera-status">NOT_TESTED</dd></div>
+        <div><dt>Tunnel</dt><dd id="tunnel-status">NO_PUBLIC_TUNNEL_CONFIGURED</dd></div>
+        <div><dt>Last Latency</dt><dd id="latency-display">-</dd></div>
         <div><dt>Interval</dt><dd id="refresh-interval-display">1000 ms</dd></div>
-        <div><dt>Clearance</dt><dd id="clearance-display">-</dd></div>
-        <div><dt>Zona 3m</dt><dd id="distance-zone-status">-</dd></div>
+        <div><dt>Mode</dt><dd id="mode-label">MANUAL_PROVISIONAL_READY</dd></div>
       </dl>
       <div class="actions">
-        <button id="ping-btn" type="button">Test koneksi laptop</button>
-        <button id="open-camera" type="button">Test camera permission</button>
-        <button id="gps-btn" type="button">Test GPS permission</button>
-        <a class="button-link" href="/api/operator/runtime-status" target="_blank">Runtime status</a>
-        <a class="button-link" href="/api/operator/auto-measurement/status" target="_blank">Auto measurement status</a>
+        <button id="ping-btn" type="button">Test koneksi laptop/server</button>
+        <button id="gps-btn" type="button">Ambil GPS HP</button>
+        <button id="camera-permission" type="button">Cek izin kamera</button>
+        <button id="start-camera" type="button">Start kamera</button>
+        <button id="stop-camera" type="button">Stop kamera</button>
       </div>
-      <p class="hint">Protocol labels: HTTP_LAN untuk akses LAN biasa, HTTPS_SECURE untuk tunnel/HTTPS.</p>
+      <p class="hint">Diagnostic labels: LOCAL_DEV_CONTEXT, INSECURE_CONTEXT_CAMERA_GPS_MAY_FAIL, SECURE_CONTEXT_EXPECTED, HTTP_LAN, HTTPS_SECURE. Kamera/GPS otomatis membutuhkan HTTPS atau permission browser.</p>
     </section>
+
     <section class="panel">
-      <h2>Realtime Deteksi Pohon</h2>
-      <p class="hint">Mode utama Phase 16 adalah kamera HP browser -> laptop server -> hasil overlay balik ke HP. Manual hanya fallback advanced.</p>
+      <h2>Preview Kamera</h2>
       <div class="realtime-stage">
         <video id="camera" playsinline autoplay muted></video>
         <canvas id="overlay-canvas"></canvas>
       </div>
       <canvas id="frame" hidden></canvas>
       <div class="actions">
-        <button id="start-realtime" type="button">Mulai Deteksi Pohon</button>
-        <button id="stop-realtime" type="button">Stop Deteksi</button>
-        <button id="capture-frame" type="button">Capture Frame</button>
-        <button id="snapshot-report" type="button">Kirim Snapshot Report</button>
+        <button id="start-realtime" type="button">Mulai deteksi/prediksi</button>
+        <button id="stop-realtime" type="button">Stop deteksi/prediksi</button>
+        <button id="capture-frame" type="button">Capture frame</button>
       </div>
-      <div class="actions">
-        <a class="button-link" href="/api/operator/latest-report" target="_blank">Latest Report</a>
-        <a class="button-link" href="/api/operator/map-status" target="_blank">Map Report Status</a>
-      </div>
-      <label>Upload file foto fallback
+      <label>Fallback upload image
         <input id="image" type="file" accept="image/*" capture="environment">
       </label>
+      <p class="hint">Mode utama Phase 16/Progress 5.2 adalah kamera HP browser ke laptop server dengan WebSocket jika tersedia, fallback HTTP 1 FPS jika gagal.</p>
     </section>
+
     <section class="panel">
-      <h2>GPS</h2>
-      <div class="coords">
-        <input id="lat" placeholder="latitude" inputmode="decimal">
-        <input id="lon" placeholder="longitude" inputmode="decimal">
+      <h2>Input Field Trial</h2>
+      <div class="form-grid">
+        <label>Point ID
+          <input id="point_id" value="V001_pohon_sono" autocomplete="off">
+        </label>
+        <label>Species
+          <input id="species" value="pohon_sono" autocomplete="off">
+        </label>
+        <label>Asset type
+          <select id="asset_type">
+            <option value="span">span</option>
+            <option value="kabel">kabel</option>
+            <option value="trafo">trafo</option>
+          </select>
+        </label>
+        <label>Latitude
+          <input id="lat" placeholder="-7.xxxxxxx" inputmode="decimal">
+        </label>
+        <label>Longitude
+          <input id="lon" placeholder="112.xxxxxxx" inputmode="decimal">
+        </label>
+        <label>GPS accuracy (m)
+          <input id="gps_accuracy_m" placeholder="opsional" inputmode="decimal">
+        </label>
+        <label>Clearance (m)
+          <input id="clearance_m" placeholder="contoh 5.0 atau 2.75" inputmode="decimal">
+        </label>
+        <label>Tree height (m)
+          <input id="tree_height_m" placeholder="opsional" inputmode="decimal">
+        </label>
+        <label>Asset height (m)
+          <input id="asset_height_m" placeholder="opsional" inputmode="decimal">
+        </label>
+        <label>Span lowest point (m)
+          <input id="span_lowest_point_height_m" placeholder="opsional" inputmode="decimal">
+        </label>
+        <label>Growth rate (m/day)
+          <input id="growth_rate_m_per_day" placeholder="isi 0.01 untuk test manual" inputmode="decimal">
+        </label>
+        <label>Measurement source
+          <select id="measurement_source">
+            <option value="manual">manual</option>
+            <option value="provisional">provisional</option>
+            <option value="model">model</option>
+          </select>
+        </label>
+        <label>Environment source
+          <select id="environment_source">
+            <option value="not_available">not_available</option>
+            <option value="manual_csv">manual_csv</option>
+          </select>
+        </label>
       </div>
-      <div class="actions">
-        <button id="gps-btn-secondary" type="button">Ambil GPS HP</button>
-      </div>
-    </section>
-    <details class="panel">
-      <summary><strong>Advanced / Manual Provisional</strong></summary>
-      <h2>Mode Manual Provisional / Advanced</h2>
-      <p class="hint">Mode utama adalah AUTO YOLO jika model dan kalibrasi sudah siap. Field manual di bawah hanya fallback provisional/demo kasar.</p>
-      <label>Point ID
-        <input id="point_id" value="V001_pohon_sono" autocomplete="off">
-      </label>
-      <label>Jenis objek manual
-        <input id="species" value="pohon_sono" autocomplete="off">
-      </label>
-      <label>Asset type
-        <select id="asset_type">
-          <option value="span">span</option>
-          <option value="kabel">kabel</option>
-          <option value="trafo">trafo</option>
-        </select>
-      </label>
-      <label>Clearance manual (m)
-        <input id="clearance_m" placeholder="contoh 0.3" inputmode="decimal">
-      </label>
-      <label>Growth rate manual (m/day)
-        <input id="growth_rate_m_per_day" placeholder="contoh 0.01" inputmode="decimal">
-      </label>
-      <label>Tinggi pohon manual (m)
-        <input id="tree_height_m" placeholder="opsional" inputmode="decimal">
-      </label>
-      <label>Tinggi kabel/span manual (m)
-        <input id="cable_or_span_height_m" placeholder="opsional" inputmode="decimal">
-      </label>
-      <label>Tinggi asset manual (m)
-        <input id="asset_height_m" placeholder="opsional" inputmode="decimal">
-      </label>
-      <label>Titik terendah span (m)
-        <input id="span_lowest_point_height_m" placeholder="opsional" inputmode="decimal">
-      </label>
-      <label>Musim / cuaca ringkas
-        <input id="season" placeholder="opsional">
-      </label>
-      <label>Curah hujan (mm)
-        <input id="rainfall_mm" placeholder="opsional" inputmode="decimal">
-      </label>
-      <label>Suhu (C)
-        <input id="temperature_c" placeholder="opsional" inputmode="decimal">
-      </label>
-      <label>Kelembapan relatif (%)
-        <input id="relative_humidity_percent" placeholder="opsional" inputmode="decimal">
-      </label>
-      <label>Catatan operator
+      <input id="gps_source" type="hidden" value="GPS_NOT_PROVIDED">
+      <label>Notes
         <textarea id="operator_note" rows="3"></textarea>
       </label>
       <div class="actions">
-        <button id="upload-btn" type="button">Submit Inspection</button>
+        <button id="manual-prediction" type="button">Jalankan Prediksi Manual/Provisional</button>
+        <button id="snapshot-report" type="button">Kirim Snapshot Report</button>
+        <button id="copy-report-link" type="button">Salin link report CSV</button>
+        <button id="open-map-report" type="button">Buka map report jika tersedia</button>
       </div>
+    </section>
+
+    <section class="panel">
+      <h2>Output Prediksi</h2>
+      <dl class="status-grid">
+        <div><dt>model_status</dt><dd id="output-model-status">MODEL_NOT_READY</dd></div>
+        <div><dt>inference_source</dt><dd id="inference-source">-</dd></div>
+        <div><dt>confidence_status</dt><dd id="confidence-status">-</dd></div>
+        <div><dt>measurement_quality_label</dt><dd id="measurement-quality-label">-</dd></div>
+        <div><dt>clearance_display_m_integer_floor</dt><dd id="clearance-display-floor">-</dd></div>
+        <div><dt>clearance_raw_m</dt><dd id="clearance-raw">-</dd></div>
+        <div><dt>eta_days</dt><dd id="eta-days">-</dd></div>
+        <div><dt>eta_months</dt><dd id="eta-months">-</dd></div>
+        <div><dt>risk_status</dt><dd id="risk-status">-</dd></div>
+        <div><dt>action_priority</dt><dd id="action-priority">-</dd></div>
+        <div><dt>reason_codes</dt><dd id="reason-codes">-</dd></div>
+        <div><dt>report_id/job_id</dt><dd id="report-id">-</dd></div>
+        <div><dt>report CSV</dt><dd id="report-path">-</dd></div>
+        <div><dt>map</dt><dd id="map-path">-</dd></div>
+      </dl>
+      <pre id="status-output">FIELD_CAPTURE_READY_MODEL_NOT_READY</pre>
+    </section>
+
+    <details class="panel">
+      <summary><strong>Advanced / Manual Provisional</strong></summary>
+      <p class="hint">Advanced panel hanya mempertahankan kompatibilitas operator lama. Jangan gunakan sebagai klaim akurasi final.</p>
       <div class="actions">
+        <a class="button-link" href="/api/runtime/status" target="_blank">Runtime status</a>
+        <a class="button-link" href="/api/runtime/public-links" target="_blank">Public links</a>
+        <a class="button-link" href="/api/model/status" target="_blank">Model status</a>
+        <a class="button-link" href="/api/calibration/status" target="_blank">Calibration status</a>
         <a class="button-link" href="/api/network/whoami" target="_blank">Network debug</a>
-        <a class="button-link" href="/api/operator/latest-report" target="_blank">Export CSV status</a>
-        <a class="button-link" href="/api/operator/map-status" target="_blank">Map status</a>
+        <a class="button-link" href="/api/operator/latest-report" target="_blank">Legacy CSV status</a>
       </div>
     </details>
+
     <section class="panel">
-      <h2>Hasil Ringkas</h2>
-      <pre id="status-output">FIELD_CAPTURE_READY_MODEL_NOT_READY</pre>
       <h2>Network Debug</h2>
       <pre id="network-debug">NETWORK_DEBUG_EMPTY</pre>
     </section>

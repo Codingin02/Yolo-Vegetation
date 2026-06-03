@@ -7,17 +7,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(ROOT / "scripts"))
 
-from run_field_capture_server import detect_lan_ips  # noqa: E402
+from ulp_project.runtime_links import build_public_links, detect_lan_ips  # noqa: E402
 
 
 def build_remote_link_help(port: int = 5000) -> str:
+    links = build_public_links(port)
     lines = [
-        "ULP Phase 16 Remote Realtime Links",
+        "ULP Progress 5.2 Remote Realtime Links",
         "",
         "LAN mode hanya untuk debug:",
-        f"  http://127.0.0.1:{port}/field-capture",
+        f"  {links['local_field_capture_url']}",
     ]
     for ip in detect_lan_ips():
         lines.append(f"  http://{ip}:{port}/field-capture")
@@ -29,7 +29,10 @@ def build_remote_link_help(port: int = 5000) -> str:
             f"  cloudflared tunnel --url http://localhost:{port}",
             "",
             "Setelah tunnel aktif, buka dari HP:",
-            "  https://<public-tunnel-url>/field-capture",
+            f"  {links['public_field_capture_url'] or 'https://<public-tunnel-url>/field-capture'}",
+            "",
+            "API link runtime:",
+            f"  http://127.0.0.1:{port}/api/runtime/public-links",
             "",
             "Status CLI tunnel lokal:",
             f"  ngrok: {'AVAILABLE' if shutil.which('ngrok') else 'NOT_FOUND'}",

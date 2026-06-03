@@ -42,6 +42,10 @@ COMMAND_GROUPS = {
         ".\\venv\\Scripts\\python.exe scripts\\build_system_map.py --mode dry-run",
         ".\\venv\\Scripts\\python.exe scripts\\export_system_report.py --mode dry-run",
         ".\\venv\\Scripts\\python.exe scripts\\run_inference_runtime.py --mode image --input sample.jpg",
+        ".\\venv\\Scripts\\python.exe scripts\\phase5_2_ui_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\phase5_2_prediction_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\phase5_2_report_map_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\phase5_2_field_trial_prediction_gate.py",
     ],
     "WAIT UNTIL MAKESENSE EXPORT": [
         ".\\venv\\Scripts\\python.exe scripts\\phase3_readiness_gate.py",
@@ -95,6 +99,13 @@ MODE_GROUPS = {
         ".\\venv\\Scripts\\python.exe scripts\\run_remote_realtime_server.py --host 0.0.0.0 --port 5000",
         ".\\venv\\Scripts\\python.exe scripts\\phase16_remote_realtime_streaming_gate.py",
     ],
+    "phase5-2-field-trial": [
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --diagnose",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --print-links",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --check-model",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --field-trial-smoke",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --phase5-2-gate",
+    ],
 }
 
 
@@ -127,6 +138,14 @@ def main() -> int:
     parser.add_argument("--export-report", action="store_true")
     parser.add_argument("--export-map", action="store_true")
     parser.add_argument("--field-trial-dry-run", action="store_true")
+    parser.add_argument("--field-trial-start", action="store_true")
+    parser.add_argument("--field-trial-smoke", action="store_true")
+    parser.add_argument("--ui-smoke", action="store_true")
+    parser.add_argument("--prediction-smoke", action="store_true")
+    parser.add_argument("--report-smoke", action="store_true")
+    parser.add_argument("--map-smoke", action="store_true")
+    parser.add_argument("--remote-security-check", action="store_true")
+    parser.add_argument("--phase5-2-gate", action="store_true")
     parser.add_argument("--all-gates", action="store_true")
     parser.add_argument("--mode", choices=["all", *MODE_GROUPS.keys()], default="all")
     args = parser.parse_args()
@@ -142,6 +161,14 @@ def main() -> int:
         (args.export_report, ["scripts\\export_google_sheets_ready_csv.py", "--mode", "local"]),
         (args.export_map, ["scripts\\export_latest_risk_map.py"]),
         (args.field_trial_dry_run, ["scripts\\run_field_trial_operator.py", "--mode", "dry-run"]),
+        (args.field_trial_start, ["scripts\\run_remote_realtime_server.py", "--host", "0.0.0.0", "--port", "5000"]),
+        (args.field_trial_smoke, ["scripts\\phase5_2_field_trial_prediction_gate.py"]),
+        (args.ui_smoke, ["scripts\\phase5_2_ui_smoke.py"]),
+        (args.prediction_smoke, ["scripts\\phase5_2_prediction_smoke.py"]),
+        (args.report_smoke, ["scripts\\phase5_2_report_map_smoke.py", "--report-only"]),
+        (args.map_smoke, ["scripts\\phase5_2_report_map_smoke.py", "--map-only"]),
+        (args.remote_security_check, ["scripts\\phase5_2_field_trial_prediction_gate.py", "--security-only"]),
+        (args.phase5_2_gate, ["scripts\\phase5_2_field_trial_prediction_gate.py"]),
         (args.all_gates, ["scripts\\phase17_20_final_system_completion_gate.py"]),
     ]
     selected = [cmd for enabled, cmd in actions if enabled]

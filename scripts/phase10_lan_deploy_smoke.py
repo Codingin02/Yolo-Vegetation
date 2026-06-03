@@ -19,7 +19,7 @@ def main() -> int:
         "asset_type": "span",
         "latitude": "-7.000000",
         "longitude": "112.000000",
-        "clearance_m": "0.30",
+        "clearance_m": "5.0",
         "growth_rate_m_per_day": "0.01",
         "notes": "synthetic_test_only_not_field_data",
     }
@@ -36,8 +36,8 @@ def main() -> int:
     }
     passed = (
         response.status_code == 200
-        and data.get("eta_days") == 30.0
-        and data.get("risk_priority") == "CRITICAL"
+        and data.get("eta_days") == 200.0
+        and data.get("risk_priority") == "LOW"
         and data.get("report_written") is True
         and data.get("map_marker_written") is True
     )

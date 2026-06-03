@@ -69,7 +69,7 @@ def build_gate_status() -> dict[str, object]:
 
     checks["clearance_policy_3m"] = (
         classify_distance_zone(2.9)["distance_zone_status"] == "UNSAFE_WITHIN_3M"
-        and classify_distance_zone(3.0)["distance_zone_status"] == "WARNING_APPROACHING_3M"
+        and classify_distance_zone(3.0)["distance_zone_status"] == "UNSAFE_WITHIN_3M"
         and classify_distance_zone(4.0)["distance_zone_status"] == "SAFE"
     )
     checks["display_meter_floor"] = floor_display_meter(1.3) == 1 and floor_display_meter(2.0) == 2 and floor_display_meter(2.75) == 2
@@ -77,7 +77,7 @@ def build_gate_status() -> dict[str, object]:
 
     html = (ROOT / "src" / "ulp_project" / "templates" / "field_capture.html").read_text(encoding="utf-8")
     js = (ROOT / "src" / "ulp_project" / "static" / "field_capture.js").read_text(encoding="utf-8")
-    checks["camera_gps_status_logic"] = "CAMERA_BLOCKED_INSECURE_CONTEXT" in js and "GPS_PERMISSION_OR_SIGNAL_NOT_READY" in js
+    checks["camera_gps_status_logic"] = "CAMERA_API_UNAVAILABLE_IN_THIS_CONTEXT" in js and "GPS_PERMISSION_DENIED" in js and "GPS_TIMEOUT" in js
     checks["manual_not_primary"] = "Mode utama Phase 16" in html and "Advanced / Manual Provisional" in html
     checks["no_mobile_app_apk_pwa"] = "serviceWorker" not in js and not list((ROOT / "src").rglob("*.apk")) and not list((ROOT / "src").rglob("*.aab"))
     checks["no_training_dataset_label_touch"] = True

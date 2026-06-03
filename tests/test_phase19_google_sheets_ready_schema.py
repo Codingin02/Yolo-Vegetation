@@ -3,6 +3,7 @@ from ulp_project.google_sheets_ready_export import FINAL_SHEETS_COLUMNS, export_
 
 def test_google_sheets_ready_schema_complete_without_credentials():
     result = export_google_sheets_ready_schema()
-    assert result["sheets_status"] == "SHEETS_CREDENTIAL_NOT_CONFIGURED"
+    assert result["sheets_status"] == "GOOGLE_SHEETS_NOT_CONFIGURED_LOCAL_CSV_READY"
     assert "report_id" in FINAL_SHEETS_COLUMNS
     assert "measurement_quality_score" in FINAL_SHEETS_COLUMNS
+    assert "risk_status" in FINAL_SHEETS_COLUMNS

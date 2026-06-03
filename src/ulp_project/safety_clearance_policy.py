@@ -55,7 +55,7 @@ def classify_distance_zone(clearance_m: float | int | str | None, policy: dict[s
     elif clearance <= 0:
         zone = "CONTACT_OR_OVERLAP"
         action = actions.get(zone, "EMERGENCY_FIELD_REVIEW")
-    elif clearance < safe_min:
+    elif clearance <= safe_min:
         zone = "UNSAFE_WITHIN_3M"
         action = actions.get(zone, "PRIORITY_PRUNING_REVIEW")
     elif clearance < warning:

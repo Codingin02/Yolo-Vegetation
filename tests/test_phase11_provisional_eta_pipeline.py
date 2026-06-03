@@ -6,16 +6,24 @@ from ulp_project.realtime_eta_engine import estimate_realtime_eta
 
 
 def test_phase11_eta_is_calculated_from_manual_clearance_and_growth() -> None:
-    record = FieldInspectionRecord.from_payload({"clearance_m": 0.3, "growth_rate_m_per_day": 0.01})
+    record = FieldInspectionRecord.from_payload({"clearance_m": 5.0, "growth_rate_m_per_day": 0.01})
     result = estimate_realtime_eta(record)
-    assert result.eta_days == 30.0
-    assert result.eta_months == 0.99
-    assert result.risk_priority == "CRITICAL"
+    assert result.eta_days == 200.0
+    assert result.eta_months == 6.57
+    assert result.risk_priority == "LOW"
     assert result.environmental_data_status == "ENVIRONMENT_PARTIAL"
 
 
+def test_phase11_unsafe_clearance_eta_zero() -> None:
+    record = FieldInspectionRecord.from_payload({"clearance_m": 2.75, "growth_rate_m_per_day": 0.01})
+    result = estimate_realtime_eta(record)
+    assert result.status == "ALREADY_WITHIN_UNSAFE_ZONE"
+    assert result.eta_days == 0.0
+    assert result.risk_priority == "CRITICAL"
+
+
 def test_phase11_eta_null_when_input_incomplete() -> None:
-    record = FieldInspectionRecord.from_payload({"clearance_m": 0.3})
+    record = FieldInspectionRecord.from_payload({"clearance_m": 5.0})
     result = estimate_realtime_eta(record)
     assert result.status == "INSUFFICIENT_DATA"
     assert result.eta_days is None

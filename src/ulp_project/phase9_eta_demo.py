@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from .eta_uncertainty import calculate_eta_to_unsafe_zone
+
+CLEARANCE_THRESHOLD_M = 3.0
+
 
 def parse_float(value: Any) -> float | None:
     try:
@@ -19,24 +23,26 @@ def calculate_manual_eta(clearance_m: Any, growth_rate_m_per_day: Any) -> dict[s
     growth = parse_float(growth_rate_m_per_day)
     if clearance is None:
         return _insufficient("clearance_m is required.", ["clearance_m"])
-    if clearance <= 0:
+    if clearance <= CLEARANCE_THRESHOLD_M:
         return {
-            "status": "CONTACT_OR_OVERLAP_RISK",
+            "status": "ALREADY_WITHIN_UNSAFE_ZONE" if clearance > 0 else "CONTACT_OR_OVERLAP_RISK",
             "mode": "PROVISIONAL_MANUAL_DEMO",
             "eta_days": 0.0,
             "eta_months": 0.0,
             "risk_priority": "CRITICAL",
-            "reason": "clearance_m <= 0 indicates contact or overlap risk.",
+            "reason": "clearance_m is at or below the 3m prototype unsafe-zone threshold.",
             "required_missing_inputs": [],
             "clearance_m": clearance,
             "growth_rate_m_per_day": growth,
+            "clearance_threshold_m": CLEARANCE_THRESHOLD_M,
         }
     if growth is None:
         return _insufficient("growth_rate_m_per_day is required.", ["growth_rate_m_per_day"], clearance, growth)
     if growth <= 0:
         return _insufficient("growth_rate_m_per_day must be greater than zero.", ["growth_rate_m_per_day"], clearance, growth)
-    eta_days = clearance / growth
-    eta_months = eta_days / 30.4375
+    eta = calculate_eta_to_unsafe_zone(clearance, growth, CLEARANCE_THRESHOLD_M)
+    eta_days = eta["eta_expected_days"]
+    eta_months = eta["eta_expected_months"]
     if eta_days <= 30:
         priority = "CRITICAL"
     elif eta_days <= 90:
@@ -51,10 +57,11 @@ def calculate_manual_eta(clearance_m: Any, growth_rate_m_per_day: Any) -> dict[s
         "eta_days": round(eta_days, 2),
         "eta_months": round(eta_months, 2),
         "risk_priority": priority,
-        "reason": "Manual provisional ETA demo from clearance_m / growth_rate_m_per_day.",
+        "reason": "Manual provisional ETA demo toward 3m unsafe-zone threshold.",
         "required_missing_inputs": [],
         "clearance_m": clearance,
         "growth_rate_m_per_day": growth,
+        "clearance_threshold_m": CLEARANCE_THRESHOLD_M,
     }
 
 

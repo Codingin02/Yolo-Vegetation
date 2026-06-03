@@ -3,37 +3,41 @@
 from __future__ import annotations
 
 from .clearance_policy import clearance_status
+from .eta_uncertainty import calculate_eta_to_unsafe_zone
 from .field_inspection_record import FieldInspectionRecord
 from .growth_adjustment import choose_adjusted_growth_rate
 from .realtime_estimation_result import RealtimeEstimationResult
 from .risk_action_policy import classify_eta_action
+from .safety_clearance_policy import load_safety_clearance_policy
 
 
 def estimate_realtime_eta(record: FieldInspectionRecord) -> RealtimeEstimationResult:
     clearance = clearance_status(record.clearance_m)
     growth = choose_adjusted_growth_rate(record)
+    threshold = float(load_safety_clearance_policy().get("safe_clearance_min_m", 3.0))
     missing: list[str] = []
     eta_days: float | None = None
     eta_months: float | None = None
 
     if clearance["status"] == "INSUFFICIENT_DATA":
         missing.append("clearance_m")
-    if growth["adjusted_growth_rate_m_per_day"] is None:
+    if record.clearance_m is not None and record.clearance_m > threshold and growth["adjusted_growth_rate_m_per_day"] is None:
         missing.extend(str(item) for item in growth["missing_inputs"])
 
-    if record.clearance_m is not None and record.clearance_m <= 0:
+    if record.clearance_m is not None and record.clearance_m <= threshold:
         eta_days = 0.0
         eta_months = 0.0
     elif not missing:
-        eta_days = round(record.clearance_m / float(growth["adjusted_growth_rate_m_per_day"]), 2)
-        eta_months = round(eta_days / 30.4375, 2)
+        eta = calculate_eta_to_unsafe_zone(record.clearance_m, growth["adjusted_growth_rate_m_per_day"], threshold)
+        eta_days = eta["eta_expected_days"]
+        eta_months = eta["eta_expected_months"]
 
     action = classify_eta_action(record.clearance_m, eta_days)
     status = "OK" if eta_days is not None and record.clearance_m is not None and record.clearance_m > 0 else action["action_recommendation"]
     if missing:
         status = "INSUFFICIENT_DATA"
-    if record.clearance_m is not None and record.clearance_m <= 0:
-        status = "IMMEDIATE_ACTION"
+    if record.clearance_m is not None and record.clearance_m <= threshold:
+        status = "ALREADY_WITHIN_UNSAFE_ZONE" if record.clearance_m > 0 else "IMMEDIATE_ACTION"
 
     reason_parts = [str(clearance["reason"]), str(growth["reason"]), action["reason"]]
     return RealtimeEstimationResult(

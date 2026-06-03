@@ -10,20 +10,29 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from print_remote_realtime_links import build_remote_link_help  # noqa: E402
 from ulp_project.flask_app import create_app  # noqa: E402
+from ulp_project.runtime_links import format_startup_links  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run ULP Phase 16 remote realtime field capture server.")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=5000)
+    parser.add_argument("--public-url", default="", help="Optional runtime HTTPS tunnel URL. Do not commit this value.")
     args = parser.parse_args(argv)
-    print("ULP Phase 16 remote realtime server starting")
+    print(format_startup_links(host=args.host, port=args.port, public_url=args.public_url))
+    print("")
     print(build_remote_link_help(args.port))
     print("")
     print("Realtime endpoints:")
     print("  GET  /field-capture")
+    print("  GET  /api/runtime/public-links")
+    print("  GET  /api/runtime/status")
+    print("  GET  /api/model/status")
+    print("  GET  /api/calibration/status")
     print("  GET  /api/realtime/session/new")
     print("  POST /api/realtime/frame")
+    print("  POST /api/field/manual-prediction")
+    print("  POST /api/field/snapshot-report")
     print("  POST /api/realtime/report-snapshot")
     print("  WS   /ws/realtime-detect")
     print("")

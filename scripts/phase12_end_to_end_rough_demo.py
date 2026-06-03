@@ -20,7 +20,7 @@ def main(argv: list[str] | None = None) -> int:
         "point_id": "V001_pohon_sono_demo",
         "species": "pohon_sono",
         "asset_type": "span",
-        "clearance_m": 0.30,
+        "clearance_m": 5.0,
         "growth_rate_m_per_day": 0.01,
         "measurement_source": "manual",
         "confidence_status": "PROVISIONAL",
@@ -29,7 +29,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.with_sample_gps:
         payload.update({"latitude": "-7.000000", "longitude": "112.000000"})
     result = process_realtime_inspection(payload, write_outputs=True)
-    passed = result["eta_days"] == 30.0 and result["report_written"] is True
+    passed = result["eta_days"] == 200.0 and result["report_written"] is True
     print(json.dumps({**result, "status": "PHASE12_END_TO_END_ROUGH_DEMO_PASS" if passed else "PHASE12_END_TO_END_ROUGH_DEMO_FAIL"}, indent=2, ensure_ascii=False))
     print("PHASE12_END_TO_END_ROUGH_DEMO_PASS" if passed else "PHASE12_END_TO_END_ROUGH_DEMO_FAIL")
     return 0 if passed else 1

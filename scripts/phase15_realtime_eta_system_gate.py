@@ -32,11 +32,11 @@ def build_gate_status() -> dict[str, object]:
     env = build_environmental_features(point_id="V001_pohon_sono")
     checks["environmental_no_fake_values"] = env["not_fake_environment"] is True and env["status"] in {"ENVIRONMENT_FEATURES_PARTIAL", "ENVIRONMENT_FEATURES_READY"}
     eta = run_realtime_eta_pipeline(
-        {"selected_clearance_m": 0.3, "selected_hazard_target": "cable"},
+        {"selected_clearance_m": 5.0, "selected_hazard_target": "cable"},
         species="pohon_sono",
         point_id="V001_pohon_sono",
     )
-    checks["eta_priority_rules_valid"] = eta["eta_days"] == 30.0 and classify_eta_priority(0.0, 0.0) == "EMERGENCY"
+    checks["eta_priority_rules_valid"] = eta["eta_days"] == 200.0 and classify_eta_priority(0.0, 0.0) == "CRITICAL"
     required_columns = {
         "inspection_id",
         "timestamp",
@@ -67,8 +67,8 @@ def build_gate_status() -> dict[str, object]:
     checks["map_marker_requires_gps"] = no_gps["written"] is False and no_gps["reason"] == "NO_GPS_NO_MAP_MARKER"
     html = (ROOT / "src" / "ulp_project" / "templates" / "field_capture.html").read_text(encoding="utf-8")
     js = (ROOT / "src" / "ulp_project" / "static" / "field_capture.js").read_text(encoding="utf-8")
-    checks["ui_not_manual_first"] = "Mode utama adalah AUTO YOLO" in html and "Mode Manual Provisional / Advanced" in html
-    checks["no_spam_submit"] = "debounceMs = 2000" in js and "inFlight" in js
+    checks["ui_not_manual_first"] = "Mode utama Phase 16/Progress 5.2" in html and "Advanced / Manual Provisional" in html
+    checks["no_spam_submit"] = "frameInFlight" in js and "safeFetchJson" in js
     forbidden = []
     for root in ["src", "scripts", "docs", "tests", "configs"]:
         for path in (ROOT / root).rglob("*"):

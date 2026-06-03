@@ -5,7 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from .eta_uncertainty import calculate_eta_to_unsafe_zone
 from .environmental_feature_engine import build_environmental_features
+from .safety_clearance_policy import load_safety_clearance_policy
 from .species_profile import get_species_profile
 from .temporal_stabilizer import hysteresis_priority
 
@@ -25,6 +27,8 @@ class EtaPipelineResult:
     required_missing_inputs: list[str]
     reason: str
     environmental_features: dict[str, Any]
+    clearance_threshold_m: float = 3.0
+    eta_status: str = "INSUFFICIENT_DATA"
     not_accuracy_claim: bool = True
 
     def to_dict(self) -> dict[str, Any]:
@@ -40,6 +44,8 @@ class EtaPipelineResult:
             "required_missing_inputs": self.required_missing_inputs,
             "reason": self.reason,
             "environmental_features": self.environmental_features,
+            "clearance_threshold_m": self.clearance_threshold_m,
+            "eta_status": self.eta_status,
             "not_accuracy_claim": self.not_accuracy_claim,
         }
 
@@ -58,20 +64,25 @@ def run_realtime_eta_pipeline(
     features = environment["features"]
     clearance = _select_clearance(measurement_result)
     growth = adjusted_growth_from_profile(species, features)
+    threshold = float(load_safety_clearance_policy().get("safe_clearance_min_m", 3.0))
     missing: list[str] = []
     if clearance is None:
         missing.append("selected_clearance_m")
-    if growth["adjusted_growth_rate_m_per_day"] is None:
+    if clearance is not None and clearance > threshold and growth["adjusted_growth_rate_m_per_day"] is None:
         missing.extend(growth["missing_inputs"])
     eta_days = None
     eta_months = None
-    if clearance is not None and clearance <= 0:
+    eta_status = "INSUFFICIENT_DATA"
+    if clearance is not None and clearance <= threshold:
         eta_days = 0.0
         eta_months = 0.0
-        risk = "EMERGENCY"
+        eta_status = "ALREADY_WITHIN_UNSAFE_ZONE"
+        risk = "CRITICAL"
     elif not missing and growth["adjusted_growth_rate_m_per_day"]:
-        eta_days = round(float(clearance) / float(growth["adjusted_growth_rate_m_per_day"]), 2)
-        eta_months = round(eta_days / 30.44, 2)
+        eta = calculate_eta_to_unsafe_zone(clearance, growth["adjusted_growth_rate_m_per_day"], threshold)
+        eta_days = eta["eta_expected_days"]
+        eta_months = eta["eta_expected_months"]
+        eta_status = eta["eta_status"]
         risk = classify_eta_priority(clearance, eta_days)
     else:
         risk = "INSUFFICIENT_DATA"
@@ -89,8 +100,10 @@ def run_realtime_eta_pipeline(
         action_recommendation=action,
         confidence_status=growth["confidence_status"],
         required_missing_inputs=sorted(set(missing)),
-        reason=growth["reason"] if missing else "ETA calculated from selected clearance and adjusted growth rate. Provisional until validated.",
+        reason=growth["reason"] if missing else f"ETA calculated toward {threshold} m unsafe-zone threshold. Provisional until validated.",
         environmental_features=features,
+        clearance_threshold_m=threshold,
+        eta_status=eta_status,
         not_accuracy_claim=True,
     )
     return result.to_dict()
@@ -136,8 +149,8 @@ def adjusted_growth_from_profile(species: str, features: dict[str, Any]) -> dict
 def classify_eta_priority(clearance_m: float | None, eta_days: float | None) -> str:
     if clearance_m is None or eta_days is None:
         return "INSUFFICIENT_DATA"
-    if clearance_m <= 0:
-        return "EMERGENCY"
+    if clearance_m <= float(load_safety_clearance_policy().get("safe_clearance_min_m", 3.0)):
+        return "CRITICAL"
     if eta_days <= 30:
         return "CRITICAL"
     if eta_days <= 90:

@@ -18,6 +18,14 @@ Set-Location E:\Projects\ULP_Project
 .\venv\Scripts\python.exe scripts\operator_command_center.py --print-links
 ```
 
+## Progress 5.2 Field Trial Smoke
+
+```powershell
+.\venv\Scripts\python.exe scripts\operator_command_center.py --check-model
+.\venv\Scripts\python.exe scripts\operator_command_center.py --field-trial-smoke
+.\venv\Scripts\python.exe scripts\operator_command_center.py --phase5-2-gate
+```
+
 ## Run Remote Server
 
 ```powershell

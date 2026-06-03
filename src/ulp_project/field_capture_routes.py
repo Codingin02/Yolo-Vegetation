@@ -5,9 +5,17 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+from .calibration_readiness import check_calibration_readiness
 from .field_capture import accept_field_capture_upload, load_field_capture_job, load_field_capture_result
 from .latency_monitor import ping_latency
+from .model_handoff import check_model_handoff
 from .network_mode import describe_network_modes
+from .paths import PROJECT_ROOT
+from .phase5_2_field_trial import (
+    build_manual_prediction,
+    phase5_2_runtime_contract_status,
+    write_field_trial_snapshot_report,
+)
 from .realtime_streaming import (
     create_realtime_session,
     get_session_status,
@@ -17,11 +25,12 @@ from .realtime_streaming import (
     websocket_available,
     write_realtime_snapshot_report,
 )
+from .runtime_links import build_public_links
 from .yolo_model_resolver import resolve_yolo_model
 
 
 def register_field_capture_routes(app) -> None:
-    from flask import jsonify, redirect, render_template, request
+    from flask import jsonify, redirect, render_template, request, send_from_directory
 
     @app.get("/field-capture")
     def field_capture_page():
@@ -75,6 +84,46 @@ def register_field_capture_routes(app) -> None:
     @app.get("/api/network/health")
     def field_capture_network_health():
         return jsonify({"status": "NETWORK_HEALTH_READY", **_network_payload(request)})
+
+    @app.get("/api/runtime/public-links")
+    def runtime_public_links():
+        return jsonify(build_public_links(port=_request_port(request), public_url=request.args.get("public_url")))
+
+    @app.get("/api/runtime/status")
+    def runtime_status():
+        links = build_public_links(port=_request_port(request), public_url=request.args.get("public_url"))
+        return jsonify(
+            {
+                **phase5_2_runtime_contract_status(),
+                "runtime_root": app.config["ULP_RUNTIME_ROOT"],
+                "public_links": links,
+                "websocket": websocket_available(),
+                "operator_note": "Field trial prototype; HP is browser client only, laptop is processing server.",
+            }
+        )
+
+    @app.get("/api/model/status")
+    def model_status():
+        return jsonify(check_model_handoff())
+
+    @app.get("/api/calibration/status")
+    def calibration_status():
+        return jsonify(check_calibration_readiness({}))
+
+    @app.post("/api/field/manual-prediction")
+    def field_manual_prediction():
+        payload = request.get_json(silent=True) if request.is_json else None
+        return jsonify(build_manual_prediction(dict(payload or request.form)))
+
+    @app.post("/api/field/snapshot-report")
+    def field_snapshot_report():
+        payload = request.get_json(silent=True) if request.is_json else None
+        result = write_field_trial_snapshot_report(dict(payload or request.form))
+        return jsonify(result), 200 if result.get("report_written") else 202
+
+    @app.get("/field-reports/<path:filename>")
+    def field_reports(filename: str):
+        return send_from_directory(PROJECT_ROOT / "outputs" / "reports", filename, as_attachment=False)
 
     @app.get("/api/mobile/network/status")
     def legacy_mobile_network_alias():
@@ -153,6 +202,15 @@ def _network_payload(request) -> dict[str, object]:
         "server_port": request.host.split(":")[1] if ":" in request.host else "",
         "status": "OK",
     }
+
+
+def _request_port(request) -> int:
+    try:
+        if ":" in request.host:
+            return int(request.host.rsplit(":", 1)[1])
+    except (TypeError, ValueError):
+        pass
+    return 5000
 
 
 def _register_realtime_websocket(app) -> None:

@@ -13,16 +13,23 @@ from ulp_project.phase9_monitoring import (
 
 
 def test_phase9_manual_eta_calculation():
-    result = calculate_manual_eta(0.3, 0.01)
+    result = calculate_manual_eta(5.0, 0.01)
     assert result["status"] == "OK"
-    assert result["eta_days"] == 30.0
-    assert result["eta_months"] == 0.99
+    assert result["eta_days"] == 200.0
+    assert result["eta_months"] == 6.57
+    assert result["risk_priority"] == "LOW"
+
+
+def test_phase9_unsafe_clearance_eta_zero():
+    result = calculate_manual_eta(2.75, 0.01)
+    assert result["status"] == "ALREADY_WITHIN_UNSAFE_ZONE"
+    assert result["eta_days"] == 0.0
     assert result["risk_priority"] == "CRITICAL"
 
 
 def test_phase9_missing_clearance_or_growth_is_insufficient():
     assert calculate_manual_eta(None, 0.01)["status"] == "INSUFFICIENT_DATA"
-    assert calculate_manual_eta(0.3, None)["status"] == "INSUFFICIENT_DATA"
+    assert calculate_manual_eta(5.0, None)["status"] == "INSUFFICIENT_DATA"
 
 
 def test_phase9_upload_endpoint_without_model_does_not_crash(tmp_path, monkeypatch):
@@ -34,13 +41,13 @@ def test_phase9_upload_endpoint_without_model_does_not_crash(tmp_path, monkeypat
     client = app.test_client()
     response = client.post(
         "/api/field-capture/upload",
-        json={"point_id": "V001_pohon_sono_demo", "species": "pohon_sono", "asset_type": "span", "clearance_m": 0.3, "growth_rate_m_per_day": 0.01},
+        json={"point_id": "V001_pohon_sono_demo", "species": "pohon_sono", "asset_type": "span", "clearance_m": 5.0, "growth_rate_m_per_day": 0.01},
     )
     payload = response.get_json()
     assert response.status_code == 200
     assert payload["mode"] == "PROVISIONAL_MANUAL_DEMO"
     assert payload["model_status"] == "MODEL_NOT_READY"
-    assert payload["eta_days"] == 30.0
+    assert payload["eta_days"] == 200.0
 
 
 def test_phase9_csv_report_row_schema_and_write(tmp_path: Path):

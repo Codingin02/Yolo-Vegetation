@@ -7,11 +7,11 @@ from typing import Any
 
 def calculate_eta_to_unsafe_zone(clearance_m: float | None, growth_rate_m_per_day: float | None, safe_clearance_min_m: float = 3.0) -> dict[str, Any]:
     if clearance_m is None:
-        return {"eta_status": "INSUFFICIENT_CLEARANCE_DATA", "eta_min_days": None, "eta_expected_days": None, "eta_max_days": None}
-    if clearance_m < safe_clearance_min_m:
-        return {"eta_status": "ALREADY_WITHIN_UNSAFE_ZONE", "eta_min_days": 0, "eta_expected_days": 0, "eta_max_days": 0, "available_growth_distance_m": 0}
+        return {"eta_status": "INSUFFICIENT_CLEARANCE_DATA", "eta_min_days": None, "eta_expected_days": None, "eta_max_days": None, "eta_expected_months": None}
+    if clearance_m <= safe_clearance_min_m:
+        return {"eta_status": "ALREADY_WITHIN_UNSAFE_ZONE", "eta_min_days": 0, "eta_expected_days": 0, "eta_max_days": 0, "eta_expected_months": 0, "available_growth_distance_m": 0}
     if growth_rate_m_per_day is None or growth_rate_m_per_day <= 0:
-        return {"eta_status": "INSUFFICIENT_GROWTH_RATE", "eta_min_days": None, "eta_expected_days": None, "eta_max_days": None}
+        return {"eta_status": "INSUFFICIENT_GROWTH_RATE", "eta_min_days": None, "eta_expected_days": None, "eta_max_days": None, "eta_expected_months": None}
     distance = max(clearance_m - safe_clearance_min_m, 0)
     expected = distance / growth_rate_m_per_day
     return {

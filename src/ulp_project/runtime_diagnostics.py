@@ -13,6 +13,7 @@ from .environmental_manual_loader import validate_environmental_manual_csv
 from .model_handoff import check_model_handoff
 from .paths import PROJECT_ROOT
 from .realtime_streaming import websocket_available
+from .runtime_links import build_public_links
 from .tunnel_diagnostics import tunnel_cli_status
 from .windows_firewall_hint import windows_firewall_hint
 
@@ -35,6 +36,7 @@ def collect_remote_field_trial_diagnostics(port: int = 5000) -> dict[str, Any]:
         "outputs_writable": _writable(PROJECT_ROOT / "outputs" / "reports"),
         "runtime_writable": _writable(PROJECT_ROOT / "data" / "runtime"),
         "local_url": f"http://127.0.0.1:{port}/field-capture",
+        "public_links": build_public_links(port),
         "tunnel": tunnel_cli_status(),
         "firewall": windows_firewall_hint(port),
         "no_label_touch": True,

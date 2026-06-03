@@ -10,7 +10,7 @@ body {
 }
 
 .shell {
-  max-width: 760px;
+  max-width: 920px;
   margin: 0 auto;
   padding: 18px;
 }
@@ -63,6 +63,7 @@ label {
 
 input,
 textarea,
+select,
 button {
   display: block;
   width: 100%;
@@ -71,6 +72,12 @@ button {
   border: 1px solid #a7b9b2;
   border-radius: 6px;
   font: inherit;
+}
+
+.form-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .realtime-stage {
@@ -105,6 +112,8 @@ button {
   color: #fff;
   border: 0;
   font-weight: 700;
+  min-height: 44px;
+  overflow-wrap: anywhere;
 }
 
 .button-link {
@@ -128,4 +137,21 @@ pre {
 summary {
   cursor: pointer;
   font-size: 18px;
+}
+
+@media (max-width: 540px) {
+  .shell {
+    padding: 10px;
+  }
+
+  .status-grid,
+  .coords,
+  .actions,
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  h1 {
+    font-size: 24px;
+  }
 }
