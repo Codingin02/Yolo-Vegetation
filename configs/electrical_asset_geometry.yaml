@@ -1,0 +1,5 @@
+default_pole_visible_height_m: 10.8
+default_pole_total_height_m: 11.0
+source_status: FIELD_DEFAULT_NEEDS_PLN_CONFIRMATION
+reference_policy: CONFIG_OR_CALIBRATION_PROFILE_CAN_OVERRIDE
+notes: "Default tinggi tiang 20 kV ini hanya field default dan harus bisa diganti dari data PLN/ULP atau kalibrasi lapangan."

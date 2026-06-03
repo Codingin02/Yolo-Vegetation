@@ -50,6 +50,10 @@ COMMAND_GROUPS = {
         ".\\venv\\Scripts\\python.exe scripts\\progress5_3_actual_runtime_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\progress5_3_evidence_pack.py --dry-run",
         ".\\venv\\Scripts\\python.exe scripts\\progress5_3_field_trial_execution_gate.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress5_4_camera_ui_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress5_4_geometry_math_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress5_4_shutter_report_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress5_4_realtime_yolo_geometry_gate.py",
     ],
     "WAIT UNTIL MAKESENSE EXPORT": [
         ".\\venv\\Scripts\\python.exe scripts\\phase3_readiness_gate.py",
@@ -122,6 +126,15 @@ MODE_GROUPS = {
         "HP: https://<ngrok-public-url>/field-capture",
         "HP checklist: https://<ngrok-public-url>/field-trial-checklist",
     ],
+    "progress5-4-camera-geometry": [
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --camera-ui-smoke",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --geometry-math-smoke",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --shutter-report-smoke",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --progress5-4-gate",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --realtime-camera-server",
+        "Tunnel: ngrok http 5000",
+        "HP: https://<ngrok-public-url>/field-capture",
+    ],
 }
 
 
@@ -169,6 +182,12 @@ def main() -> int:
     parser.add_argument("--hp-result-intake-smoke", action="store_true")
     parser.add_argument("--failure-recovery-smoke", action="store_true")
     parser.add_argument("--print-field-trial-checklist", action="store_true")
+    parser.add_argument("--progress5-4-gate", action="store_true")
+    parser.add_argument("--camera-ui-smoke", action="store_true")
+    parser.add_argument("--shutter-report-smoke", action="store_true")
+    parser.add_argument("--geometry-math-smoke", action="store_true")
+    parser.add_argument("--realtime-camera-server", action="store_true")
+    parser.add_argument("--print-progress5-4-commands", action="store_true")
     parser.add_argument("--all-gates", action="store_true")
     parser.add_argument("--mode", choices=["all", *MODE_GROUPS.keys()], default="all")
     args = parser.parse_args()
@@ -199,6 +218,12 @@ def main() -> int:
         (args.hp_result_intake_smoke, ["scripts\\progress5_3_hp_result_intake.py"]),
         (args.failure_recovery_smoke, ["scripts\\progress5_3_failure_recovery_smoke.py"]),
         (args.print_field_trial_checklist, ["scripts\\progress5_3_print_field_trial_checklist.py"]),
+        (args.progress5_4_gate, ["scripts\\progress5_4_realtime_yolo_geometry_gate.py"]),
+        (args.camera_ui_smoke, ["scripts\\progress5_4_camera_ui_smoke.py"]),
+        (args.shutter_report_smoke, ["scripts\\progress5_4_shutter_report_smoke.py"]),
+        (args.geometry_math_smoke, ["scripts\\progress5_4_geometry_math_smoke.py"]),
+        (args.realtime_camera_server, ["scripts\\run_remote_realtime_server.py", "--host", "0.0.0.0", "--port", "5000"]),
+        (args.print_progress5_4_commands, ["scripts\\progress5_4_print_commands.py"]),
         (args.all_gates, ["scripts\\phase17_20_final_system_completion_gate.py"]),
     ]
     selected = [cmd for enabled, cmd in actions if enabled]

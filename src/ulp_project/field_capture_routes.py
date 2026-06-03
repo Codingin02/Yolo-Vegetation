@@ -19,6 +19,16 @@ from .phase5_2_field_trial import (
     phase5_2_runtime_contract_status,
     write_field_trial_snapshot_report,
 )
+from .progress5_4_field_runtime import (
+    latest_progress5_4_gps_status,
+    latest_progress5_4_map,
+    latest_progress5_4_measurement,
+    latest_progress5_4_report,
+    process_progress5_4_realtime_frame,
+    progress5_4_calibration_status,
+    progress5_4_realtime_status,
+    write_progress5_4_shutter_capture,
+)
 from .realtime_streaming import (
     create_realtime_session,
     get_session_status,
@@ -132,6 +142,48 @@ def register_field_capture_routes(app) -> None:
         result = write_field_trial_snapshot_report(dict(payload or request.form))
         return jsonify(result), 200 if result.get("report_written") else 202
 
+    @app.get("/api/field/realtime-status")
+    def field_progress5_4_realtime_status():
+        return jsonify(progress5_4_realtime_status())
+
+    @app.post("/api/field/realtime-frame")
+    def field_progress5_4_realtime_frame():
+        payload = request.get_json(silent=True) or {}
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        return jsonify(process_progress5_4_realtime_frame(dict(payload), runtime_root=runtime, debug_coco=False))
+
+    @app.post("/api/field/debug-coco-frame")
+    def field_progress5_4_debug_coco_frame():
+        payload = request.get_json(silent=True) or {}
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        return jsonify(process_progress5_4_realtime_frame(dict(payload), runtime_root=runtime, debug_coco=True))
+
+    @app.post("/api/field/shutter-capture")
+    def field_progress5_4_shutter_capture():
+        payload = request.get_json(silent=True) if request.is_json else None
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        return jsonify(write_progress5_4_shutter_capture(dict(payload or request.form), runtime_root=runtime))
+
+    @app.get("/api/field/latest-measurement")
+    def field_progress5_4_latest_measurement():
+        return jsonify(latest_progress5_4_measurement())
+
+    @app.get("/api/field/report-latest")
+    def field_progress5_4_report_latest():
+        return jsonify(latest_progress5_4_report())
+
+    @app.get("/api/field/map-latest")
+    def field_progress5_4_map_latest():
+        return jsonify(latest_progress5_4_map())
+
+    @app.get("/api/field/gps-status")
+    def field_progress5_4_gps_status():
+        return jsonify(latest_progress5_4_gps_status())
+
+    @app.get("/api/field/calibration-status")
+    def field_progress5_4_calibration_status():
+        return jsonify(progress5_4_calibration_status())
+
     @app.post("/api/field-trial/hp-result")
     def field_trial_hp_result():
         payload = request.get_json(silent=True) if request.is_json else None
@@ -153,6 +205,10 @@ def register_field_capture_routes(app) -> None:
     @app.get("/field-reports/<path:filename>")
     def field_reports(filename: str):
         return send_from_directory(PROJECT_ROOT / "outputs" / "reports", filename, as_attachment=False)
+
+    @app.get("/field-maps/<path:filename>")
+    def field_maps(filename: str):
+        return send_from_directory(PROJECT_ROOT / "outputs" / "maps", filename, as_attachment=False)
 
     @app.get("/api/mobile/network/status")
     def legacy_mobile_network_alias():

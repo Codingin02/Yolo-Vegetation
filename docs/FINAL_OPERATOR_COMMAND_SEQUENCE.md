@@ -110,3 +110,35 @@ Status HP fisik tidak boleh diklaim berhasil sebelum operator mengisi checklist:
 ```text
 HP_PHYSICAL_TEST_PENDING_USER_CONFIRMATION
 ```
+
+# Progress 5.4 Realtime Camera Geometry
+
+```powershell
+Set-Location E:\Projects\ULP_Project
+.\venv\Scripts\python.exe scripts\operator_command_center.py --camera-ui-smoke
+.\venv\Scripts\python.exe scripts\operator_command_center.py --geometry-math-smoke
+.\venv\Scripts\python.exe scripts\operator_command_center.py --shutter-report-smoke
+.\venv\Scripts\python.exe scripts\operator_command_center.py --progress5-4-gate
+.\venv\Scripts\python.exe scripts\run_remote_realtime_server.py --host 0.0.0.0 --port 5000
+```
+
+Tunnel:
+
+```powershell
+ngrok http 5000
+```
+
+HP:
+
+```text
+https://<ngrok-public-url>/field-capture
+```
+
+Urutan HP:
+
+1. Izinkan Kamera.
+2. Izinkan GPS.
+3. Mulai Deteksi.
+4. Jepret / Shutter.
+5. Buka Spreadsheet/CSV.
+6. Buka Map.

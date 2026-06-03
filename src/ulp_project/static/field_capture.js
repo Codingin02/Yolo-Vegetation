@@ -4,20 +4,18 @@
   const video = document.getElementById("camera");
   const frameCanvas = document.getElementById("frame");
   const overlayCanvas = document.getElementById("overlay-canvas");
-  let capturedBlob = null;
   let realtimeActive = false;
   let frameInFlight = false;
-  let lastFrameSentAt = 0;
   let realtimeTimer = null;
-  let gpsTimer = null;
-  let realtimeSessionId = "";
-  let realtimeSessionToken = "";
-  let ws = null;
-  let lastPrediction = {};
-  let lastReportUrl = "/field-reports/phase5_2_field_trial_snapshot.csv";
+  let gpsWatchId = null;
+  let latestGps = { gps_source: "GPS_NOT_PROVIDED" };
+  let latestMeasurement = {};
+  let latestFrameBase64 = "";
+  let lastReportUrl = "/field-reports/progress5_4_shutter_report.csv";
   let lastMapUrl = "";
   let lastPublicUrl = "";
   let lastLanUrl = "";
+  let debugMode = false;
   const requestedIntervalMs = 1000;
   const maxDisplayAgeMs = 3000;
 
@@ -42,6 +40,11 @@
   function setValue(id, next) {
     const el = document.getElementById(id);
     if (el) el.value = next === undefined || next === null ? "" : next;
+  }
+
+  function addClick(id, fn) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("click", fn);
   }
 
   async function safeFetchJson(endpoint, options) {
@@ -86,16 +89,18 @@
 
   async function refreshRuntimeStatus() {
     const runtime = await safeFetchJson("/api/runtime/status");
+    const realtime = await safeFetchJson("/api/field/realtime-status");
+    const calibration = await safeFetchJson("/api/field/calibration-status");
     setFieldStatus("server-status", runtime.status || "RUNTIME_STATUS_READY");
-    setFieldStatus("model-status", runtime.model_status || "MODEL_NOT_READY");
-    setFieldStatus("output-model-status", runtime.model_status || "MODEL_NOT_READY");
+    setFieldStatus("model-status", realtime.model_status || runtime.model_status || "MODEL_NOT_READY");
+    setFieldStatus("output-model-status", realtime.model_status || runtime.model_status || "MODEL_NOT_READY");
     setFieldStatus("tunnel-status", (runtime.public_links || {}).status || "NO_PUBLIC_TUNNEL_CONFIGURED");
     setFieldStatus("realtime-transport-status", (runtime.websocket || {}).status || "HTTP_FALLBACK_READY");
+    setFieldStatus("calibration-status", calibration.status || "CALIBRATION_NOT_READY");
+    setFieldStatus("refresh-interval-display", `${realtime.result_update_interval_ms || 1000} ms stable update`);
     lastPublicUrl = ((runtime.public_links || {}).public_field_capture_url || "");
     lastLanUrl = ((runtime.public_links || {}).lan_field_capture_url || "");
-    const calibration = await safeFetchJson("/api/calibration/status");
-    setFieldStatus("calibration-status", calibration.status || "CALIBRATION_NOT_READY");
-    setDebug({ runtime, calibration });
+    setDebug({ runtime, realtime, calibration });
   }
 
   async function refreshTunnelStatus() {
@@ -114,7 +119,10 @@
         setStatus("CAMERA_API_UNAVAILABLE_IN_THIS_CONTEXT");
         return false;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      });
       video.srcObject = stream;
       setFieldStatus("camera-status", "CAMERA_READY");
       setStatus("CAMERA_READY");
@@ -145,71 +153,103 @@
       setStatus("GPS_API_UNAVAILABLE_IN_THIS_CONTEXT");
       return;
     }
-    navigator.geolocation.getCurrentPosition(
+    if (gpsWatchId !== null) navigator.geolocation.clearWatch(gpsWatchId);
+    gpsWatchId = navigator.geolocation.watchPosition(
       function (position) {
+        const accuracy = position.coords.accuracy || 0;
+        latestGps = {
+          gps_lat: position.coords.latitude,
+          gps_lon: position.coords.longitude,
+          gps_accuracy_m: accuracy,
+          gps_source: "GPS_SOURCE_BROWSER",
+          heading: position.coords.heading || ""
+        };
         setValue("lat", position.coords.latitude.toFixed(7));
         setValue("lon", position.coords.longitude.toFixed(7));
-        setValue("gps_accuracy_m", position.coords.accuracy ? position.coords.accuracy.toFixed(1) : "");
+        setValue("gps_accuracy_m", accuracy ? accuracy.toFixed(1) : "");
         setValue("gps_source", "GPS_SOURCE_BROWSER");
-        setFieldStatus("gps-status", "GPS_READY");
+        setFieldStatus("gps-status", accuracy > 20 ? "LOW_ACCURACY" : "GPS_ACTIVE");
         setFieldStatus("gps-source-status", "GPS_SOURCE_BROWSER");
-        setStatus("GPS_READY");
+        setFieldStatus("gps-accuracy-status", accuracy ? `${accuracy.toFixed(1)} m` : "-");
+        setStatus(accuracy > 20 ? "GPS_ACTIVE_LOW_ACCURACY" : "GPS_ACTIVE");
       },
       function (error) {
         const code = error && error.code;
         const status = code === 1 ? "GPS_PERMISSION_DENIED" : code === 3 ? "GPS_TIMEOUT" : "GPS_SIGNAL_NOT_READY";
         setFieldStatus("gps-status", status);
-        setStatus({ status, message: String((error && error.message) || error), fallback: "Isi latitude/longitude manual jika tersedia. Tanpa GPS, map marker tidak dibuat." });
+        setStatus({ status, message: String((error && error.message) || error), fallback: "Tanpa GPS, shutter tetap bisa tersimpan tetapi map marker tidak dibuat." });
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
     );
   }
 
   function markGpsManualIfTyped() {
     if ((value("lat") || value("lon")) && value("gps_source") !== "GPS_SOURCE_BROWSER") {
+      latestGps = {
+        gps_lat: value("lat"),
+        gps_lon: value("lon"),
+        gps_accuracy_m: value("gps_accuracy_m"),
+        gps_source: "GPS_SOURCE_MANUAL"
+      };
       setValue("gps_source", "GPS_SOURCE_MANUAL");
       setFieldStatus("gps-source-status", "GPS_SOURCE_MANUAL");
     }
   }
 
-  function collectPayload() {
+  function collectOperatorPayload() {
     markGpsManualIfTyped();
     return {
       point_id: value("point_id") || "V001_pohon_sono",
       species: value("species") || "pohon_sono",
       asset_type: value("asset_type") || "span",
+      operator_name: value("operator_name"),
+      notes: value("operator_note"),
+      operator_notes: value("operator_note"),
+      timestamp: new Date().toISOString(),
+      ...latestGps
+    };
+  }
+
+  function collectLegacyManualPayload() {
+    return {
+      ...collectOperatorPayload(),
       latitude: value("lat"),
       longitude: value("lon"),
-      gps_accuracy_m: value("gps_accuracy_m"),
-      gps_source: value("gps_source") || "GPS_NOT_PROVIDED",
       clearance_m: value("clearance_m"),
       tree_height_m: value("tree_height_m"),
       asset_height_m: value("asset_height_m"),
       span_lowest_point_height_m: value("span_lowest_point_height_m"),
       growth_rate_m_per_day: value("growth_rate_m_per_day"),
       measurement_source: value("measurement_source") || "manual",
-      environment_source: value("environment_source") || "not_available",
-      notes: value("operator_note"),
-      operator_notes: value("operator_note"),
-      image_reference: (document.getElementById("image").files[0] || {}).name || (capturedBlob ? "captured-frame-not-stored" : ""),
-      timestamp: new Date().toISOString()
+      environment_source: value("environment_source") || "not_available"
     };
   }
 
   function applyPredictionOutput(payload) {
-    lastPrediction = payload || {};
-    setFieldStatus("output-model-status", payload.model_status || "MODEL_NOT_READY");
-    setFieldStatus("model-status", payload.model_status || "MODEL_NOT_READY");
-    setFieldStatus("inference-source", payload.inference_source || "-");
-    setFieldStatus("confidence-status", payload.confidence_status || "-");
-    setFieldStatus("measurement-quality-label", payload.measurement_quality_label || "-");
-    setFieldStatus("clearance-display-floor", payload.clearance_display_m_integer_floor);
-    setFieldStatus("clearance-raw", payload.clearance_raw_m);
-    setFieldStatus("eta-days", payload.eta_days);
-    setFieldStatus("eta-months", payload.eta_months);
-    setFieldStatus("risk-status", payload.risk_status || payload.risk_priority || "-");
-    setFieldStatus("action-priority", payload.action_priority || payload.risk_priority || "-");
-    setFieldStatus("reason-codes", Array.isArray(payload.reason_codes) ? payload.reason_codes.join(";") : payload.reason_codes);
+    const measurement = payload.measurement_result || payload;
+    latestMeasurement = measurement || {};
+    debugMode = Boolean(payload.debug_mode || measurement.debug_mode);
+    setFieldStatus("output-model-status", payload.model_status || measurement.model_status || "MODEL_NOT_READY");
+    setFieldStatus("model-status", payload.model_status || measurement.model_status || "MODEL_NOT_READY");
+    setFieldStatus("inference-source", payload.detection_source || payload.inference_source || "-");
+    setFieldStatus("confidence-status", measurement.confidence_status || payload.confidence_status || "-");
+    setFieldStatus("measurement-quality-label", measurement.measurement_quality_label || payload.measurement_quality_label || "-");
+    setFieldStatus("object-detected", JSON.stringify(payload.object_detected || {
+      pole: measurement.pole_detected,
+      conductor: measurement.conductor_detected,
+      tree: measurement.tree_detected
+    }));
+    setFieldStatus("tree-height-m", measurement.tree_height_m);
+    setFieldStatus("pole-height-reference-m", measurement.pole_reference_height_m);
+    setFieldStatus("cable-height-m", measurement.cable_height_m);
+    setFieldStatus("clearance-raw", measurement.clearance_m || payload.clearance_raw_m);
+    setFieldStatus("clearance-display-floor", measurement.clearance_m === undefined || measurement.clearance_m === null ? payload.clearance_display_m_integer_floor : Math.floor(Number(measurement.clearance_m)));
+    setFieldStatus("eta-days", measurement.eta_days || payload.eta_days);
+    setFieldStatus("eta-months", measurement.eta_months || payload.eta_months);
+    setFieldStatus("risk-status", measurement.zone_status || payload.risk_status || payload.risk_priority || "-");
+    setFieldStatus("action-priority", measurement.action_recommendation || payload.action_priority || payload.risk_priority || "-");
+    const reasonCodes = measurement.reason_codes || payload.reason_codes || [];
+    setFieldStatus("reason-codes", Array.isArray(reasonCodes) ? reasonCodes.join(";") : reasonCodes);
     setFieldStatus("report-id", payload.report_id || payload.job_id || payload.session_id || "-");
     if (payload.report_csv_url) {
       lastReportUrl = payload.report_csv_url;
@@ -222,6 +262,8 @@
       setFieldStatus("map-path", payload.map_url);
     } else if (payload.map_path) {
       setFieldStatus("map-path", payload.map_path);
+    } else if (payload.map_status) {
+      setFieldStatus("map-path", payload.map_status);
     }
     setStatus(payload);
   }
@@ -230,126 +272,90 @@
     const payload = await safeFetchJson("/api/field/manual-prediction", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(collectPayload())
+      body: JSON.stringify(collectLegacyManualPayload())
     });
     applyPredictionOutput(payload);
     setDebug(payload);
   }
 
   async function sendSnapshotReport() {
-    const payload = await safeFetchJson("/api/field/snapshot-report", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...collectPayload(), latest_prediction_status: lastPrediction.status, report_trigger: "MANUAL_SNAPSHOT" })
-    });
-    applyPredictionOutput(payload);
-    setDebug(payload);
-  }
-
-  async function createRealtimeSession() {
-    const session = await safeFetchJson("/api/realtime/session/new");
-    realtimeSessionId = session.session_id || "";
-    realtimeSessionToken = session.session_token || "";
-    setFieldStatus("realtime-transport-status", "SESSION_READY_HTTP_FALLBACK");
-    return session;
-  }
-
-  function openRealtimeWebSocket() {
-    if (!realtimeSessionId || typeof WebSocket === "undefined") return false;
-    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-    try {
-      ws = new WebSocket(`${scheme}://${window.location.host}/ws/realtime-detect`);
-      ws.onopen = function () {
-        setFieldStatus("realtime-transport-status", "WEBSOCKET_CONNECTED");
-      };
-      ws.onmessage = function (event) {
-        frameInFlight = false;
-        handleRealtimeResult(JSON.parse(event.data));
-      };
-      ws.onerror = function () {
-        setFieldStatus("realtime-transport-status", "WEBSOCKET_ERROR_HTTP_FALLBACK");
-      };
-      ws.onclose = function () {
-        if (realtimeActive) setFieldStatus("realtime-transport-status", "HTTP_FALLBACK_1FPS");
-      };
-      return true;
-    } catch (error) {
-      setFieldStatus("realtime-transport-status", "WEBSOCKET_UNAVAILABLE_HTTP_FALLBACK");
-      return false;
-    }
+    await shutterCapture();
   }
 
   async function startRealtimeDetection() {
     realtimeActive = true;
-    setFieldStatus("mode-label", "REALTIME_OR_HTTP_FALLBACK");
+    debugMode = false;
+    setFieldStatus("mode-label", "REALTIME_CAMERA_GEOMETRY");
     await startCamera();
-    await createRealtimeSession();
-    openRealtimeWebSocket();
     requestGps();
-    gpsTimer = window.setInterval(requestGps, 8000);
+    if (realtimeTimer) window.clearInterval(realtimeTimer);
     realtimeTimer = window.setInterval(sendRealtimeFrame, requestedIntervalMs);
-    setFieldStatus("refresh-interval-display", `${requestedIntervalMs} ms`);
-    setStatus("REALTIME_DETECTION_STARTED_NO_FAKE_DETECTION");
+    setFieldStatus("refresh-interval-display", `${requestedIntervalMs} ms stable update`);
+    setStatus("REALTIME_CAMERA_GEOMETRY_STARTED_NO_FAKE_DETECTION");
   }
 
   function stopRealtimeDetection() {
     realtimeActive = false;
     frameInFlight = false;
     if (realtimeTimer) window.clearInterval(realtimeTimer);
-    if (gpsTimer) window.clearInterval(gpsTimer);
     realtimeTimer = null;
-    gpsTimer = null;
-    if (ws) ws.close();
-    ws = null;
     setFieldStatus("realtime-transport-status", "STOPPED");
     setStatus("REALTIME_DETECTION_STOPPED");
   }
 
   async function sendRealtimeFrame() {
-    if (!realtimeActive || !realtimeSessionId) return;
-    const now = Date.now();
-    if (now - lastFrameSentAt < requestedIntervalMs || frameInFlight) {
-      setFieldStatus("realtime-transport-status", "LATEST_ONLY_DROPPING_FRAME");
-      return;
-    }
+    if (!realtimeActive || frameInFlight) return;
     const imageBase64 = captureFrameBase64();
     if (!imageBase64) {
       setStatus("CAMERA_FRAME_NOT_READY_NO_FAKE_DETECTION");
       return;
     }
+    latestFrameBase64 = imageBase64;
     frameInFlight = true;
-    lastFrameSentAt = now;
-    const payload = {
-      session_id: realtimeSessionId,
-      session_token: realtimeSessionToken,
-      frame_id: `frame_${now}`,
-      timestamp_client_ms: now,
-      point_id: value("point_id") || "V001_pohon_sono",
-      species_hint: value("species") || "pohon_sono",
-      asset_type: value("asset_type") || "span",
-      gps_lat: value("lat"),
-      gps_lon: value("lon"),
-      image_jpeg_base64: imageBase64,
-      client_mode: window.location.protocol === "https:" ? "remote_https" : "lan_http",
-      requested_interval_ms: requestedIntervalMs
-    };
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(payload));
-      return;
-    }
     try {
-      const response = await safeFetchJson("/api/realtime/frame", {
+      const payload = await safeFetchJson("/api/field/realtime-frame", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(buildFramePayload(imageBase64))
       });
       frameInFlight = false;
-      handleRealtimeResult(response);
+      handleRealtimeResult(payload);
     } catch (error) {
       frameInFlight = false;
       setFieldStatus("realtime-transport-status", "HTTP_FALLBACK_SEND_FAILED");
       setStatus({ status: "REALTIME_FRAME_SEND_FAILED", message: String(error) });
     }
+  }
+
+  async function debugCocoOverlay() {
+    debugMode = true;
+    await startCamera();
+    const imageBase64 = captureFrameBase64();
+    if (!imageBase64) {
+      setStatus("DEBUG_COCO_CAMERA_FRAME_NOT_READY");
+      return;
+    }
+    latestFrameBase64 = imageBase64;
+    const payload = await safeFetchJson("/api/field/debug-coco-frame", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildFramePayload(imageBase64))
+    });
+    handleRealtimeResult(payload);
+  }
+
+  function buildFramePayload(imageBase64) {
+    return {
+      ...collectOperatorPayload(),
+      frame_id: `p54_${Date.now()}`,
+      timestamp_client_ms: Date.now(),
+      image_jpeg_base64: imageBase64,
+      camera_width: video.videoWidth || frameCanvas.width || "",
+      camera_height: video.videoHeight || frameCanvas.height || "",
+      client_mode: window.location.protocol === "https:" ? "remote_https" : "lan_http",
+      requested_interval_ms: requestedIntervalMs,
+      debug_mode: debugMode
+    };
   }
 
   function captureFrameBase64() {
@@ -359,30 +365,19 @@
     frameCanvas.width = Math.floor(video.videoWidth * scale);
     frameCanvas.height = Math.floor(video.videoHeight * scale);
     frameCanvas.getContext("2d").drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
-    const dataUrl = frameCanvas.toDataURL("image/jpeg", 0.7);
+    const dataUrl = frameCanvas.toDataURL("image/jpeg", 0.72);
     return dataUrl.split(",", 2)[1] || "";
   }
 
   function handleRealtimeResult(payload) {
-    const latency = payload.latency_ms || 0;
-    if (latency > maxDisplayAgeMs || payload.queue_status === "HIGH_LATENCY_DROPPING_OLD_FRAMES") {
-      setFieldStatus("realtime-transport-status", "HIGH_LATENCY_DROPPING_OLD_FRAMES");
-    } else if (payload.status === "FRAME_RATE_LIMITED") {
-      setFieldStatus("realtime-transport-status", "FRAME_RATE_LIMITED_1FPS");
+    const latency = payload.latency_ms || payload.processing_time_ms || 0;
+    if (latency > maxDisplayAgeMs || payload.latency_status === "HIGH_LATENCY") {
+      setFieldStatus("realtime-transport-status", "HIGH_LATENCY");
     } else {
-      setFieldStatus("realtime-transport-status", payload.queue_status || "REALTIME_OK");
+      setFieldStatus("realtime-transport-status", "HTTP_FALLBACK_1FPS");
     }
     setFieldStatus("latency-display", `${latency} ms`);
-    applyPredictionOutput({
-      ...payload,
-      inference_source: (payload.inference_contract || {}).detection_source || payload.detection_status,
-      confidence_status: payload.confidence_status,
-      clearance_raw_m: payload.selected_clearance_m_raw,
-      clearance_display_m_integer_floor: payload.selected_clearance_display_m,
-      risk_status: payload.distance_zone_status || payload.risk_priority,
-      action_priority: payload.risk_priority,
-      reason_codes: [payload.detection_status, payload.queue_status, payload.eta_status].filter(Boolean)
-    });
+    applyPredictionOutput(payload);
     drawOverlay(payload.overlay_json || {});
     setDebug(payload);
   }
@@ -403,30 +398,58 @@
       ctx.font = "16px Arial";
       ctx.fillText(`${box.label || "object"} ${box.confidence || ""}`, bbox[0], Math.max(16, bbox[1] - 4));
     });
+    const line = overlay.measurement_line || {};
+    if (line.status === "AVAILABLE" && line.tree_top_px !== undefined && line.cable_px !== undefined) {
+      ctx.strokeStyle = "#e11d48";
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(24, line.cable_px);
+      ctx.lineTo(Math.max(24, overlayCanvas.width - 24), line.cable_px);
+      ctx.moveTo(24, line.tree_top_px);
+      ctx.lineTo(Math.max(24, overlayCanvas.width - 24), line.tree_top_px);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
   }
 
   function captureStillFrame() {
-    if (!video.videoWidth) {
+    const imageBase64 = captureFrameBase64();
+    if (!imageBase64) {
       setStatus("CAMERA_FRAME_NOT_READY_USE_FILE_UPLOAD_FALLBACK");
       return;
     }
-    frameCanvas.width = video.videoWidth;
-    frameCanvas.height = video.videoHeight;
-    frameCanvas.getContext("2d").drawImage(video, 0, 0);
-    frameCanvas.toBlob(function (blob) {
-      capturedBlob = blob;
-      setFieldStatus("mode-label", "CAPTURED_FRAME_REFERENCE_ONLY");
-      setStatus("FRAME_CAPTURED_REFERENCE_READY");
-    }, "image/jpeg", 0.82);
+    latestFrameBase64 = imageBase64;
+    setFieldStatus("mode-label", "CAPTURED_FRAME_REFERENCE_ONLY");
+    setStatus("FRAME_CAPTURED_REFERENCE_READY");
   }
 
-  async function copyReportLink() {
-    try {
-      await navigator.clipboard.writeText(`${window.location.origin}${lastReportUrl}`);
-      setStatus("REPORT_LINK_COPIED");
-    } catch (error) {
-      setStatus({ status: "REPORT_LINK_READY_COPY_MANUAL", link: `${window.location.origin}${lastReportUrl}`, message: String(error) });
+  async function shutterCapture() {
+    const imageBase64 = captureFrameBase64() || latestFrameBase64;
+    const payload = await safeFetchJson("/api/field/shutter-capture", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...collectOperatorPayload(),
+        timestamp_client_ms: Date.now(),
+        image_jpeg_base64: imageBase64,
+        camera_width: video.videoWidth || frameCanvas.width || "",
+        camera_height: video.videoHeight || frameCanvas.height || "",
+        model_status: document.getElementById("model-status").textContent || "MODEL_NOT_READY",
+        debug_mode: debugMode,
+        measurement_result: latestMeasurement
+      })
+    });
+    applyPredictionOutput(payload);
+    setDebug(payload);
+  }
+
+  async function openReportLink() {
+    if (lastReportUrl) {
+      window.open(lastReportUrl, "_blank", "noopener");
+      return;
     }
+    const latest = await safeFetchJson("/api/field/report-latest");
+    setStatus(latest);
   }
 
   async function copyTextOrShow(text, fallbackStatus) {
@@ -481,32 +504,32 @@
       window.open(lastMapUrl, "_blank", "noopener");
       return;
     }
-    setStatus("MAP_NOT_AVAILABLE_YET_NO_GPS_NO_MARKER_OR_SNAPSHOT_NOT_SENT");
+    setStatus("MAP_NOT_AVAILABLE_YET_NO_GPS_NO_MARKER_OR_SHUTTER_NOT_SENT");
   }
 
-  document.getElementById("ping-btn").addEventListener("click", async function () {
+  addClick("ping-btn", async function () {
     const payload = await safeFetchJson("/api/network/health");
     setFieldStatus("server-status", payload.status || "NETWORK_HEALTH_READY");
     setStatus(payload);
     setDebug(payload);
   });
-  document.getElementById("gps-btn").addEventListener("click", requestGps);
-  document.getElementById("camera-permission").addEventListener("click", startCamera);
-  document.getElementById("start-camera").addEventListener("click", startCamera);
-  document.getElementById("stop-camera").addEventListener("click", stopCamera);
-  document.getElementById("start-realtime").addEventListener("click", startRealtimeDetection);
-  document.getElementById("stop-realtime").addEventListener("click", stopRealtimeDetection);
-  document.getElementById("capture-frame").addEventListener("click", captureStillFrame);
-  document.getElementById("manual-prediction").addEventListener("click", runManualPrediction);
-  document.getElementById("snapshot-report").addEventListener("click", sendSnapshotReport);
-  document.getElementById("copy-report-link").addEventListener("click", copyReportLink);
-  document.getElementById("open-map-report").addEventListener("click", openMapReport);
-  document.getElementById("refresh-tunnel-status").addEventListener("click", refreshTunnelStatus);
-  document.getElementById("copy-public-url").addEventListener("click", copyPublicUrl);
-  document.getElementById("copy-lan-url").addEventListener("click", copyLanUrl);
-  document.getElementById("failure-recovery-help").addEventListener("click", failureRecoveryHelp);
-  document.getElementById("lat").addEventListener("change", markGpsManualIfTyped);
-  document.getElementById("lon").addEventListener("change", markGpsManualIfTyped);
+  addClick("gps-btn", requestGps);
+  addClick("camera-permission", startCamera);
+  addClick("start-camera", startCamera);
+  addClick("stop-camera", stopCamera);
+  addClick("start-realtime", startRealtimeDetection);
+  addClick("stop-realtime", stopRealtimeDetection);
+  addClick("capture-frame", captureStillFrame);
+  addClick("shutter-capture", shutterCapture);
+  addClick("manual-prediction", runManualPrediction);
+  addClick("snapshot-report", sendSnapshotReport);
+  addClick("copy-report-link", openReportLink);
+  addClick("open-map-report", openMapReport);
+  addClick("debug-coco-overlay", debugCocoOverlay);
+  addClick("refresh-tunnel-status", refreshTunnelStatus);
+  addClick("copy-public-url", copyPublicUrl);
+  addClick("copy-lan-url", copyLanUrl);
+  addClick("failure-recovery-help", failureRecoveryHelp);
 
   updateSecureContextStatus();
   refreshRuntimeStatus();
