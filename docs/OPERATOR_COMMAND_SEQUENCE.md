@@ -192,3 +192,48 @@ Command training eksplisit nanti:
 ```
 
 Jangan klaim akurasi sampai training dan evaluasi nyata selesai.
+
+## Phase 16 Remote Realtime Streaming
+
+Phase 16 bukan aplikasi HP. HP tetap field capture browser, sedangkan laptop tetap processing server.
+
+1. Diagnose dan tampilkan link:
+
+```powershell
+.\venv\Scripts\python.exe scripts\diagnose_field_capture_deploy.py
+.\venv\Scripts\python.exe scripts\print_remote_realtime_links.py
+```
+
+2. Jalankan laptop processing server:
+
+```powershell
+.\venv\Scripts\python.exe scripts\run_remote_realtime_server.py --host 0.0.0.0 --port 5000
+```
+
+3. Mode LAN debug:
+
+```text
+http://<IP-LAPTOP>:5000/field-capture
+```
+
+4. Mode remote HTTPS tunnel untuk kamera/GPS otomatis beda jaringan:
+
+```powershell
+ngrok http 5000
+# atau
+cloudflared tunnel --url http://localhost:5000
+```
+
+Lalu HP membuka:
+
+```text
+https://<public-tunnel-url>/field-capture
+```
+
+5. Di HP tekan:
+
+```text
+Mulai Deteksi Pohon
+```
+
+Realtime client mengirim maksimal 1 frame/detik. Jika latensi lebih dari 3 detik, frame lama di-drop. Spreadsheet/map ditulis hanya lewat tombol `Kirim Snapshot Report` atau snapshot stabil, bukan setiap frame mentah.

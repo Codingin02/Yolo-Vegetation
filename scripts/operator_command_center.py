@@ -19,6 +19,9 @@ COMMAND_GROUPS = {
         ".\\venv\\Scripts\\python.exe scripts\\phase14_auto_yolo_measurement_gate.py",
         ".\\venv\\Scripts\\python.exe scripts\\phase15_realtime_eta_system_gate.py",
         ".\\venv\\Scripts\\python.exe scripts\\phase15_rough_realtime_auto_demo.py --mode mock-auto",
+        ".\\venv\\Scripts\\python.exe scripts\\print_remote_realtime_links.py",
+        ".\\venv\\Scripts\\python.exe scripts\\run_remote_realtime_server.py --host 0.0.0.0 --port 5000",
+        ".\\venv\\Scripts\\python.exe scripts\\phase16_remote_realtime_streaming_gate.py",
         ".\\venv\\Scripts\\python.exe scripts\\run_realtime_field_pipeline.py --mode all-dry-run",
         ".\\venv\\Scripts\\python.exe scripts\\phase12_calibration_readiness_check.py",
         ".\\venv\\Scripts\\python.exe scripts\\phase12_environmental_readiness_check.py",
@@ -81,6 +84,11 @@ MODE_GROUPS = {
     "phase15-eta-system": [
         ".\\venv\\Scripts\\python.exe scripts\\phase15_realtime_eta_system_gate.py",
         ".\\venv\\Scripts\\python.exe scripts\\phase15_rough_realtime_auto_demo.py --mode mock-auto",
+    ],
+    "phase16-remote-realtime": [
+        ".\\venv\\Scripts\\python.exe scripts\\print_remote_realtime_links.py",
+        ".\\venv\\Scripts\\python.exe scripts\\run_remote_realtime_server.py --host 0.0.0.0 --port 5000",
+        ".\\venv\\Scripts\\python.exe scripts\\phase16_remote_realtime_streaming_gate.py",
     ],
 }
 

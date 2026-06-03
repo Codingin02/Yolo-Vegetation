@@ -1,0 +1,13 @@
+policy_name: PLN_20KV_PROTOTYPE_3M_CLEARANCE
+safe_clearance_min_m: 3.0
+warning_clearance_m: 4.0
+display_rounding: floor_meter
+prototype_status: OPERATIONAL_PROTOTYPE_PARAMETER
+notes:
+  - "3 meter dipakai sebagai parameter operasional prototype untuk zona aman jarak vegetasi terhadap kabel/span/trafo."
+  - "Nilai ini belum diklaim sebagai standar legal final PLN tanpa validasi dokumen PLN/ULP dan data lapangan."
+distance_zone_actions:
+  CONTACT_OR_OVERLAP: EMERGENCY_FIELD_REVIEW
+  UNSAFE_WITHIN_3M: PRIORITY_PRUNING_REVIEW
+  WARNING_APPROACHING_3M: SCHEDULED_MONITORING
+  SAFE: NORMAL_MONITORING

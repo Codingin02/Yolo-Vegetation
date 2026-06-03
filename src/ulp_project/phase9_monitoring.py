@@ -67,6 +67,12 @@ PHASE9_MONITORING_COLUMNS = [
     "span_lowest_point_height_m_raw",
     "selected_clearance_m_raw",
     "selected_clearance_m_stable",
+    "selected_clearance_display_m",
+    "safe_clearance_min_m",
+    "distance_zone_status",
+    "report_trigger",
+    "realtime_session_id",
+    "frame_id_snapshot",
     "environmental_freshness",
     "model_path",
     "auto_measurement_status",
@@ -142,6 +148,12 @@ def build_phase9_monitoring_row(payload: dict[str, Any]) -> dict[str, Any]:
         "span_lowest_point_height_m_raw": payload.get("span_lowest_point_height_m_raw") or payload.get("auto_span_lowest_point_height_m", ""),
         "selected_clearance_m_raw": payload.get("selected_clearance_m_raw") or payload.get("raw_selected_clearance_m", ""),
         "selected_clearance_m_stable": payload.get("selected_clearance_m_stable") or payload.get("stabilized_selected_clearance_m") or payload.get("selected_clearance_m", ""),
+        "selected_clearance_display_m": payload.get("selected_clearance_display_m", ""),
+        "safe_clearance_min_m": payload.get("safe_clearance_min_m", ""),
+        "distance_zone_status": payload.get("distance_zone_status", ""),
+        "report_trigger": payload.get("report_trigger", ""),
+        "realtime_session_id": payload.get("realtime_session_id", ""),
+        "frame_id_snapshot": payload.get("frame_id_snapshot", ""),
         "environmental_freshness": payload.get("environmental_freshness") or payload.get("environmental_data_status", ""),
         "model_path": payload.get("model_path", ""),
         "auto_measurement_status": payload.get("auto_measurement_status", ""),
@@ -236,6 +248,9 @@ def write_phase9_risk_map(row: dict[str, Any], output: Path = RISK_MAP_HTML) -> 
         f"action: {row.get('action_recommendation')}<br>"
         f"confidence: {row.get('confidence_status')}<br>"
         f"hazard_target: {row.get('selected_hazard_target')}<br>"
+        f"clearance_display_m: {row.get('selected_clearance_display_m')}<br>"
+        f"safe_clearance_min_m: {row.get('safe_clearance_min_m')}<br>"
+        f"distance_zone: {row.get('distance_zone_status')}<br>"
         f"model_status: {row.get('model_status')}<br>"
         f"environment: {row.get('environmental_data_status')}<br>"
         f"status: {row.get('status')}<br>"

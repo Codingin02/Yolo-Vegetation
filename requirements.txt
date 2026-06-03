@@ -4,6 +4,7 @@ pandas
 numpy
 pyyaml
 flask
+flask-sock
 folium
 gpxpy
 openpyxl

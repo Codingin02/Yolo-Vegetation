@@ -28,6 +28,11 @@
         <div><dt>Risk Priority</dt><dd id="risk-priority">-</dd></div>
         <div><dt>Report Path</dt><dd id="report-path">-</dd></div>
         <div><dt>Map Path</dt><dd id="map-path">-</dd></div>
+        <div><dt>Realtime Transport</dt><dd id="realtime-transport-status">NOT_STARTED</dd></div>
+        <div><dt>Latency</dt><dd id="latency-display">-</dd></div>
+        <div><dt>Interval</dt><dd id="refresh-interval-display">1000 ms</dd></div>
+        <div><dt>Clearance</dt><dd id="clearance-display">-</dd></div>
+        <div><dt>Zona 3m</dt><dd id="distance-zone-status">-</dd></div>
       </dl>
       <div class="actions">
         <button id="ping-btn" type="button">Test koneksi laptop</button>
@@ -39,11 +44,22 @@
       <p class="hint">Protocol labels: HTTP_LAN untuk akses LAN biasa, HTTPS_SECURE untuk tunnel/HTTPS.</p>
     </section>
     <section class="panel">
-      <h2>Kamera/File</h2>
-      <video id="camera" playsinline autoplay muted></video>
+      <h2>Realtime Deteksi Pohon</h2>
+      <p class="hint">Mode utama Phase 16 adalah kamera HP browser -> laptop server -> hasil overlay balik ke HP. Manual hanya fallback advanced.</p>
+      <div class="realtime-stage">
+        <video id="camera" playsinline autoplay muted></video>
+        <canvas id="overlay-canvas"></canvas>
+      </div>
       <canvas id="frame" hidden></canvas>
       <div class="actions">
+        <button id="start-realtime" type="button">Mulai Deteksi Pohon</button>
+        <button id="stop-realtime" type="button">Stop Deteksi</button>
         <button id="capture-frame" type="button">Capture Frame</button>
+        <button id="snapshot-report" type="button">Kirim Snapshot Report</button>
+      </div>
+      <div class="actions">
+        <a class="button-link" href="/api/operator/latest-report" target="_blank">Latest Report</a>
+        <a class="button-link" href="/api/operator/map-status" target="_blank">Map Report Status</a>
       </div>
       <label>Upload file foto fallback
         <input id="image" type="file" accept="image/*" capture="environment">
@@ -59,7 +75,8 @@
         <button id="gps-btn-secondary" type="button">Ambil GPS HP</button>
       </div>
     </section>
-    <section class="panel">
+    <details class="panel">
+      <summary><strong>Advanced / Manual Provisional</strong></summary>
       <h2>Mode Manual Provisional / Advanced</h2>
       <p class="hint">Mode utama adalah AUTO YOLO jika model dan kalibrasi sudah siap. Field manual di bawah hanya fallback provisional/demo kasar.</p>
       <label>Point ID
@@ -116,7 +133,7 @@
         <a class="button-link" href="/api/operator/latest-report" target="_blank">Export CSV status</a>
         <a class="button-link" href="/api/operator/map-status" target="_blank">Map status</a>
       </div>
-    </section>
+    </details>
     <section class="panel">
       <h2>Hasil Ringkas</h2>
       <pre id="status-output">FIELD_CAPTURE_READY_MODEL_NOT_READY</pre>

@@ -8,6 +8,16 @@ from pathlib import Path
 from .field_capture import accept_field_capture_upload, load_field_capture_job, load_field_capture_result
 from .latency_monitor import ping_latency
 from .network_mode import describe_network_modes
+from .realtime_streaming import (
+    create_realtime_session,
+    get_session_status,
+    latest_realtime_result,
+    process_realtime_frame,
+    validate_session_token,
+    websocket_available,
+    write_realtime_snapshot_report,
+)
+from .yolo_model_resolver import resolve_yolo_model
 
 
 def register_field_capture_routes(app) -> None:
@@ -15,6 +25,10 @@ def register_field_capture_routes(app) -> None:
 
     @app.get("/field-capture")
     def field_capture_page():
+        return render_template("field_capture.html")
+
+    @app.get("/realtime")
+    def realtime_alias():
         return render_template("field_capture.html")
 
     @app.get("/mobile")
@@ -97,6 +111,39 @@ def register_field_capture_routes(app) -> None:
         runtime = Path(app.config["ULP_RUNTIME_ROOT"])
         return jsonify(load_field_capture_result(job_id, runtime))
 
+    @app.get("/api/realtime/session/new")
+    def realtime_session_new():
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        return jsonify(create_realtime_session(runtime))
+
+    @app.get("/api/realtime/session/status/<session_id>")
+    def realtime_session_status(session_id: str):
+        return jsonify(get_session_status(session_id))
+
+    @app.get("/api/realtime/model/status")
+    def realtime_model_status():
+        return jsonify({**resolve_yolo_model(), "transport": websocket_available()})
+
+    @app.get("/api/realtime/latest-result/<session_id>")
+    def realtime_latest_result(session_id: str):
+        return jsonify(latest_realtime_result(session_id))
+
+    @app.post("/api/realtime/frame")
+    def realtime_frame_fallback():
+        payload = request.get_json(silent=True) or {}
+        result = process_realtime_frame(payload, demo_mock=bool(payload.get("demo_mock")), write_report=False)
+        return jsonify(result), 202 if result.get("status") in {"FRAME_RATE_LIMITED", "STALE_FRAME_DROPPED"} else 200
+
+    @app.post("/api/realtime/report-snapshot")
+    def realtime_report_snapshot():
+        payload = request.get_json(silent=True) or {}
+        session_id = str(payload.get("session_id", ""))
+        if not validate_session_token(session_id, payload.get("session_token")):
+            return jsonify({"status": "REALTIME_SESSION_TOKEN_INVALID", "report_written": False}), 403
+        return jsonify(write_realtime_snapshot_report(session_id, report_trigger=str(payload.get("report_trigger") or "operator_snapshot")))
+
+    _register_realtime_websocket(app)
+
 
 def _network_payload(request) -> dict[str, object]:
     return {
@@ -106,3 +153,34 @@ def _network_payload(request) -> dict[str, object]:
         "server_port": request.host.split(":")[1] if ":" in request.host else "",
         "status": "OK",
     }
+
+
+def _register_realtime_websocket(app) -> None:
+    from flask import jsonify, request
+
+    try:
+        from flask_sock import Sock
+    except ImportError:
+        @app.get("/ws/realtime-detect")
+        def realtime_websocket_dependency_missing():
+            return jsonify(websocket_available())
+
+        return
+
+    sock = Sock(app)
+
+    @sock.route("/ws/realtime-detect")
+    def realtime_detect_socket(ws):  # pragma: no cover - exercised manually with flask-sock installed
+        import json
+
+        while True:
+            message = ws.receive()
+            if message is None:
+                break
+            try:
+                payload = json.loads(message) if isinstance(message, str) else {}
+            except json.JSONDecodeError:
+                ws.send(json.dumps({"status": "WEBSOCKET_PAYLOAD_INVALID_JSON"}))
+                continue
+            result = process_realtime_frame(payload, demo_mock=bool(payload.get("demo_mock")), write_report=False)
+            ws.send(json.dumps(result, ensure_ascii=False))
