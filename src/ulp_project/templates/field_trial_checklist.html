@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/field_capture.css">
+  <title>ULP Field Trial Checklist</title>
+</head>
+<body>
+  <main class="shell">
+    <header class="page-head">
+      <h1>Field Trial Checklist</h1>
+      <p>Checklist ini mencatat bukti uji HP browser secara manual. Tidak ada foto, video, token, atau credential yang disimpan di Git.</p>
+      <p class="notice">Jika Codex belum menerima hasil dari HP fisik, status resmi tetap HP_PHYSICAL_TEST_PENDING_USER_CONFIRMATION.</p>
+    </header>
+
+    <section class="panel">
+      <h2>Link Uji</h2>
+      <div class="actions">
+        <a class="button-link" href="/field-capture">Buka Field Capture</a>
+        <a class="button-link" href="/api/runtime/tunnel-status" target="_blank">Tunnel Status</a>
+        <a class="button-link" href="/api/runtime/public-links" target="_blank">Public Links</a>
+        <a class="button-link" href="/api/field-trial/evidence?dry_run=1" target="_blank">Evidence Dry Run</a>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Hasil Uji HP</h2>
+      <div class="form-grid">
+        <label>Operator
+          <input id="operator_name" autocomplete="off">
+        </label>
+        <label>Device
+          <input id="device_name" placeholder="contoh Android Chrome" autocomplete="off">
+        </label>
+        <label>Browser
+          <input id="browser_name" placeholder="Chrome/Edge/Firefox" autocomplete="off">
+        </label>
+        <label>Network
+          <select id="network_type">
+            <option value="paket_data">paket_data</option>
+            <option value="wifi">wifi</option>
+            <option value="unknown">unknown</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="checklist-grid">
+        <label><input id="public_url_opened" type="checkbox"> HP membuka URL public tunnel</label>
+        <label><input id="server_connection_ok" type="checkbox"> Tombol Test koneksi berhasil</label>
+        <label><input id="camera_ok" type="checkbox"> Kamera preview berhasil</label>
+        <label><input id="gps_ok" type="checkbox"> GPS berhasil atau gagal dengan alasan dicatat</label>
+        <label><input id="manual_prediction_ok" type="checkbox"> Manual/provisional prediction berhasil</label>
+        <label><input id="snapshot_report_ok" type="checkbox"> Snapshot report CSV berhasil</label>
+        <label><input id="map_report_ok" type="checkbox"> Map link berhasil atau NO_GPS_NO_MARKER benar</label>
+      </div>
+
+      <label>Error code
+        <input id="error_code" placeholder="opsional: GPS_PERMISSION_DENIED, PUBLIC_TUNNEL_NOT_RUNNING, dll.">
+      </label>
+      <label>Catatan operator
+        <textarea id="notes" rows="4" placeholder="Catat screenshot evidence secara manual; jangan upload gambar ke Git."></textarea>
+      </label>
+      <div class="actions">
+        <button id="submit-hp-result" type="button">Simpan Hasil Uji HP</button>
+        <button id="load-tunnel-status" type="button">Cek Tunnel Status</button>
+      </div>
+      <pre id="checklist-output">HP_RESULT_NOT_SUBMITTED</pre>
+    </section>
+  </main>
+  <script>
+    (function () {
+      const output = document.getElementById("checklist-output");
+      function value(id) {
+        const el = document.getElementById(id);
+        return el ? el.value : "";
+      }
+      function checked(id) {
+        const el = document.getElementById(id);
+        return Boolean(el && el.checked);
+      }
+      async function postHpResult() {
+        const payload = {
+          operator_name: value("operator_name"),
+          device_name: value("device_name"),
+          browser_name: value("browser_name"),
+          network_type: value("network_type") || "unknown",
+          public_url_opened: checked("public_url_opened"),
+          server_connection_ok: checked("server_connection_ok"),
+          camera_ok: checked("camera_ok"),
+          gps_ok: checked("gps_ok"),
+          manual_prediction_ok: checked("manual_prediction_ok"),
+          snapshot_report_ok: checked("snapshot_report_ok"),
+          map_report_ok: checked("map_report_ok"),
+          error_code: value("error_code"),
+          notes: value("notes")
+        };
+        const response = await fetch("/api/field-trial/hp-result", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        output.textContent = JSON.stringify(await response.json(), null, 2);
+      }
+      async function loadTunnelStatus() {
+        const response = await fetch("/api/runtime/tunnel-status");
+        output.textContent = JSON.stringify(await response.json(), null, 2);
+      }
+      document.getElementById("submit-hp-result").addEventListener("click", postHpResult);
+      document.getElementById("load-tunnel-status").addEventListener("click", loadTunnelStatus);
+    })();
+  </script>
+</body>
+</html>

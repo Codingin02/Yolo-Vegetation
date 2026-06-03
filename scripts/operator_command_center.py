@@ -46,6 +46,10 @@ COMMAND_GROUPS = {
         ".\\venv\\Scripts\\python.exe scripts\\phase5_2_prediction_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\phase5_2_report_map_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\phase5_2_field_trial_prediction_gate.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress5_3_ngrok_probe.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress5_3_actual_runtime_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress5_3_evidence_pack.py --dry-run",
+        ".\\venv\\Scripts\\python.exe scripts\\progress5_3_field_trial_execution_gate.py",
     ],
     "WAIT UNTIL MAKESENSE EXPORT": [
         ".\\venv\\Scripts\\python.exe scripts\\phase3_readiness_gate.py",
@@ -106,6 +110,18 @@ MODE_GROUPS = {
         ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --field-trial-smoke",
         ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --phase5-2-gate",
     ],
+    "progress5-3-field-trial": [
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --diagnose",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --print-links",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --ngrok-probe",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --actual-runtime-smoke",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --evidence-pack",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --progress5-3-gate",
+        ".\\venv\\Scripts\\python.exe scripts\\run_remote_realtime_server.py --host 0.0.0.0 --port 5000",
+        "Tunnel: ngrok http 5000",
+        "HP: https://<ngrok-public-url>/field-capture",
+        "HP checklist: https://<ngrok-public-url>/field-trial-checklist",
+    ],
 }
 
 
@@ -146,6 +162,13 @@ def main() -> int:
     parser.add_argument("--map-smoke", action="store_true")
     parser.add_argument("--remote-security-check", action="store_true")
     parser.add_argument("--phase5-2-gate", action="store_true")
+    parser.add_argument("--progress5-3-gate", action="store_true")
+    parser.add_argument("--actual-runtime-smoke", action="store_true")
+    parser.add_argument("--ngrok-probe", action="store_true")
+    parser.add_argument("--evidence-pack", action="store_true")
+    parser.add_argument("--hp-result-intake-smoke", action="store_true")
+    parser.add_argument("--failure-recovery-smoke", action="store_true")
+    parser.add_argument("--print-field-trial-checklist", action="store_true")
     parser.add_argument("--all-gates", action="store_true")
     parser.add_argument("--mode", choices=["all", *MODE_GROUPS.keys()], default="all")
     args = parser.parse_args()
@@ -169,6 +192,13 @@ def main() -> int:
         (args.map_smoke, ["scripts\\phase5_2_report_map_smoke.py", "--map-only"]),
         (args.remote_security_check, ["scripts\\phase5_2_field_trial_prediction_gate.py", "--security-only"]),
         (args.phase5_2_gate, ["scripts\\phase5_2_field_trial_prediction_gate.py"]),
+        (args.progress5_3_gate, ["scripts\\progress5_3_field_trial_execution_gate.py"]),
+        (args.actual_runtime_smoke, ["scripts\\progress5_3_actual_runtime_smoke.py"]),
+        (args.ngrok_probe, ["scripts\\progress5_3_ngrok_probe.py"]),
+        (args.evidence_pack, ["scripts\\progress5_3_evidence_pack.py"]),
+        (args.hp_result_intake_smoke, ["scripts\\progress5_3_hp_result_intake.py"]),
+        (args.failure_recovery_smoke, ["scripts\\progress5_3_failure_recovery_smoke.py"]),
+        (args.print_field_trial_checklist, ["scripts\\progress5_3_print_field_trial_checklist.py"]),
         (args.all_gates, ["scripts\\phase17_20_final_system_completion_gate.py"]),
     ]
     selected = [cmd for enabled, cmd in actions if enabled]

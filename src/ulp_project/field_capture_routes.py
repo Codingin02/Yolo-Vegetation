@@ -7,9 +7,12 @@ from pathlib import Path
 
 from .calibration_readiness import check_calibration_readiness
 from .field_capture import accept_field_capture_upload, load_field_capture_job, load_field_capture_result
+from .field_trial_evidence import build_field_trial_evidence_pack, record_hp_result
 from .latency_monitor import ping_latency
 from .model_handoff import check_model_handoff
 from .network_mode import describe_network_modes
+from .ngrok_runtime_probe import probe_ngrok_runtime
+from .operator_failure_recovery import build_failure_recovery
 from .paths import PROJECT_ROOT
 from .phase5_2_field_trial import (
     build_manual_prediction,
@@ -35,6 +38,10 @@ def register_field_capture_routes(app) -> None:
     @app.get("/field-capture")
     def field_capture_page():
         return render_template("field_capture.html")
+
+    @app.get("/field-trial-checklist")
+    def field_trial_checklist_page():
+        return render_template("field_trial_checklist.html")
 
     @app.get("/realtime")
     def realtime_alias():
@@ -89,6 +96,10 @@ def register_field_capture_routes(app) -> None:
     def runtime_public_links():
         return jsonify(build_public_links(port=_request_port(request), public_url=request.args.get("public_url")))
 
+    @app.get("/api/runtime/tunnel-status")
+    def runtime_tunnel_status():
+        return jsonify(probe_ngrok_runtime(port=_request_port(request)))
+
     @app.get("/api/runtime/status")
     def runtime_status():
         links = build_public_links(port=_request_port(request), public_url=request.args.get("public_url"))
@@ -120,6 +131,24 @@ def register_field_capture_routes(app) -> None:
         payload = request.get_json(silent=True) if request.is_json else None
         result = write_field_trial_snapshot_report(dict(payload or request.form))
         return jsonify(result), 200 if result.get("report_written") else 202
+
+    @app.post("/api/field-trial/hp-result")
+    def field_trial_hp_result():
+        payload = request.get_json(silent=True) if request.is_json else None
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        result = record_hp_result(dict(payload or request.form), evidence_dir=runtime / "field_trial_evidence")
+        return jsonify(result), 201
+
+    @app.get("/api/field-trial/evidence")
+    def field_trial_evidence():
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        dry_run = str(request.args.get("dry_run", "")).lower() in {"1", "true", "yes"}
+        return jsonify(build_field_trial_evidence_pack(evidence_dir=runtime / "field_trial_evidence", dry_run=dry_run, port=_request_port(request)))
+
+    @app.post("/api/operator/failure-recovery")
+    def operator_failure_recovery():
+        payload = request.get_json(silent=True) if request.is_json else None
+        return jsonify(build_failure_recovery(dict(payload or request.form)))
 
     @app.get("/field-reports/<path:filename>")
     def field_reports(filename: str):

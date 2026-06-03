@@ -41,6 +41,18 @@
     </section>
 
     <section class="panel">
+      <h2>Field Trial Recovery</h2>
+      <div class="actions">
+        <a id="open-field-trial-checklist" class="button-link" href="/field-trial-checklist">Open Field Trial Checklist</a>
+        <button id="refresh-tunnel-status" type="button">Tunnel Status</button>
+        <button id="copy-public-url" type="button">Copy Public URL</button>
+        <button id="copy-lan-url" type="button">Copy LAN URL</button>
+        <button id="failure-recovery-help" type="button">Failure Recovery Help</button>
+      </div>
+      <p class="hint">Progress 5.3 menambah evidence pack, HP result intake, dan recovery saat HP/ngrok/browser gagal. Ngrok tetap dijalankan manual.</p>
+    </section>
+
+    <section class="panel">
       <h2>Preview Kamera</h2>
       <div class="realtime-stage">
         <video id="camera" playsinline autoplay muted></video>
@@ -151,6 +163,8 @@
       <div class="actions">
         <a class="button-link" href="/api/runtime/status" target="_blank">Runtime status</a>
         <a class="button-link" href="/api/runtime/public-links" target="_blank">Public links</a>
+        <a class="button-link" href="/api/runtime/tunnel-status" target="_blank">Tunnel status</a>
+        <a class="button-link" href="/field-trial-checklist" target="_blank">Field trial checklist</a>
         <a class="button-link" href="/api/model/status" target="_blank">Model status</a>
         <a class="button-link" href="/api/calibration/status" target="_blank">Calibration status</a>
         <a class="button-link" href="/api/network/whoami" target="_blank">Network debug</a>

@@ -16,6 +16,8 @@
   let lastPrediction = {};
   let lastReportUrl = "/field-reports/phase5_2_field_trial_snapshot.csv";
   let lastMapUrl = "";
+  let lastPublicUrl = "";
+  let lastLanUrl = "";
   const requestedIntervalMs = 1000;
   const maxDisplayAgeMs = 3000;
 
@@ -89,9 +91,19 @@
     setFieldStatus("output-model-status", runtime.model_status || "MODEL_NOT_READY");
     setFieldStatus("tunnel-status", (runtime.public_links || {}).status || "NO_PUBLIC_TUNNEL_CONFIGURED");
     setFieldStatus("realtime-transport-status", (runtime.websocket || {}).status || "HTTP_FALLBACK_READY");
+    lastPublicUrl = ((runtime.public_links || {}).public_field_capture_url || "");
+    lastLanUrl = ((runtime.public_links || {}).lan_field_capture_url || "");
     const calibration = await safeFetchJson("/api/calibration/status");
     setFieldStatus("calibration-status", calibration.status || "CALIBRATION_NOT_READY");
     setDebug({ runtime, calibration });
+  }
+
+  async function refreshTunnelStatus() {
+    const tunnel = await safeFetchJson("/api/runtime/tunnel-status");
+    setFieldStatus("tunnel-status", tunnel.status || "PUBLIC_TUNNEL_NOT_RUNNING");
+    if (tunnel.field_capture_public_url) lastPublicUrl = tunnel.field_capture_public_url;
+    setStatus(tunnel);
+    setDebug(tunnel);
   }
 
   async function startCamera() {
@@ -417,6 +429,53 @@
     }
   }
 
+  async function copyTextOrShow(text, fallbackStatus) {
+    if (!text) {
+      setStatus(fallbackStatus);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setStatus({ status: "LINK_COPIED", link: text });
+    } catch (error) {
+      setStatus({ status: "LINK_READY_COPY_MANUAL", link: text, message: String(error) });
+    }
+  }
+
+  async function copyPublicUrl() {
+    if (!lastPublicUrl) await refreshTunnelStatus();
+    copyTextOrShow(lastPublicUrl, "PUBLIC_TUNNEL_NOT_RUNNING_RUN_NGROK_HTTP_5000");
+  }
+
+  async function copyLanUrl() {
+    if (!lastLanUrl) {
+      const links = await safeFetchJson("/api/runtime/public-links");
+      lastLanUrl = links.lan_field_capture_url || "";
+    }
+    copyTextOrShow(lastLanUrl, "LAN_URL_NOT_DETECTED_CHECK_IPCONFIG_OR_USE_NGROK");
+  }
+
+  async function failureRecoveryHelp() {
+    const payload = await safeFetchJson("/api/operator/failure-recovery", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hp_can_open_url: true,
+        tunnel_status: document.getElementById("tunnel-status").textContent,
+        server_status: document.getElementById("server-status").textContent,
+        camera_status: document.getElementById("camera-status").textContent,
+        gps_status: document.getElementById("gps-status").textContent,
+        websocket_status: document.getElementById("realtime-transport-status").textContent,
+        report_status: document.getElementById("report-path").textContent,
+        map_status: document.getElementById("map-path").textContent,
+        model_status: document.getElementById("model-status").textContent,
+        calibration_status: document.getElementById("calibration-status").textContent
+      })
+    });
+    setStatus(payload);
+    setDebug(payload);
+  }
+
   function openMapReport() {
     if (lastMapUrl) {
       window.open(lastMapUrl, "_blank", "noopener");
@@ -442,6 +501,10 @@
   document.getElementById("snapshot-report").addEventListener("click", sendSnapshotReport);
   document.getElementById("copy-report-link").addEventListener("click", copyReportLink);
   document.getElementById("open-map-report").addEventListener("click", openMapReport);
+  document.getElementById("refresh-tunnel-status").addEventListener("click", refreshTunnelStatus);
+  document.getElementById("copy-public-url").addEventListener("click", copyPublicUrl);
+  document.getElementById("copy-lan-url").addEventListener("click", copyLanUrl);
+  document.getElementById("failure-recovery-help").addEventListener("click", failureRecoveryHelp);
   document.getElementById("lat").addEventListener("change", markGpsManualIfTyped);
   document.getElementById("lon").addEventListener("change", markGpsManualIfTyped);
 
