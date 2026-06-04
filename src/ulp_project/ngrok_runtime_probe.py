@@ -51,6 +51,7 @@ def probe_ngrok_runtime(
         status = "NGROK_NOT_RUNNING"
 
     field_capture_public_url = f"{public_https_url.rstrip('/')}/field-capture" if public_https_url else None
+    checklist_public_url = f"{public_https_url.rstrip('/')}/field-trial-checklist" if public_https_url else None
     return {
         "ngrok_cli": ngrok_cli,
         "ngrok_process": process_status,
@@ -58,7 +59,11 @@ def probe_ngrok_runtime(
         "ngrok_api_url": NGROK_API_URL,
         "public_https_url": public_https_url,
         "field_capture_public_url": field_capture_public_url,
-        "checklist_public_url": f"{public_https_url.rstrip('/')}/field-trial-checklist" if public_https_url else None,
+        "public_field_capture_url": field_capture_public_url,
+        "checklist_public_url": checklist_public_url,
+        "public_checklist_url": checklist_public_url,
+        "public_url_status": "PUBLIC_HTTPS_TUNNEL_READY" if public_https_url else "PUBLIC_TUNNEL_NOT_RUNNING",
+        "public_map_url": f"{public_https_url.rstrip('/')}/api/field/latest-map" if public_https_url else None,
         "status": status,
         "operator_command": f"ngrok http {port}",
         "operator_note": "Ngrok probe never opens a tunnel and never reads or writes authtokens.",

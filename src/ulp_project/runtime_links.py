@@ -7,6 +7,8 @@ import socket
 from datetime import datetime
 from typing import Any
 
+from .ngrok_runtime_probe import probe_ngrok_runtime
+
 
 PUBLIC_TUNNEL_ENV_KEYS = ("TUNNEL_PUBLIC_URL", "PUBLIC_TUNNEL_URL", "NGROK_PUBLIC_URL", "CLOUDFLARED_PUBLIC_URL")
 
@@ -33,14 +35,24 @@ def detect_lan_ips() -> list[str]:
 
 def build_public_links(port: int = 5000, public_url: str | None = None) -> dict[str, Any]:
     lan_urls = [f"http://{ip}:{port}/field-capture" for ip in detect_lan_ips()]
-    public_base = _runtime_public_url(public_url)
+    tunnel = probe_ngrok_runtime(port=port, timeout_s=0.35)
+    public_base = _runtime_public_url(public_url) or tunnel.get("public_https_url")
     public_field_capture_url = f"{public_base}/field-capture" if public_base else None
+    public_checklist_url = f"{public_base}/field-trial-checklist" if public_base else None
+    public_map_url = f"{public_base}/api/field/latest-map" if public_base else None
+    public_ready = bool(public_field_capture_url and str(public_field_capture_url).startswith("https://"))
     return {
-        "status": "READY" if public_field_capture_url else "NO_PUBLIC_TUNNEL_CONFIGURED",
+        "status": "READY" if public_ready else "NO_PUBLIC_TUNNEL_CONFIGURED",
+        "public_url_status": "PUBLIC_HTTPS_TUNNEL_READY" if public_ready else "PUBLIC_TUNNEL_NOT_RUNNING",
+        "tunnel_status": tunnel.get("status", "PUBLIC_TUNNEL_NOT_RUNNING"),
+        "ngrok": tunnel,
         "local_field_capture_url": f"http://127.0.0.1:{port}/field-capture",
         "lan_field_capture_url": lan_urls[0] if lan_urls else None,
         "lan_field_capture_urls": lan_urls,
+        "public_https_url": public_base if public_ready else None,
         "public_field_capture_url": public_field_capture_url,
+        "public_checklist_url": public_checklist_url,
+        "public_map_url": public_map_url,
         "health_url": f"http://127.0.0.1:{port}/api/network/health",
         "ping_url": f"http://127.0.0.1:{port}/api/latency/ping",
         "server_time": datetime.now().isoformat(),
@@ -48,6 +60,52 @@ def build_public_links(port: int = 5000, public_url: str | None = None) -> dict[
         "operator_note": "Use HTTPS tunnel for camera/GPS permissions on mobile browsers",
         "manual_tunnel_commands": [f"ngrok http {port}", f"cloudflared tunnel --url http://localhost:{port}"],
         "token_policy": "Do not store ngrok/cloudflared tokens or runtime tunnel URLs in Git.",
+    }
+
+
+def build_secure_context_diagnostic(
+    *,
+    host: str,
+    scheme: str = "http",
+    forwarded_proto: str = "",
+    port: int = 5000,
+    public_url: str | None = None,
+) -> dict[str, Any]:
+    links = build_public_links(port=port, public_url=public_url)
+    hostname = (host or "").split(":", 1)[0].lower()
+    effective_scheme = (forwarded_proto or scheme or "http").split(",", 1)[0].strip().lower()
+    is_localhost = hostname in {"localhost", "127.0.0.1", "::1"}
+    is_lan = _is_field_lan_ip(hostname)
+    is_public_tunnel_host = any(token in hostname for token in ("ngrok", "trycloudflare", "cloudflare"))
+    if (effective_scheme == "https" or is_public_tunnel_host) and not is_localhost:
+        current_url_mode = "HTTPS_PUBLIC_READY"
+        secure_context_status = "SECURE_CONTEXT_OK"
+    elif is_localhost:
+        current_url_mode = "LOCALHOST_DEBUG_ONLY"
+        secure_context_status = "LOCAL_DEV_CONTEXT"
+    elif is_lan:
+        current_url_mode = "LAN_HTTP_DEBUG_ONLY"
+        secure_context_status = "INSECURE_CONTEXT_CAMERA_GPS_BLOCKED"
+    else:
+        current_url_mode = "LAN_HTTP_DEBUG_ONLY" if effective_scheme == "http" else "HTTPS_PUBLIC_READY"
+        secure_context_status = "INSECURE_CONTEXT_CAMERA_GPS_BLOCKED" if effective_scheme == "http" else "SECURE_CONTEXT_OK"
+    return {
+        "status": "SECURE_CONTEXT_DIAGNOSTIC_READY",
+        "host": host,
+        "scheme": scheme,
+        "forwarded_proto": forwarded_proto,
+        "effective_scheme": effective_scheme,
+        "current_url_mode": current_url_mode,
+        "current_context": "LAN_HTTP_INSECURE" if current_url_mode == "LAN_HTTP_DEBUG_ONLY" else current_url_mode,
+        "secure_context_status": secure_context_status,
+        "public_tunnel_status": links.get("tunnel_status"),
+        "public_url_status": links.get("public_url_status"),
+        "recommended_url": links.get("public_field_capture_url"),
+        "lan_http_warning": "Anda sedang membuka LAN HTTP. Ini hanya debug. Field trial beda jaringan wajib memakai Public HTTPS URL."
+        if current_url_mode == "LAN_HTTP_DEBUG_ONLY"
+        else "",
+        "operator_command": "ngrok http 5000" if not links.get("public_field_capture_url") else "",
+        "public_links": links,
     }
 
 

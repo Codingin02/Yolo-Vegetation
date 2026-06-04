@@ -115,9 +115,13 @@ HP_PHYSICAL_TEST_PENDING_USER_CONFIRMATION
 
 ```powershell
 Set-Location E:\Projects\ULP_Project
-.\venv\Scripts\python.exe scripts\operator_command_center.py --camera-ui-smoke
+.\venv\Scripts\python.exe scripts\operator_command_center.py --public-tunnel-smoke
+.\venv\Scripts\python.exe scripts\operator_command_center.py --camera-ui-contract-smoke
 .\venv\Scripts\python.exe scripts\operator_command_center.py --geometry-math-smoke
-.\venv\Scripts\python.exe scripts\operator_command_center.py --shutter-report-smoke
+.\venv\Scripts\python.exe scripts\operator_command_center.py --shutter-autosave-smoke
+.\venv\Scripts\python.exe scripts\operator_command_center.py --runtime-tunnel-sync-smoke
+.\venv\Scripts\python.exe scripts\operator_command_center.py --favicon-smoke
+.\venv\Scripts\python.exe scripts\operator_command_center.py --map-public-link-smoke
 .\venv\Scripts\python.exe scripts\operator_command_center.py --progress5-4-gate
 .\venv\Scripts\python.exe scripts\run_remote_realtime_server.py --host 0.0.0.0 --port 5000
 ```
@@ -133,6 +137,8 @@ HP:
 ```text
 https://<ngrok-public-url>/field-capture
 ```
+
+LAN `http://192.168.x.x:5000/field-capture` hanya debug. Workflow final field trial beda jaringan wajib public HTTPS tunnel.
 
 Urutan HP:
 

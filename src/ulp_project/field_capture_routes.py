@@ -38,7 +38,7 @@ from .realtime_streaming import (
     websocket_available,
     write_realtime_snapshot_report,
 )
-from .runtime_links import build_public_links
+from .runtime_links import build_public_links, build_secure_context_diagnostic
 from .yolo_model_resolver import resolve_yolo_model
 
 
@@ -113,15 +113,26 @@ def register_field_capture_routes(app) -> None:
     @app.get("/api/runtime/status")
     def runtime_status():
         links = build_public_links(port=_request_port(request), public_url=request.args.get("public_url"))
+        secure_context = _secure_context_payload(request)
         return jsonify(
             {
                 **phase5_2_runtime_contract_status(),
                 "runtime_root": app.config["ULP_RUNTIME_ROOT"],
                 "public_links": links,
+                "tunnel_status": links.get("tunnel_status"),
+                "public_url_status": links.get("public_url_status"),
+                "current_url_mode": secure_context["current_url_mode"],
+                "secure_context_status": secure_context["secure_context_status"],
+                "recommended_url": secure_context.get("recommended_url"),
+                "lan_http_warning": secure_context.get("lan_http_warning"),
                 "websocket": websocket_available(),
                 "operator_note": "Field trial prototype; HP is browser client only, laptop is processing server.",
             }
         )
+
+    @app.get("/api/runtime/secure-context-diagnostic")
+    def runtime_secure_context_diagnostic():
+        return jsonify(_secure_context_payload(request))
 
     @app.get("/api/model/status")
     def model_status():
@@ -172,8 +183,16 @@ def register_field_capture_routes(app) -> None:
     def field_progress5_4_report_latest():
         return jsonify(latest_progress5_4_report())
 
+    @app.get("/api/field/latest-report")
+    def field_progress5_4_latest_report_alias():
+        return jsonify(latest_progress5_4_report())
+
     @app.get("/api/field/map-latest")
     def field_progress5_4_map_latest():
+        return jsonify(latest_progress5_4_map())
+
+    @app.get("/api/field/latest-map")
+    def field_progress5_4_latest_map_alias():
         return jsonify(latest_progress5_4_map())
 
     @app.get("/api/field/gps-status")
@@ -209,6 +228,10 @@ def register_field_capture_routes(app) -> None:
     @app.get("/field-maps/<path:filename>")
     def field_maps(filename: str):
         return send_from_directory(PROJECT_ROOT / "outputs" / "maps", filename, as_attachment=False)
+
+    @app.get("/favicon.ico")
+    def favicon_no_content():
+        return "", 204
 
     @app.get("/api/mobile/network/status")
     def legacy_mobile_network_alias():
@@ -296,6 +319,16 @@ def _request_port(request) -> int:
     except (TypeError, ValueError):
         pass
     return 5000
+
+
+def _secure_context_payload(request) -> dict[str, object]:
+    return build_secure_context_diagnostic(
+        host=request.host,
+        scheme=request.scheme,
+        forwarded_proto=request.headers.get("X-Forwarded-Proto", ""),
+        port=_request_port(request),
+        public_url=request.args.get("public_url"),
+    )
 
 
 def _register_realtime_websocket(app) -> None:

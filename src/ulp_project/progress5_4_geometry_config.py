@@ -14,6 +14,8 @@ DEFAULT_GEOMETRY_CONFIG = {
     "default_pole_visible_height_m": 10.8,
     "default_pole_total_height_m": 11.0,
     "source_status": "FIELD_DEFAULT_NEEDS_PLN_CONFIRMATION",
+    "clearance_critical_m": 3.0,
+    "clearance_monitoring_m": 4.0,
     "reference_policy": "CONFIG_OR_CALIBRATION_PROFILE_CAN_OVERRIDE",
 }
 

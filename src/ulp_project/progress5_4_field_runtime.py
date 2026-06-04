@@ -23,7 +23,7 @@ from .progress5_4_temporal_smoothing import Progress54TemporalSmoother
 from .progress5_4_zone_policy import classify_progress5_4_zone
 
 FIELD_CAPTURE_DIRNAME = "field_captures"
-PROGRESS5_4_REPORT_CSV = PROJECT_ROOT / "outputs" / "reports" / "progress5_4_shutter_report.csv"
+PROGRESS5_4_REPORT_CSV = PROJECT_ROOT / "outputs" / "reports" / "field_capture_autosave.csv"
 PROGRESS5_4_MAP_HTML = PROJECT_ROOT / "outputs" / "maps" / "progress5_4_latest_map.html"
 MAX_SHUTTER_IMAGE_BYTES = 1_500_000
 
@@ -31,10 +31,14 @@ PROGRESS5_4_REPORT_COLUMNS = [
     "report_id",
     "timestamp",
     "point_id",
+    "operator_name",
     "gps_lat",
     "gps_lon",
     "gps_accuracy_m",
     "gps_source",
+    "secure_context_status",
+    "current_url_mode",
+    "public_tunnel_status",
     "model_status",
     "debug_mode",
     "detected_classes",
@@ -63,6 +67,7 @@ PROGRESS5_4_REPORT_COLUMNS = [
     "season_source",
     "notes",
     "snapshot_path",
+    "csv_path",
     "map_status",
     "reason_codes",
 ]
@@ -80,7 +85,7 @@ def progress5_4_realtime_status() -> dict[str, Any]:
     return {
         "status": "PROGRESS5_4_REALTIME_CAMERA_STATUS_READY",
         "model_status": model["model_status"],
-        "debug_coco_status": "DEBUG_COCO_AVAILABLE_ONLY_WITH_EXPLICIT_OPERATOR_OPT_IN",
+    "debug_coco_status": "DEBUG_COCO_YOLO_NOT_FIELD_MODEL_AVAILABLE_ONLY_WITH_EXPLICIT_OPERATOR_OPT_IN",
         "camera_workflow": "BROWSER_CAMERA_OVERLAY_SHUTTER",
         "frame_process_fps": stability["frame_process_fps"],
         "result_update_interval_ms": stability["result_update_interval_ms"],
@@ -117,8 +122,9 @@ def process_progress5_4_realtime_frame(payload: dict[str, Any], *, runtime_root:
         **_base_result(payload, started, status="PROGRESS5_4_REALTIME_FRAME_PROCESSED", detections=detections["detections"], model_status=detections["model_status"]),
         "debug_mode": detections["debug_mode"],
         "detection_source": detections["source"],
+        "inference_source": detections["source"],
         "detected_classes": measurement.get("detected_classes", []),
-        "overlay_json": _overlay_json(detections["detections"], measurement, zone, smoothing, latency_status),
+        "overlay_json": _overlay_json(detections["detections"], measurement, zone, smoothing, latency_status, detections["model_status"]),
         "measurement_result": {
             **measurement,
             "clearance_m": clearance_for_zone,
@@ -228,7 +234,7 @@ def _run_detection_for_payload(payload: dict[str, Any], *, runtime_root: Path, d
         return _run_debug_coco(payload, runtime_root=runtime_root)
     model = check_model_handoff()
     if model["model_status"] == "MODEL_NOT_READY":
-        return {"model_status": "MODEL_NOT_READY", "source": "MODEL_NOT_READY", "debug_mode": False, "detections": []}
+        return {"model_status": "MODEL_NOT_READY", "source": "SKIPPED_NO_MODEL", "debug_mode": False, "detections": []}
     temp_path = _write_temp_image(payload, runtime_root=runtime_root)
     if temp_path is None:
         return {"model_status": model["model_status"], "source": "REAL_MODEL_IMAGE_NOT_PROVIDED", "debug_mode": False, "detections": []}
@@ -342,7 +348,7 @@ def _base_result(payload: dict[str, Any], started: float, *, status: str, detect
     }
 
 
-def _overlay_json(detections: list[dict[str, Any]], measurement: dict[str, Any], zone: dict[str, Any], smoothing: dict[str, Any], latency_status: str) -> dict[str, Any]:
+def _overlay_json(detections: list[dict[str, Any]], measurement: dict[str, Any], zone: dict[str, Any], smoothing: dict[str, Any], latency_status: str, model_status: str) -> dict[str, Any]:
     boxes = []
     for item in detections:
         bbox = item.get("bbox_xyxy") or item.get("bbox") or []
@@ -367,6 +373,7 @@ def _overlay_json(detections: list[dict[str, Any]], measurement: dict[str, Any],
         },
         "zone_status": zone["zone_status"],
         "latency_status": latency_status,
+        "message": "MODEL_NOT_READY_NO_FAKE_DETECTION" if model_status == "MODEL_NOT_READY" and not boxes else "",
         "draw_client_side": True,
     }
 
@@ -388,10 +395,14 @@ def _build_report_row(
         "report_id": report_id,
         "timestamp": _text(payload.get("timestamp"), datetime.now().isoformat()),
         "point_id": _text(payload.get("point_id"), "V001_pohon_sono"),
+        "operator_name": _text(payload.get("operator_name")),
         "gps_lat": _csv_value(gps.get("gps_lat")),
         "gps_lon": _csv_value(gps.get("gps_lon")),
         "gps_accuracy_m": _csv_value(gps.get("gps_accuracy_m")),
         "gps_source": gps.get("gps_source"),
+        "secure_context_status": _text(payload.get("secure_context_status"), "UNKNOWN"),
+        "current_url_mode": _text(payload.get("current_url_mode"), "UNKNOWN"),
+        "public_tunnel_status": _text(payload.get("public_tunnel_status"), "UNKNOWN"),
         "model_status": model_status,
         "debug_mode": str(bool(debug_mode)).lower(),
         "detected_classes": ";".join(str(item) for item in measurement.get("detected_classes", [])),
@@ -420,6 +431,7 @@ def _build_report_row(
         "season_source": env["season_source"],
         "notes": _text(payload.get("notes") or payload.get("operator_notes")),
         "snapshot_path": snapshot_path,
+        "csv_path": str(PROGRESS5_4_REPORT_CSV),
         "map_status": "MAP_PENDING",
         "reason_codes": ";".join(reasons),
     }
@@ -441,19 +453,53 @@ def _write_latest_map(row: dict[str, Any]) -> dict[str, Any]:
     if lat is None or lon is None:
         return {"status": "NO_GPS_NO_MARKER", "written": False, "path": str(PROGRESS5_4_MAP_HTML)}
     PROGRESS5_4_MAP_HTML.parent.mkdir(parents=True, exist_ok=True)
+    render_status = _write_folium_or_basic_map(lat, lon, row)
+    return {
+        "status": "MAP_MARKER_WRITTEN",
+        "map_render_status": render_status,
+        "google_maps_status": "GOOGLE_MAPS_NOT_CONFIGURED_FOLIUM_OR_BASIC_MAP_READY",
+        "written": True,
+        "path": str(PROGRESS5_4_MAP_HTML),
+    }
+
+
+def _write_folium_or_basic_map(lat: float, lon: float, row: dict[str, Any]) -> str:
+    try:
+        import folium
+    except ImportError:
+        return _write_basic_map(lat, lon, row)
+    fmap = folium.Map(location=[lat, lon], zoom_start=18, tiles="OpenStreetMap")
+    popup = (
+        f"report_id={html.escape(str(row.get('report_id')))}<br>"
+        f"point_id={html.escape(str(row.get('point_id')))}<br>"
+        f"zone_status={html.escape(str(row.get('zone_status')))}<br>"
+        f"model_status={html.escape(str(row.get('model_status')))}"
+    )
+    folium.Marker([lat, lon], popup=popup, tooltip=str(row.get("point_id") or "field capture")).add_to(fmap)
+    folium.Circle([lat, lon], radius=_to_float(row.get("gps_accuracy_m")) or 0, color="#2563eb", fill=False).add_to(fmap)
+    fmap.save(str(PROGRESS5_4_MAP_HTML))
+    return "FOLIUM_MAP_READY"
+
+
+def _write_basic_map(lat: float, lon: float, row: dict[str, Any]) -> str:
+    osm = f"https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=18/{lat}/{lon}"
     PROGRESS5_4_MAP_HTML.write_text(
         (
-            "<!doctype html><html><body>"
+            "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+            "<title>Progress 5.4 Field Capture Map</title></head><body>"
             "<h1>Progress 5.4 Latest Field Capture Map</h1>"
+            "<p>Status: MAP_BASIC_FALLBACK</p>"
             f"<p>lat={lat} lon={lon}</p>"
             f"<p>report_id={html.escape(str(row.get('report_id')))}</p>"
+            f"<p>point_id={html.escape(str(row.get('point_id')))}</p>"
             f"<p>zone_status={html.escape(str(row.get('zone_status')))}</p>"
             f"<p>clearance_m={html.escape(str(row.get('clearance_m')))}</p>"
+            f"<p><a href=\"{osm}\">OpenStreetMap marker view</a></p>"
             "</body></html>"
         ),
         encoding="utf-8",
     )
-    return {"status": "MAP_MARKER_WRITTEN", "written": True, "path": str(PROGRESS5_4_MAP_HTML)}
+    return "MAP_BASIC_FALLBACK"
 
 
 def _gps_status_from_payload(payload: dict[str, Any]) -> dict[str, Any]:

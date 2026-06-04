@@ -45,6 +45,19 @@ h1 {
   background: #fff7d7;
 }
 
+.remote-lock {
+  border-color: #b88700;
+}
+
+.warning-banner {
+  padding: 12px;
+  border: 2px solid #b42318;
+  border-radius: 6px;
+  background: #fff1f0;
+  color: #7a1d14;
+  font-weight: 700;
+}
+
 .status-grid {
   display: grid;
   gap: 8px;

@@ -14,6 +14,22 @@
       <p class="notice">Jika model custom belum tersedia, status tetap MODEL_NOT_READY dan detections kosong. Debug COCO hanya opt-in untuk uji overlay, bukan hasil final.</p>
     </header>
 
+    <section id="remote-https-lock" class="panel remote-lock">
+      <h2>Remote HTTPS Field Trial Lock</h2>
+      <dl class="status-grid">
+        <div><dt>Current URL mode</dt><dd id="current-url-mode">NOT_TESTED</dd></div>
+        <div><dt>Secure context</dt><dd id="secure-context-top">NOT_TESTED</dd></div>
+        <div><dt>Public Tunnel</dt><dd id="public-tunnel-status">PUBLIC_TUNNEL_NOT_RUNNING</dd></div>
+        <div><dt>Public URL</dt><dd id="public-url-display">-</dd></div>
+      </dl>
+      <p id="lan-http-warning" class="warning-banner" hidden>Anda sedang membuka LAN HTTP. Ini hanya debug. Field trial beda jaringan wajib memakai Public HTTPS URL.</p>
+      <div class="actions">
+        <button id="copy-public-url" type="button">Copy Public HTTPS URL</button>
+        <button id="open-public-url" type="button">Open Public HTTPS URL</button>
+        <button id="copy-lan-url" type="button">Copy LAN URL hanya untuk debug</button>
+      </div>
+    </section>
+
     <section class="camera-panel">
       <div class="realtime-stage">
         <video id="camera" playsinline autoplay muted></video>
@@ -46,8 +62,14 @@
         <div><dt>GPS Source</dt><dd id="gps-source-status">GPS_NOT_PROVIDED</dd></div>
         <div><dt>GPS Accuracy</dt><dd id="gps-accuracy-status">-</dd></div>
         <div><dt>Camera</dt><dd id="camera-status">NOT_TESTED</dd></div>
+        <div><dt>camera_permission</dt><dd id="camera-permission-status">NOT_TESTED</dd></div>
+        <div><dt>gps_permission</dt><dd id="gps-permission-status">NOT_TESTED</dd></div>
+        <div><dt>model_runtime</dt><dd id="model-runtime-status">MODEL_NOT_READY</dd></div>
+        <div><dt>custom_model</dt><dd id="custom-model-status">MODEL_NOT_READY</dd></div>
         <div><dt>Tunnel</dt><dd id="tunnel-status">NO_PUBLIC_TUNNEL_CONFIGURED</dd></div>
         <div><dt>Latency</dt><dd id="latency-display">-</dd></div>
+        <div><dt>frame_interval</dt><dd id="frame-interval-status">1000 ms</dd></div>
+        <div><dt>last_error</dt><dd id="last-error-status">-</dd></div>
         <div><dt>Refresh</dt><dd id="refresh-interval-display">1s stable update</dd></div>
         <div><dt>Confidence</dt><dd id="confidence-status">-</dd></div>
         <div><dt>Mode</dt><dd id="mode-label">CAMERA_SHUTTER_READY</dd></div>
@@ -55,11 +77,10 @@
       <div class="actions">
         <button id="ping-btn" type="button">Test koneksi laptop/server</button>
         <button id="refresh-tunnel-status" type="button">Tunnel Status</button>
-        <button id="copy-public-url" type="button">Copy Public URL</button>
-        <button id="copy-lan-url" type="button">Copy LAN URL</button>
+        <button id="refresh-tunnel-status-secondary" type="button">Tunnel Status ulang</button>
         <button id="failure-recovery-help" type="button">Failure Recovery Help</button>
       </div>
-      <p class="hint">Diagnostic labels: LOCAL_DEV_CONTEXT, INSECURE_CONTEXT_CAMERA_GPS_MAY_FAIL, SECURE_CONTEXT_EXPECTED, HTTP_LAN, HTTPS_SECURE, CAMERA_API_UNAVAILABLE_IN_THIS_CONTEXT, GPS_PERMISSION_DENIED, GPS_TIMEOUT. Kamera/GPS otomatis membutuhkan HTTPS. Tombol Mulai Deteksi adalah workflow baru untuk Mulai deteksi/prediksi. Open Field Trial Checklist tersedia melalui tombol Checklist Field Trial.</p>
+      <p class="hint">Diagnostic labels: HTTPS_PUBLIC_READY, LAN_HTTP_DEBUG_ONLY, LOCALHOST_DEBUG_ONLY, INSECURE_CONTEXT_CAMERA_GPS_BLOCKED, INSECURE_CONTEXT_CAMERA_GPS_BLOCKED_OPEN_HTTPS_TUNNEL, SECURE_CONTEXT_OK, LOCAL_DEV_CONTEXT, INSECURE_CONTEXT_CAMERA_GPS_MAY_FAIL, SECURE_CONTEXT_EXPECTED, HTTP_LAN, HTTPS_SECURE, CAMERA_API_UNAVAILABLE_IN_THIS_CONTEXT, GPS_PERMISSION_DENIED, GPS_TIMEOUT. Kamera/GPS otomatis membutuhkan HTTPS. Tombol Mulai Deteksi adalah workflow baru untuk Mulai deteksi/prediksi. Open Field Trial Checklist tersedia melalui tombol Checklist Field Trial.</p>
     </section>
 
     <section class="panel">
@@ -112,7 +133,7 @@
 
     <details class="panel">
       <summary><strong>Advanced Debug Only / Manual Provisional</strong></summary>
-      <p class="hint">Panel ini untuk kompatibilitas lama dan debug. Advanced / Manual Provisional tetap tersedia; Mode utama Phase 16/Progress 5.2 tetap kompatibel, tetapi workflow utama Progress 5.4 memakai kamera, GPS background, shutter, dan measurement hasil deteksi/geometry.</p>
+      <p class="hint">Panel ini untuk kompatibilitas lama dan debug. Advanced / Manual Provisional tetap tersedia; Mode utama Phase 16/Progress 5.2 tetap kompatibel, tetapi workflow utama Progress 5.4 memakai kamera, GPS background, shutter, dan measurement hasil deteksi/geometry. Jangan digunakan sebagai klaim hasil final.</p>
       <div class="form-grid debug-only">
         <label>Clearance debug (m)
           <input id="clearance_m" placeholder="debug only" inputmode="decimal">

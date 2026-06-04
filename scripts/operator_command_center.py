@@ -54,6 +54,13 @@ COMMAND_GROUPS = {
         ".\\venv\\Scripts\\python.exe scripts\\progress5_4_geometry_math_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\progress5_4_shutter_report_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\progress5_4_realtime_yolo_geometry_gate.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress5_4_public_tunnel_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress5_4_camera_ui_contract_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress5_4_shutter_autosave_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress5_4_runtime_status_tunnel_sync_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress5_4_favicon_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress5_4_map_public_link_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress5_4_remote_https_camera_yolo_gate.py",
     ],
     "WAIT UNTIL MAKESENSE EXPORT": [
         ".\\venv\\Scripts\\python.exe scripts\\phase3_readiness_gate.py",
@@ -127,9 +134,13 @@ MODE_GROUPS = {
         "HP checklist: https://<ngrok-public-url>/field-trial-checklist",
     ],
     "progress5-4-camera-geometry": [
-        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --camera-ui-smoke",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --public-tunnel-smoke",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --camera-ui-contract-smoke",
         ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --geometry-math-smoke",
-        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --shutter-report-smoke",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --shutter-autosave-smoke",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --runtime-tunnel-sync-smoke",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --favicon-smoke",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --map-public-link-smoke",
         ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --progress5-4-gate",
         ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --realtime-camera-server",
         "Tunnel: ngrok http 5000",
@@ -186,6 +197,13 @@ def main() -> int:
     parser.add_argument("--camera-ui-smoke", action="store_true")
     parser.add_argument("--shutter-report-smoke", action="store_true")
     parser.add_argument("--geometry-math-smoke", action="store_true")
+    parser.add_argument("--public-tunnel-smoke", action="store_true")
+    parser.add_argument("--camera-ui-contract-smoke", action="store_true")
+    parser.add_argument("--shutter-autosave-smoke", action="store_true")
+    parser.add_argument("--runtime-tunnel-sync-smoke", action="store_true")
+    parser.add_argument("--favicon-smoke", action="store_true")
+    parser.add_argument("--map-public-link-smoke", action="store_true")
+    parser.add_argument("--print-public-field-url", action="store_true")
     parser.add_argument("--realtime-camera-server", action="store_true")
     parser.add_argument("--print-progress5-4-commands", action="store_true")
     parser.add_argument("--all-gates", action="store_true")
@@ -218,10 +236,17 @@ def main() -> int:
         (args.hp_result_intake_smoke, ["scripts\\progress5_3_hp_result_intake.py"]),
         (args.failure_recovery_smoke, ["scripts\\progress5_3_failure_recovery_smoke.py"]),
         (args.print_field_trial_checklist, ["scripts\\progress5_3_print_field_trial_checklist.py"]),
-        (args.progress5_4_gate, ["scripts\\progress5_4_realtime_yolo_geometry_gate.py"]),
+        (args.progress5_4_gate, ["scripts\\progress5_4_remote_https_camera_yolo_gate.py"]),
         (args.camera_ui_smoke, ["scripts\\progress5_4_camera_ui_smoke.py"]),
         (args.shutter_report_smoke, ["scripts\\progress5_4_shutter_report_smoke.py"]),
         (args.geometry_math_smoke, ["scripts\\progress5_4_geometry_math_smoke.py"]),
+        (args.public_tunnel_smoke, ["scripts\\progress5_4_public_tunnel_smoke.py"]),
+        (args.camera_ui_contract_smoke, ["scripts\\progress5_4_camera_ui_contract_smoke.py"]),
+        (args.shutter_autosave_smoke, ["scripts\\progress5_4_shutter_autosave_smoke.py"]),
+        (args.runtime_tunnel_sync_smoke, ["scripts\\progress5_4_runtime_status_tunnel_sync_smoke.py"]),
+        (args.favicon_smoke, ["scripts\\progress5_4_favicon_smoke.py"]),
+        (args.map_public_link_smoke, ["scripts\\progress5_4_map_public_link_smoke.py"]),
+        (args.print_public_field_url, ["scripts\\progress5_4_public_tunnel_smoke.py"]),
         (args.realtime_camera_server, ["scripts\\run_remote_realtime_server.py", "--host", "0.0.0.0", "--port", "5000"]),
         (args.print_progress5_4_commands, ["scripts\\progress5_4_print_commands.py"]),
         (args.all_gates, ["scripts\\phase17_20_final_system_completion_gate.py"]),
