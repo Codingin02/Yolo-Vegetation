@@ -193,6 +193,8 @@ def validate_label_export(
     class_counts = {name: 0 for name in CLASS_NAMES}
     issues: list[dict[str, Any]] = []
     review_needed: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    bbox_total = 0
 
     for label in labels:
         if label.stem not in image_by_stem:
@@ -211,7 +213,17 @@ def validate_label_export(
                 issues.append(_issue(label, line_number, parsed["status"], parsed.get("detail", "")))
                 review_needed.append({"label_path": _rel(label), "line": line_number, "reason": parsed["status"]})
                 continue
+            boundary = bbox_boundary_status(parsed["bbox"])
+            if boundary["status"] != "VALID":
+                issues.append(_issue(label, line_number, boundary["status"], boundary["detail"]))
+                review_needed.append({"label_path": _rel(label), "line": line_number, "reason": boundary["status"]})
+                continue
+            bbox_total += 1
             class_counts[CLASS_ORDER[int(parsed["class_id"])]] += 1
+            for warning in bbox_quality_warnings(parsed["bbox"]):
+                item = _issue(label, line_number, warning, "Review label quality; warning is not an automatic fail.")
+                warnings.append(item)
+                review_needed.append({"label_path": _rel(label), "line": line_number, "reason": warning})
 
     missing = sorted(stem for stem in image_by_stem if stem not in label_by_stem)
     duplicates = find_duplicate_images(images)
@@ -228,6 +240,7 @@ def validate_label_export(
         "status": "LABEL_EXPORT_VALID" if valid else "LABEL_EXPORT_INVALID_REVIEW_NEEDED",
         "image_count": len(images),
         "label_file_count": len(labels),
+        "bbox_total": bbox_total,
         "class_counts": class_counts,
         "missing_label_count": len(missing),
         "orphan_label_count": sum(1 for item in issues if item["issue"] == "ORPHAN_LABEL"),
@@ -235,7 +248,9 @@ def validate_label_export(
         "empty_label_count": sum(1 for item in issues if item["issue"] == "EMPTY_LABEL_WITHOUT_NEGATIVE_STATUS"),
         "duplicate_image_count": len(duplicates),
         "corrupt_image_count": len(corrupt),
+        "warning_count": len(warnings),
         "issues": issues,
+        "warnings": warnings,
         "review_needed": review_needed,
         "class_imbalance_status": class_imbalance_status(class_counts),
         "no_fake_label": True,
@@ -267,6 +282,34 @@ def parse_yolo_label_line(line: str) -> dict[str, Any]:
     return {"status": "VALID", "class_id": class_id, "bbox": values}
 
 
+def bbox_boundary_status(bbox: list[float]) -> dict[str, str]:
+    x_center, y_center, width, height = bbox
+    left = x_center - width / 2.0
+    right = x_center + width / 2.0
+    top = y_center - height / 2.0
+    bottom = y_center + height / 2.0
+    if left < 0.0 or right > 1.0 or top < 0.0 or bottom > 1.0:
+        return {
+            "status": "BBOX_EXTENDS_OUTSIDE_IMAGE",
+            "detail": f"left={left:.6f} top={top:.6f} right={right:.6f} bottom={bottom:.6f}",
+        }
+    return {"status": "VALID", "detail": ""}
+
+
+def bbox_quality_warnings(bbox: list[float]) -> list[str]:
+    x_center, y_center, width, height = bbox
+    warnings: list[str] = []
+    area = width * height
+    margin = min(x_center - width / 2.0, y_center - height / 2.0, 1.0 - (x_center + width / 2.0), 1.0 - (y_center + height / 2.0))
+    if area < 0.0004:
+        warnings.append("BBOX_TOO_SMALL_REVIEW")
+    if area > 0.85:
+        warnings.append("BBOX_TOO_LARGE_REVIEW")
+    if margin <= 0.01:
+        warnings.append("BBOX_TOUCHES_IMAGE_EDGE_REVIEW")
+    return warnings
+
+
 def write_label_audit_reports(result: dict[str, Any], audit_dir: Path = LABEL_AUDIT_DIR) -> dict[str, str]:
     audit_dir.mkdir(parents=True, exist_ok=True)
     json_path = audit_dir / "label_audit_report.json"
@@ -276,7 +319,7 @@ def write_label_audit_reports(result: dict[str, Any], audit_dir: Path = LABEL_AU
     with csv_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(["metric", "value"])
-        for key in ["status", "image_count", "label_file_count", "missing_label_count", "orphan_label_count", "bad_row_count", "empty_label_count", "duplicate_image_count", "corrupt_image_count", "class_imbalance_status"]:
+        for key in ["status", "image_count", "label_file_count", "bbox_total", "missing_label_count", "orphan_label_count", "bad_row_count", "empty_label_count", "duplicate_image_count", "corrupt_image_count", "warning_count", "class_imbalance_status"]:
             writer.writerow([key, result.get(key)])
         for name, count in result.get("class_counts", {}).items():
             writer.writerow([f"class_count_{name}", count])
@@ -571,6 +614,7 @@ def _empty_validation_result(images: list[Path]) -> dict[str, Any]:
         "status": "MAKESENSE_EXPORT_NOT_FOUND",
         "image_count": len(images),
         "label_file_count": 0,
+        "bbox_total": 0,
         "class_counts": {name: 0 for name in CLASS_NAMES},
         "missing_label_count": len(images),
         "orphan_label_count": 0,
@@ -578,7 +622,9 @@ def _empty_validation_result(images: list[Path]) -> dict[str, Any]:
         "empty_label_count": 0,
         "duplicate_image_count": 0,
         "corrupt_image_count": 0,
+        "warning_count": 0,
         "issues": [],
+        "warnings": [],
         "review_needed": [{"image_name": path.name, "reason": "WAITING_FOR_MAKESENSE_EXPORT"} for path in images],
         "class_imbalance_status": "CLASS_IMBALANCE_EXPECTED_INITIAL_TREE_FOCUS",
         "no_fake_label": True,
