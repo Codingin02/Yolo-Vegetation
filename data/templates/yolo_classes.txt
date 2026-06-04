@@ -1,0 +1,3 @@
+struktur_penyangga
+konduktor
+pohon_sono

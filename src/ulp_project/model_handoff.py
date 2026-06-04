@@ -14,7 +14,13 @@ LOCKED_CLASS_ORDER = {0: "struktur_penyangga", 1: "konduktor", 2: "pohon_sono"}
 
 def load_model_handoff_config(path: Path = CONFIG_PATH) -> dict[str, Any]:
     default = {
-        "candidate_model_paths": ["weights/best.pt", "models/best.pt", "models/field/best.pt", "runs/detect/train/weights/best.pt"],
+        "candidate_model_paths": [
+            "weights/best.pt",
+            "models/best.pt",
+            "models/field/best.pt",
+            "runs/field_multiclass/yolov8n_v1/weights/best.pt",
+            "runs/detect/train/weights/best.pt",
+        ],
         "env_override": "ULP_YOLO_MODEL_PATH",
         "accepted_suffixes": [".pt", ".onnx"],
         "minimum_size_bytes": 1024,

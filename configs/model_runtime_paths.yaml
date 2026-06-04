@@ -2,6 +2,7 @@ candidate_model_paths:
   - weights/best.pt
   - models/best.pt
   - models/field/best.pt
+  - runs/field_multiclass/yolov8n_v1/weights/best.pt
   - runs/detect/train/weights/best.pt
 env_override: ULP_YOLO_MODEL_PATH
 cli_override: --model-path
@@ -15,6 +16,6 @@ class_order:
   2: pohon_sono
 policy:
   no_auto_download: true
-  no_training: true
+  training_requires_explicit_operator_command: true
   no_dummy_model: true
   no_accuracy_claim: true
