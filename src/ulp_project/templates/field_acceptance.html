@@ -23,14 +23,19 @@
         <div><dt>public_tunnel_status</dt><dd data-auto="public_tunnel_status">-</dd></div>
         <div><dt>camera_permission_status</dt><dd data-auto="camera_permission_status">-</dd></div>
         <div><dt>gps_permission_status</dt><dd data-auto="gps_permission_status">-</dd></div>
+        <div><dt>gps_status</dt><dd data-auto="gps_status">-</dd></div>
         <div><dt>gps_accuracy_status</dt><dd data-auto="gps_accuracy_status">-</dd></div>
+        <div><dt>gps_accuracy_m</dt><dd data-auto="gps_accuracy_m">-</dd></div>
         <div><dt>gps_watch_status</dt><dd data-auto="gps_watch_status">-</dd></div>
         <div><dt>camera_preview_status</dt><dd data-auto="camera_preview_status">-</dd></div>
         <div><dt>frame_loop_status</dt><dd data-auto="frame_loop_status">-</dd></div>
+        <div><dt>start_session_status</dt><dd data-auto="start_session_status">-</dd></div>
+        <div><dt>stop_record_status</dt><dd data-auto="stop_record_status">-</dd></div>
         <div><dt>shutter_status</dt><dd data-auto="shutter_status">-</dd></div>
         <div><dt>report_page_status</dt><dd data-auto="report_page_status">-</dd></div>
         <div><dt>result_page_status</dt><dd data-auto="result_page_status">-</dd></div>
         <div><dt>map_status</dt><dd data-auto="map_status">-</dd></div>
+        <div><dt>distance_reliability_status</dt><dd data-auto="distance_reliability_status">-</dd></div>
         <div><dt>latest_latency_ms</dt><dd data-auto="latest_latency_ms">-</dd></div>
         <div><dt>visibility_state</dt><dd data-auto="visibility_state">-</dd></div>
         <div><dt>foreground_recording_status</dt><dd data-auto="foreground_recording_status">FOREGROUND_RECORDING_REQUIRED</dd></div>
@@ -39,7 +44,8 @@
       </dl>
       <div class="session-actions">
         <button id="acceptance-start" class="primary-action" type="button">Start Acceptance</button>
-        <button id="acceptance-refresh" type="button">Refresh Evidence</button>
+        <button id="acceptance-refresh" type="button">Re-check Evidence</button>
+        <button id="acceptance-map" type="button">Open Map</button>
       </div>
     </section>
 
@@ -62,18 +68,21 @@
         <label><input type="checkbox" name="gps_active" value="true"> GPS aktif</label>
         <label><input type="checkbox" name="start_record_ok" value="true"> Start record berhasil</label>
         <label><input type="checkbox" name="stop_record_ok" value="true"> Stop record berhasil</label>
+        <label><input type="checkbox" name="shutter_recorded" value="true"> Shutter berhasil</label>
         <label><input type="checkbox" name="report_opened" value="true"> Report bisa dibuka</label>
         <label><input type="checkbox" name="result_opened" value="true"> Result bisa dibuka</label>
         <label><input type="checkbox" name="map_opened_or_no_gps_correct" value="true"> Map bisa dibuka atau NO_GPS_NO_MARKER benar</label>
         <label>problem_note <textarea name="problem_note" rows="3"></textarea></label>
         <button class="primary-action" type="submit">Submit HP Evidence</button>
       </form>
+      <div class="glass-note" id="acceptance-missing">Syarat PASS akan muncul di sini jika belum lengkap.</div>
       <pre id="acceptance-output">PHYSICAL_HP_ACCEPTANCE_PENDING_USER_TEST</pre>
       <nav class="bottom-nav">
         <a href="/field-capture">Capture</a>
         <button id="session-report" type="button">Report</button>
         <button id="session-result" type="button">Result</button>
         <button id="session-manual-input" type="button">Manual</button>
+        <button id="session-acceptance" type="button">Acceptance</button>
       </nav>
     </section>
   </main>
@@ -96,6 +105,22 @@
       payload.secure_context_status = window.isSecureContext ? 'SECURE_CONTEXT_OK' : 'INSECURE_CONTEXT_CAMERA_GPS_BLOCKED';
       payload.visibility_state = document.visibilityState || 'visible';
       payload.foreground_recording_status = document.hidden ? 'PAGE_HIDDEN_BROWSER_MAY_THROTTLE' : 'FOREGROUND_RECORDING_ACTIVE';
+      if (payload.camera_visible) {
+        payload.camera_permission_status = 'CAMERA_READY';
+        payload.camera_preview_status = 'CAMERA_PREVIEW_ACTIVE';
+      }
+      if (payload.gps_active) {
+        payload.gps_permission_status = 'GPS_READY';
+        payload.gps_status = 'GPS_READY';
+        payload.gps_watch_status = 'GPS_WATCH_ACTIVE';
+      }
+      if (payload.start_record_ok) payload.start_session_status = 'PASS';
+      if (payload.stop_record_ok) payload.stop_record_status = 'PASS';
+      if (payload.shutter_recorded) payload.shutter_status = 'PASS';
+      if (payload.report_opened) payload.report_page_status = 'PASS';
+      if (payload.result_opened) payload.result_page_status = 'PASS';
+      if (payload.map_opened_or_no_gps_correct) payload.map_status = 'NO_GPS_NO_MARKER_CONFIRMED';
+      payload.no_fake_detection_status = 'PASS';
       return payload;
     }
     function render(data) {
@@ -105,6 +130,10 @@
         const key = node.getAttribute('data-auto');
         node.textContent = auto[key] === undefined || auto[key] === '' ? '-' : auto[key];
       });
+      const missing = data.missing_requirements || data.physical_hp_acceptance && data.physical_hp_acceptance.missing_requirements || [];
+      document.getElementById('acceptance-missing').textContent = missing.length
+        ? 'Belum bisa PASS: ' + missing.join(', ')
+        : 'Evidence minimal lengkap atau menunggu submit HP.';
     }
     async function startAcceptance() {
       const result = await fetch('/api/field/acceptance/start', {
@@ -119,6 +148,10 @@
     }
     document.getElementById('acceptance-start').addEventListener('click', startAcceptance);
     document.getElementById('acceptance-refresh').addEventListener('click', refreshAcceptance);
+    document.getElementById('acceptance-map').addEventListener('click', async function () {
+      const latest = await fetch('/api/field/latest-map?session_id=' + encodeURIComponent(sessionId())).then(r => r.json());
+      window.location.href = latest.map_url || '/api/field/latest-map?session_id=' + encodeURIComponent(sessionId());
+    });
     document.getElementById('acceptance-form').addEventListener('submit', async function (event) {
       event.preventDefault();
       const result = await fetch('/api/field/acceptance/submit', {

@@ -83,6 +83,10 @@ COMMAND_GROUPS = {
         ".\\venv\\Scripts\\python.exe scripts\\progress6_3_map_policy_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\progress6_3_no_fake_precision_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\progress6_3_field_acceptance_gate.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_4_live_field_acceptance_preflight.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_4_print_live_hp_test_commands.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_4_acceptance_evidence_validator.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_4_live_hp_acceptance_gate.py",
     ],
     "WAIT UNTIL MAKESENSE EXPORT": [
         ".\\venv\\Scripts\\python.exe scripts\\phase3_readiness_gate.py",
@@ -210,6 +214,17 @@ MODE_GROUPS = {
         "HP capture: https://<ngrok-public-url>/field-capture",
         "HP acceptance: https://<ngrok-public-url>/field-acceptance",
     ],
+    "progress6-4-live-hp-acceptance": [
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_4_live_field_acceptance_preflight.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_4_print_live_hp_test_commands.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_4_acceptance_evidence_validator.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_4_live_hp_acceptance_gate.py",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --print-live-hp-test-url",
+        ".\\venv\\Scripts\\python.exe scripts\\run_remote_realtime_server.py --host 0.0.0.0 --port 5000",
+        "Tunnel: ngrok http 5000",
+        "HP capture: https://<ngrok-public-url>/field-capture",
+        "HP acceptance: https://<ngrok-public-url>/field-acceptance",
+    ],
 }
 
 
@@ -294,6 +309,11 @@ def main() -> int:
     parser.add_argument("--progress6-3-no-fake-precision-smoke", action="store_true")
     parser.add_argument("--progress6-3-gate", action="store_true")
     parser.add_argument("--print-field-acceptance-url", action="store_true")
+    parser.add_argument("--progress6-4-preflight", action="store_true")
+    parser.add_argument("--progress6-4-print-live-test", action="store_true")
+    parser.add_argument("--progress6-4-acceptance-validator", action="store_true")
+    parser.add_argument("--progress6-4-gate", action="store_true")
+    parser.add_argument("--print-live-hp-test-url", action="store_true")
     parser.add_argument("--all-gates", action="store_true")
     parser.add_argument("--mode", choices=["all", *MODE_GROUPS.keys()], default="all")
     args = parser.parse_args()
@@ -361,6 +381,11 @@ def main() -> int:
         (args.progress6_3_no_fake_precision_smoke, ["scripts\\progress6_3_no_fake_precision_smoke.py"]),
         (args.progress6_3_gate, ["scripts\\progress6_3_field_acceptance_gate.py"]),
         (args.print_field_acceptance_url, ["scripts\\progress6_3_print_field_acceptance_url.py"]),
+        (args.progress6_4_preflight, ["scripts\\progress6_4_live_field_acceptance_preflight.py"]),
+        (args.progress6_4_print_live_test, ["scripts\\progress6_4_print_live_hp_test_commands.py"]),
+        (args.progress6_4_acceptance_validator, ["scripts\\progress6_4_acceptance_evidence_validator.py"]),
+        (args.progress6_4_gate, ["scripts\\progress6_4_live_hp_acceptance_gate.py"]),
+        (args.print_live_hp_test_url, ["scripts\\progress6_4_print_live_hp_test_commands.py"]),
         (args.all_gates, ["scripts\\phase17_20_final_system_completion_gate.py"]),
     ]
     selected = [cmd for enabled, cmd in actions if enabled]
