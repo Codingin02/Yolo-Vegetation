@@ -15,6 +15,16 @@
       <p>Session snapshot, GPS base/current, jarak mundur, status kamera/model/geometri, CSV, dan map.</p>
     </header>
     <section class="glass-card">
+      <div class="evidence-sections">
+        <h2>Session Evidence</h2>
+        <h2>GPS Evidence</h2>
+        <h2>Camera/Frame Evidence</h2>
+        <h2>AI/Model Evidence</h2>
+        <h2>Geometry/Measurement Evidence</h2>
+        <h2>Operator Notes</h2>
+        <h2>CSV/Map Links</h2>
+        <h2>Limitations</h2>
+      </div>
       <dl class="glass-grid" id="field-report-grid">
         <div><dt>session_id</dt><dd data-key="session_id">-</dd></div>
         <div><dt>timestamp</dt><dd data-key="timestamp">-</dd></div>
@@ -23,6 +33,10 @@
         <div><dt>notes</dt><dd data-key="notes">-</dd></div>
         <div><dt>secure_context_status</dt><dd data-key="secure_context_status">-</dd></div>
         <div><dt>public_tunnel_status</dt><dd data-key="public_tunnel_status">-</dd></div>
+        <div><dt>visibility_state</dt><dd data-key="visibility_state">-</dd></div>
+        <div><dt>foreground_recording_status</dt><dd data-key="foreground_recording_status">FOREGROUND_RECORDING_REQUIRED</dd></div>
+        <div><dt>hidden_duration_ms</dt><dd data-key="hidden_duration_ms">0</dd></div>
+        <div><dt>browser_throttle_warning</dt><dd data-key="browser_throttle_warning">-</dd></div>
         <div><dt>camera_status</dt><dd data-key="camera_status">-</dd></div>
         <div><dt>gps_status</dt><dd data-key="gps_accuracy_status">-</dd></div>
         <div><dt>base_latitude</dt><dd data-key="base_latitude">-</dd></div>
@@ -50,6 +64,7 @@
       <nav class="bottom-nav">
         <a href="/field-capture">Back to Capture</a>
         <button id="session-result" type="button">Open Result</button>
+        <button id="session-acceptance" type="button">Acceptance</button>
         <a href="/field-reports/field_capture_autosave.csv">Download CSV</a>
         <a href="/api/field/latest-map">Open Map</a>
       </nav>

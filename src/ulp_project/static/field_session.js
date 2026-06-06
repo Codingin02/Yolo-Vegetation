@@ -12,12 +12,18 @@
     currentGpsPosition: null,
     derivedGps: {
       horizontal_distance_from_tree_m: null,
-      gps_accuracy_status: "GPS_NOT_READY",
+      gps_accuracy_status: "GPS_ACCURACY_UNKNOWN",
       gps_quality_reason: "GPS_WAITING_PERMISSION",
       movement_status: "GPS_NOT_READY",
       is_distance_reliable: false,
-      distance_reliability_status: "GPS_NOT_READY"
+      distance_reliability_status: "DISTANCE_NOT_AVAILABLE"
     },
+    visibility_state: document.visibilityState || "visible",
+    foreground_recording_status: document.hidden ? "PAGE_HIDDEN_BROWSER_MAY_THROTTLE" : "FOREGROUND_RECORDING_REQUIRED",
+    hidden_started_at: "",
+    hidden_duration_ms: 0,
+    frame_loop_paused_due_to_hidden: false,
+    browser_throttle_warning: "",
     gpsWatchId: null,
     cameraStream: null,
     frameTimer: null,
@@ -196,7 +202,7 @@
     stopCamera();
     stopFrameLoop();
     state.session_status = "RECORDING_STOPPED";
-    await postJson("/api/field/session/stop", { session_id: state.session_id });
+    await postJson("/api/field/session/stop", collectSessionPayload());
     renderStatus();
   }
 
@@ -217,7 +223,7 @@
     const distance = computeHaversineMeters(base, current);
     const currentAccuracy = current && Number.isFinite(Number(current.accuracy)) ? Number(current.accuracy) : null;
     const baseAccuracy = base && Number.isFinite(Number(base.accuracy)) ? Number(base.accuracy) : null;
-    let gps_accuracy_status = "GPS_NOT_READY";
+    let gps_accuracy_status = "GPS_ACCURACY_UNKNOWN";
     let gps_quality_reason = "GPS_ACCURACY_UNKNOWN";
     if (currentAccuracy !== null) {
       if (currentAccuracy <= 5) {
@@ -231,16 +237,20 @@
         gps_quality_reason = "GPS_ACCURACY_GT_10M";
       }
     }
-    let distance_reliability_status = "GPS_NOT_READY";
+    let distance_reliability_status = "DISTANCE_NOT_AVAILABLE";
     let is_distance_reliable = false;
     if (distance !== null) {
       if (baseAccuracy === null || currentAccuracy === null) {
         distance_reliability_status = "GPS_ACCURACY_UNKNOWN";
       } else if (Math.max(baseAccuracy, currentAccuracy) > distance) {
         distance_reliability_status = "GPS_ACCURACY_GREATER_THAN_DISTANCE";
-      } else {
-        distance_reliability_status = "DISTANCE_RELIABLE_WITH_BROWSER_GPS_LIMITS";
+      } else if (distance < 1) {
+        distance_reliability_status = "DISTANCE_TOO_SMALL_FOR_GPS_RELIABILITY";
+      } else if (distance >= 2 * Math.max(baseAccuracy, currentAccuracy)) {
+        distance_reliability_status = "DISTANCE_REASONABLY_RELIABLE_FOR_FIELD_EVIDENCE";
         is_distance_reliable = true;
+      } else {
+        distance_reliability_status = "DISTANCE_ESTIMATE_WEAK_FOR_FIELD_EVIDENCE";
       }
     }
     state.derivedGps = {
@@ -274,6 +284,7 @@
     if (!state.session_id) return;
     await postJson("/api/field/session/gps-update", {
       ...gps,
+      ...visibilityPayload(),
       session_id: state.session_id,
       set_base: Boolean(setBase)
     });
@@ -297,7 +308,8 @@
         timestamp_client_ms: Date.now(),
         gps_lat: state.currentGpsPosition && state.currentGpsPosition.latitude,
         gps_lon: state.currentGpsPosition && state.currentGpsPosition.longitude,
-        gps_accuracy_m: state.currentGpsPosition && state.currentGpsPosition.accuracy
+        gps_accuracy_m: state.currentGpsPosition && state.currentGpsPosition.accuracy,
+        ...visibilityPayload()
       });
       const latency = Math.round(performance.now() - started);
       if (latency > state.max_allowed_latency_ms) {
@@ -327,7 +339,8 @@
       base_gps: state.baseGpsPosition,
       current_gps: state.currentGpsPosition,
       latest_measurement: state.latestMeasurement,
-      model_status: state.latestResult.model_status || "MODEL_NOT_READY"
+      model_status: state.latestResult.model_status || "MODEL_NOT_READY",
+      ...visibilityPayload()
     });
     if (result.report_csv_url) text("report-path", result.report_csv_url);
     if (result.map_url) text("map-path", result.map_url);
@@ -354,13 +367,21 @@
     text("glass-gps-status", state.derivedGps.gps_accuracy_status);
     text("glass-model-status", state.latestResult.model_status || "MODEL_NOT_READY");
     text("session-id", state.session_id);
-    text("foreground-recording-status", "FOREGROUND_RECORDING_REQUIRED");
+    text("foreground-recording-status", state.foreground_recording_status);
+    text("visibility-state", state.visibility_state);
+    text("hidden-duration-ms", state.hidden_duration_ms);
+    text("browser-throttle-warning", state.browser_throttle_warning);
     text("horizontal-distance-from-tree", state.derivedGps.horizontal_distance_from_tree_m);
     text("distance-reliability-status", state.derivedGps.distance_reliability_status);
     text("gps-quality-reason", state.derivedGps.gps_quality_reason);
     text("movement-status", state.derivedGps.movement_status);
-    text("gps-status", state.derivedGps.gps_accuracy_status === "GPS_NOT_READY" ? "GPS_WAITING_PERMISSION" : "GPS_READY");
+    text("gps-status", state.derivedGps.gps_accuracy_status === "GPS_ACCURACY_UNKNOWN" ? "GPS_WAITING_PERMISSION" : "GPS_READY");
     text("gps-accuracy-status", state.currentGpsPosition && state.currentGpsPosition.accuracy ? `${Number(state.currentGpsPosition.accuracy).toFixed(1)} m` : "-");
+    const warning = el("foreground-warning");
+    if (warning) {
+      warning.hidden = state.foreground_recording_status !== "PAGE_HIDDEN_BROWSER_MAY_THROTTLE";
+      warning.textContent = state.browser_throttle_warning || "FOREGROUND_RECORDING_REQUIRED: jika tab hidden, layar mati, atau browser diminimize, proses web bisa throttled.";
+    }
   }
 
   function renderOverlay(payload) {
@@ -408,8 +429,44 @@
       camera_status: "CAMERA_READY",
       base_gps: state.baseGpsPosition,
       current_gps: state.currentGpsPosition,
-      foreground_recording_status: "FOREGROUND_RECORDING_REQUIRED"
+      ...visibilityPayload()
     };
+  }
+
+  function visibilityPayload() {
+    return {
+      visibility_state: state.visibility_state,
+      foreground_recording_status: state.foreground_recording_status,
+      hidden_started_at: state.hidden_started_at,
+      hidden_duration_ms: state.hidden_duration_ms,
+      frame_loop_paused_due_to_hidden: state.frame_loop_paused_due_to_hidden,
+      browser_throttle_warning: state.browser_throttle_warning
+    };
+  }
+
+  function handleVisibilityChange() {
+    state.visibility_state = document.visibilityState || (document.hidden ? "hidden" : "visible");
+    if (document.hidden) {
+      state.hidden_started_at = new Date().toISOString();
+      state.foreground_recording_status = "PAGE_HIDDEN_BROWSER_MAY_THROTTLE";
+      state.browser_throttle_warning = "Halaman tidak aktif. Browser dapat membatasi kamera/timer/GPS. Buka kembali halaman untuk recording stabil.";
+      state.frame_loop_paused_due_to_hidden = true;
+      state.frame_process_interval_ms = 3000;
+      if (state.frameTimer) startFrameLoop();
+    } else {
+      if (state.hidden_started_at) {
+        const started = Date.parse(state.hidden_started_at);
+        if (Number.isFinite(started)) state.hidden_duration_ms += Math.max(0, Date.now() - started);
+      }
+      state.hidden_started_at = "";
+      state.visibility_state = "visible";
+      state.foreground_recording_status = "FOREGROUND_RECORDING_ACTIVE";
+      state.browser_throttle_warning = "";
+      state.frame_loop_paused_due_to_hidden = false;
+      if (state.frame_process_interval_ms >= 3000) state.frame_process_interval_ms = 1000;
+      if (state.frameTimer) startFrameLoop();
+    }
+    renderStatus();
   }
 
   async function postJson(url, payload) {
@@ -446,11 +503,13 @@
     shutterCapture,
     renderStatus,
     renderOverlay,
-    handleError
+    handleError,
+    handleVisibilityChange
   };
 
   bind("session-start", startSession);
   bind("session-stop", stopSession);
   bind("shutter-capture", shutterCapture);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
   renderStatus();
 })();

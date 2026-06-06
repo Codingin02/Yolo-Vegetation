@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/field_capture.css">
+  <link rel="stylesheet" href="/static/field_capture_glass.css">
+  <title>Field Acceptance</title>
+</head>
+<body>
+  <main class="shell">
+    <header class="glass-hero">
+      <p class="eyebrow">Monitoring Vegetasi 20 kV</p>
+      <h1>Physical HP Acceptance</h1>
+      <p>Checklist ini hanya untuk uji HP fisik melalui Public HTTPS tunnel. Tanpa submit evidence dari HP, status tetap PHYSICAL_HP_ACCEPTANCE_PENDING_USER_TEST.</p>
+    </header>
+
+    <section class="glass-card">
+      <h2>Automatic Evidence</h2>
+      <dl class="glass-grid" id="acceptance-auto-grid">
+        <div><dt>current_url_mode</dt><dd data-auto="current_url_mode">-</dd></div>
+        <div><dt>secure_context</dt><dd data-auto="secure_context">-</dd></div>
+        <div><dt>public_tunnel_status</dt><dd data-auto="public_tunnel_status">-</dd></div>
+        <div><dt>camera_permission_status</dt><dd data-auto="camera_permission_status">-</dd></div>
+        <div><dt>gps_permission_status</dt><dd data-auto="gps_permission_status">-</dd></div>
+        <div><dt>gps_accuracy_status</dt><dd data-auto="gps_accuracy_status">-</dd></div>
+        <div><dt>gps_watch_status</dt><dd data-auto="gps_watch_status">-</dd></div>
+        <div><dt>camera_preview_status</dt><dd data-auto="camera_preview_status">-</dd></div>
+        <div><dt>frame_loop_status</dt><dd data-auto="frame_loop_status">-</dd></div>
+        <div><dt>shutter_status</dt><dd data-auto="shutter_status">-</dd></div>
+        <div><dt>report_page_status</dt><dd data-auto="report_page_status">-</dd></div>
+        <div><dt>result_page_status</dt><dd data-auto="result_page_status">-</dd></div>
+        <div><dt>map_status</dt><dd data-auto="map_status">-</dd></div>
+        <div><dt>latest_latency_ms</dt><dd data-auto="latest_latency_ms">-</dd></div>
+        <div><dt>visibility_state</dt><dd data-auto="visibility_state">-</dd></div>
+        <div><dt>foreground_recording_status</dt><dd data-auto="foreground_recording_status">FOREGROUND_RECORDING_REQUIRED</dd></div>
+        <div><dt>model_status</dt><dd data-auto="model_status">MODEL_NOT_READY</dd></div>
+        <div><dt>no_fake_detection_status</dt><dd data-auto="no_fake_detection_status">NO_FAKE_DETECTION_PASS</dd></div>
+      </dl>
+      <div class="session-actions">
+        <button id="acceptance-start" class="primary-action" type="button">Start Acceptance</button>
+        <button id="acceptance-refresh" type="button">Refresh Evidence</button>
+      </div>
+    </section>
+
+    <section class="glass-card">
+      <h2>Manual Operator Confirmation</h2>
+      <form id="acceptance-form" class="acceptance-form">
+        <label>operator_name <input name="operator_name" autocomplete="off"></label>
+        <label>device_name <input name="device_name" placeholder="contoh: Redmi Note / iPhone" autocomplete="off"></label>
+        <label>network_type
+          <select name="network_type">
+            <option value="HP_PACKET_DATA">HP packet data</option>
+            <option value="DIFFERENT_WIFI_THAN_LAPTOP">Wi-Fi berbeda dari laptop</option>
+            <option value="SAME_LAN_DEBUG_ONLY">LAN debug only</option>
+          </select>
+        </label>
+        <label>field_location_note <input name="field_location_note" autocomplete="off"></label>
+        <label><input type="checkbox" name="hp_different_network_confirmed" value="true"> HP memakai paket data atau Wi-Fi berbeda dari laptop</label>
+        <label><input type="checkbox" name="public_https_url_opened" value="true"> Public HTTPS URL terbuka</label>
+        <label><input type="checkbox" name="camera_visible" value="true"> Kamera muncul</label>
+        <label><input type="checkbox" name="gps_active" value="true"> GPS aktif</label>
+        <label><input type="checkbox" name="start_record_ok" value="true"> Start record berhasil</label>
+        <label><input type="checkbox" name="stop_record_ok" value="true"> Stop record berhasil</label>
+        <label><input type="checkbox" name="report_opened" value="true"> Report bisa dibuka</label>
+        <label><input type="checkbox" name="result_opened" value="true"> Result bisa dibuka</label>
+        <label><input type="checkbox" name="map_opened_or_no_gps_correct" value="true"> Map bisa dibuka atau NO_GPS_NO_MARKER benar</label>
+        <label>problem_note <textarea name="problem_note" rows="3"></textarea></label>
+        <button class="primary-action" type="submit">Submit HP Evidence</button>
+      </form>
+      <pre id="acceptance-output">PHYSICAL_HP_ACCEPTANCE_PENDING_USER_TEST</pre>
+      <nav class="bottom-nav">
+        <a href="/field-capture">Capture</a>
+        <button id="session-report" type="button">Report</button>
+        <button id="session-result" type="button">Result</button>
+        <button id="session-manual-input" type="button">Manual</button>
+      </nav>
+    </section>
+  </main>
+  <script src="/static/field_navigation.js"></script>
+  <script>
+    function sessionId() {
+      return window.FieldNavigation ? window.FieldNavigation.currentSessionId() : (window.localStorage.getItem('field_session_id') || '');
+    }
+    function currentUrlMode() {
+      const host = window.location.hostname;
+      if (window.location.protocol === 'https:') return 'HTTPS_PUBLIC_READY';
+      if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return 'LOCALHOST_DEBUG_ONLY';
+      return 'LAN_HTTP_DEBUG_ONLY';
+    }
+    function payloadFromForm(form) {
+      const payload = Object.fromEntries(new FormData(form).entries());
+      form.querySelectorAll('input[type="checkbox"]').forEach(node => payload[node.name] = node.checked);
+      payload.session_id = sessionId();
+      payload.current_url_mode = currentUrlMode();
+      payload.secure_context_status = window.isSecureContext ? 'SECURE_CONTEXT_OK' : 'INSECURE_CONTEXT_CAMERA_GPS_BLOCKED';
+      payload.visibility_state = document.visibilityState || 'visible';
+      payload.foreground_recording_status = document.hidden ? 'PAGE_HIDDEN_BROWSER_MAY_THROTTLE' : 'FOREGROUND_RECORDING_ACTIVE';
+      return payload;
+    }
+    function render(data) {
+      document.getElementById('acceptance-output').textContent = JSON.stringify(data, null, 2);
+      const auto = data.automatic_checklist || data.physical_hp_acceptance && data.physical_hp_acceptance.automatic_checklist || {};
+      document.querySelectorAll('[data-auto]').forEach(node => {
+        const key = node.getAttribute('data-auto');
+        node.textContent = auto[key] === undefined || auto[key] === '' ? '-' : auto[key];
+      });
+    }
+    async function startAcceptance() {
+      const result = await fetch('/api/field/acceptance/start', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payloadFromForm(document.getElementById('acceptance-form')))
+      }).then(r => r.json());
+      render(result);
+    }
+    async function refreshAcceptance() {
+      render(await fetch('/api/field/acceptance/latest').then(r => r.json()));
+    }
+    document.getElementById('acceptance-start').addEventListener('click', startAcceptance);
+    document.getElementById('acceptance-refresh').addEventListener('click', refreshAcceptance);
+    document.getElementById('acceptance-form').addEventListener('submit', async function (event) {
+      event.preventDefault();
+      const result = await fetch('/api/field/acceptance/submit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payloadFromForm(event.target))
+      }).then(r => r.json());
+      render(result);
+    });
+    refreshAcceptance();
+  </script>
+</body>
+</html>

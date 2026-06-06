@@ -7,6 +7,13 @@ from pathlib import Path
 
 from .calibration_readiness import check_calibration_readiness
 from .field_capture import accept_field_capture_upload, load_field_capture_job, load_field_capture_result
+from .field_acceptance_runtime import (
+    acceptance_evidence,
+    acceptance_status,
+    latest_acceptance,
+    start_acceptance,
+    submit_acceptance,
+)
 from .field_session_runtime import (
     build_latest_result,
     latest_field_session_map,
@@ -76,6 +83,10 @@ def register_field_capture_routes(app) -> None:
     @app.get("/field-manual-input")
     def field_manual_input_page():
         return render_template("field_manual_input.html")
+
+    @app.get("/field-acceptance")
+    def field_acceptance_page():
+        return render_template("field_acceptance.html")
 
     @app.get("/realtime")
     def realtime_alias():
@@ -261,8 +272,10 @@ def register_field_capture_routes(app) -> None:
     @app.get("/api/field/latest-map")
     def field_progress5_4_latest_map_alias():
         latest = latest_field_session_map(request.args.get("session_id"))
+        if request.args.get("session_id"):
+            return jsonify(latest)
         if latest.get("status") == "NO_GPS_NO_MARKER":
-            return jsonify({**latest_progress5_4_map(), "field_session": latest})
+            return jsonify({**latest, "progress5_4_fallback": latest_progress5_4_map()})
         return jsonify(latest)
 
     @app.get("/api/field/gps-status")
@@ -285,6 +298,30 @@ def register_field_capture_routes(app) -> None:
         payload = request.get_json(silent=True) if request.is_json else None
         runtime = Path(app.config["ULP_RUNTIME_ROOT"])
         return jsonify(record_manual_input(dict(payload or request.form), runtime_root=runtime)), 201
+
+    @app.post("/api/field/acceptance/start")
+    def field_acceptance_start_route():
+        payload = request.get_json(silent=True) if request.is_json else None
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        return jsonify(start_acceptance(dict(payload or request.form), runtime_root=runtime)), 201
+
+    @app.post("/api/field/acceptance/submit")
+    def field_acceptance_submit_route():
+        payload = request.get_json(silent=True) if request.is_json else None
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        return jsonify(submit_acceptance(dict(payload or request.form), runtime_root=runtime))
+
+    @app.get("/api/field/acceptance/latest")
+    def field_acceptance_latest_route():
+        return jsonify(latest_acceptance())
+
+    @app.get("/api/field/acceptance/evidence")
+    def field_acceptance_evidence_route():
+        return jsonify(acceptance_evidence())
+
+    @app.get("/api/field/acceptance/status")
+    def field_acceptance_status_route():
+        return jsonify(acceptance_status())
 
     @app.get("/api/field-trial/evidence")
     def field_trial_evidence():

@@ -75,6 +75,14 @@ COMMAND_GROUPS = {
         ".\\venv\\Scripts\\python.exe scripts\\progress6_2_session_contract_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\progress6_2_gps_policy_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\progress6_2_native_browser_gps_camera_gate.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_3_status_consistency_audit.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_3_physical_hp_acceptance_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_3_gps_reliability_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_3_visibility_policy_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_3_report_result_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_3_map_policy_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_3_no_fake_precision_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_3_field_acceptance_gate.py",
     ],
     "WAIT UNTIL MAKESENSE EXPORT": [
         ".\\venv\\Scripts\\python.exe scripts\\phase3_readiness_gate.py",
@@ -188,6 +196,20 @@ MODE_GROUPS = {
         "Tunnel: ngrok http 5000",
         "HP: https://<ngrok-public-url>/field-capture",
     ],
+    "progress6-3-field-acceptance": [
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_3_status_consistency_audit.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_3_physical_hp_acceptance_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_3_gps_reliability_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_3_visibility_policy_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_3_report_result_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_3_map_policy_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_3_no_fake_precision_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_3_field_acceptance_gate.py",
+        ".\\venv\\Scripts\\python.exe scripts\\run_remote_realtime_server.py --host 0.0.0.0 --port 5000",
+        "Tunnel: ngrok http 5000",
+        "HP capture: https://<ngrok-public-url>/field-capture",
+        "HP acceptance: https://<ngrok-public-url>/field-acceptance",
+    ],
 }
 
 
@@ -263,6 +285,15 @@ def main() -> int:
     parser.add_argument("--progress6-2-ui-smoke", action="store_true")
     parser.add_argument("--progress6-2-session-smoke", action="store_true")
     parser.add_argument("--progress6-2-gps-policy-smoke", action="store_true")
+    parser.add_argument("--progress6-3-status-audit", action="store_true")
+    parser.add_argument("--progress6-3-acceptance-smoke", action="store_true")
+    parser.add_argument("--progress6-3-gps-reliability-smoke", action="store_true")
+    parser.add_argument("--progress6-3-visibility-smoke", action="store_true")
+    parser.add_argument("--progress6-3-report-result-smoke", action="store_true")
+    parser.add_argument("--progress6-3-map-smoke", action="store_true")
+    parser.add_argument("--progress6-3-no-fake-precision-smoke", action="store_true")
+    parser.add_argument("--progress6-3-gate", action="store_true")
+    parser.add_argument("--print-field-acceptance-url", action="store_true")
     parser.add_argument("--all-gates", action="store_true")
     parser.add_argument("--mode", choices=["all", *MODE_GROUPS.keys()], default="all")
     args = parser.parse_args()
@@ -321,6 +352,15 @@ def main() -> int:
         (args.progress6_2_ui_smoke, ["scripts\\progress6_2_ui_route_smoke.py"]),
         (args.progress6_2_session_smoke, ["scripts\\progress6_2_session_contract_smoke.py"]),
         (args.progress6_2_gps_policy_smoke, ["scripts\\progress6_2_gps_policy_smoke.py"]),
+        (args.progress6_3_status_audit, ["scripts\\progress6_3_status_consistency_audit.py"]),
+        (args.progress6_3_acceptance_smoke, ["scripts\\progress6_3_physical_hp_acceptance_smoke.py"]),
+        (args.progress6_3_gps_reliability_smoke, ["scripts\\progress6_3_gps_reliability_smoke.py"]),
+        (args.progress6_3_visibility_smoke, ["scripts\\progress6_3_visibility_policy_smoke.py"]),
+        (args.progress6_3_report_result_smoke, ["scripts\\progress6_3_report_result_smoke.py"]),
+        (args.progress6_3_map_smoke, ["scripts\\progress6_3_map_policy_smoke.py"]),
+        (args.progress6_3_no_fake_precision_smoke, ["scripts\\progress6_3_no_fake_precision_smoke.py"]),
+        (args.progress6_3_gate, ["scripts\\progress6_3_field_acceptance_gate.py"]),
+        (args.print_field_acceptance_url, ["scripts\\progress6_3_print_field_acceptance_url.py"]),
         (args.all_gates, ["scripts\\phase17_20_final_system_completion_gate.py"]),
     ]
     selected = [cmd for enabled, cmd in actions if enabled]

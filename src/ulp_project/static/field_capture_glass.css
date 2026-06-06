@@ -13,6 +13,7 @@ body {
     radial-gradient(circle at 12% 8%, rgba(88, 185, 161, 0.28), transparent 30%),
     linear-gradient(145deg, #e8f2ef 0%, #f7f5f0 48%, #dce7ef 100%);
   color: var(--glass-ink);
+  overflow-x: hidden;
 }
 
 .glass-hero,
@@ -128,13 +129,55 @@ body {
   z-index: 10;
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
   padding: 8px;
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.68);
   box-shadow: var(--glass-shadow);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
+}
+
+.session-actions button:disabled,
+.bottom-nav button:disabled,
+.bottom-nav a[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.46;
+  filter: grayscale(0.2);
+}
+
+.warning-banner,
+.error-toast {
+  border-radius: 20px;
+  padding: 10px 12px;
+  background: rgba(180, 35, 24, 0.12);
+  color: var(--glass-danger);
+  font-weight: 800;
+}
+
+.acceptance-form {
+  display: grid;
+  gap: 10px;
+}
+
+.acceptance-form label {
+  display: grid;
+  gap: 5px;
+}
+
+.evidence-sections {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+  margin-bottom: 12px;
+}
+
+.evidence-sections h2 {
+  margin: 0;
+  border-radius: 18px;
+  padding: 9px 11px;
+  background: rgba(255, 255, 255, 0.5);
+  font-size: 15px;
 }
 
 .page-transitioning {

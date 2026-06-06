@@ -5,13 +5,17 @@ from __future__ import annotations
 import csv
 import html
 import json
-import math
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .gps_reliability_policy import (
+    compute_haversine_meters as assess_haversine_meters,
+    distance_reliability as assess_distance_reliability,
+    gps_accuracy_status as assess_gps_accuracy_status,
+)
 from .model_handoff import check_model_handoff
 from .paths import PROJECT_ROOT
 from .progress5_4_field_runtime import (
@@ -41,6 +45,9 @@ FIELD_SESSION_REPORT_COLUMNS = [
     "gps_accuracy_status",
     "gps_quality_reason",
     "foreground_recording_status",
+    "visibility_state",
+    "hidden_duration_ms",
+    "browser_throttle_warning",
     "manual_input_status",
     "page_source",
     "result_page_url",
@@ -71,6 +78,12 @@ class FieldSession:
     latest_measurement: dict[str, Any] = field(default_factory=dict)
     latest_result: dict[str, Any] = field(default_factory=dict)
     latest_report: dict[str, Any] = field(default_factory=dict)
+    visibility_state: str = "visible"
+    foreground_recording_status: str = "FOREGROUND_RECORDING_REQUIRED"
+    hidden_started_at: str = ""
+    hidden_duration_ms: int = 0
+    frame_loop_paused_due_to_hidden: bool = False
+    browser_throttle_warning: str = ""
     reason_codes: list[str] = field(default_factory=lambda: ["FOREGROUND_RECORDING_REQUIRED"])
 
 
@@ -80,70 +93,15 @@ _LATEST_MANUAL_INPUT: dict[str, Any] = {"status": "NO_MANUAL_INPUT_YET"}
 
 
 def gps_accuracy_status(accuracy_m: Any) -> dict[str, Any]:
-    accuracy = _to_float(accuracy_m)
-    if accuracy is None:
-        return {"gps_accuracy_status": "GPS_NOT_READY", "gps_quality_reason": "GPS_ACCURACY_UNKNOWN"}
-    if accuracy <= 5.0:
-        return {"gps_accuracy_status": "GPS_ACCURACY_GOOD", "gps_quality_reason": "GPS_ACCURACY_LE_5M"}
-    if accuracy <= 10.0:
-        return {"gps_accuracy_status": "GPS_ACCURACY_MEDIUM", "gps_quality_reason": "GPS_ACCURACY_5_TO_10M"}
-    return {"gps_accuracy_status": "GPS_ACCURACY_LOW", "gps_quality_reason": "GPS_ACCURACY_GT_10M"}
+    return assess_gps_accuracy_status(accuracy_m)
 
 
 def compute_haversine_meters(base: dict[str, Any] | None, current: dict[str, Any] | None) -> float | None:
-    if not base or not current:
-        return None
-    lat1 = _to_float(base.get("latitude"))
-    lon1 = _to_float(base.get("longitude"))
-    lat2 = _to_float(current.get("latitude"))
-    lon2 = _to_float(current.get("longitude"))
-    if None in {lat1, lon1, lat2, lon2}:
-        return None
-    radius_m = 6_371_000.0
-    phi1 = math.radians(lat1)
-    phi2 = math.radians(lat2)
-    d_phi = math.radians(lat2 - lat1)
-    d_lambda = math.radians(lon2 - lon1)
-    a = math.sin(d_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
-    return round(radius_m * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)), 3)
+    return assess_haversine_meters(base, current)
 
 
 def distance_reliability(base: dict[str, Any] | None, current: dict[str, Any] | None) -> dict[str, Any]:
-    distance = compute_haversine_meters(base, current)
-    base_accuracy = _to_float((base or {}).get("accuracy"))
-    current_accuracy = _to_float((current or {}).get("accuracy"))
-    accuracy_status = gps_accuracy_status(current_accuracy)
-    if distance is None:
-        return {
-            **accuracy_status,
-            "horizontal_distance_from_tree_m": None,
-            "distance_reliability_status": "GPS_NOT_READY",
-            "is_distance_reliable": False,
-            "movement_status": "GPS_NOT_READY",
-        }
-    if base_accuracy is None or current_accuracy is None:
-        return {
-            **accuracy_status,
-            "horizontal_distance_from_tree_m": distance,
-            "distance_reliability_status": "GPS_ACCURACY_UNKNOWN",
-            "is_distance_reliable": False,
-            "movement_status": "MOVED_FROM_TREE_BASE" if distance > 0.5 else "AT_TREE_BASE",
-        }
-    if max(base_accuracy, current_accuracy) > distance:
-        return {
-            **accuracy_status,
-            "horizontal_distance_from_tree_m": distance,
-            "distance_reliability_status": "GPS_ACCURACY_GREATER_THAN_DISTANCE",
-            "is_distance_reliable": False,
-            "movement_status": "MOVED_FROM_TREE_BASE" if distance > 0.5 else "AT_TREE_BASE",
-        }
-    return {
-        **accuracy_status,
-        "horizontal_distance_from_tree_m": distance,
-        "distance_reliability_status": "DISTANCE_RELIABLE_WITH_BROWSER_GPS_LIMITS",
-        "is_distance_reliable": True,
-        "movement_status": "MOVED_FROM_TREE_BASE" if distance > 0.5 else "AT_TREE_BASE",
-    }
+    return assess_distance_reliability(base, current)
 
 
 def normalize_gps(payload: dict[str, Any]) -> dict[str, Any]:
@@ -181,6 +139,7 @@ def start_field_session(payload: dict[str, Any], *, runtime_root: Path | None = 
         latest_result=_base_result(model.get("model_status", "MODEL_NOT_READY")),
         reason_codes=["FOREGROUND_RECORDING_REQUIRED", "BROWSER_GEOLOCATION_NATIVE_HIGH_ACCURACY_REQUESTED"],
     )
+    _apply_visibility_payload(session, payload)
     _SESSIONS[session_id] = session
     _LATEST_SESSION_ID = session_id
     _save_session(session, runtime_root=runtime_root)
@@ -189,6 +148,7 @@ def start_field_session(payload: dict[str, Any], *, runtime_root: Path | None = 
 
 def stop_field_session(payload: dict[str, Any], *, runtime_root: Path | None = None) -> dict[str, Any]:
     session = _get_or_latest(payload.get("session_id"))
+    _apply_visibility_payload(session, payload)
     session.session_status = "RECORDING_STOPPED"
     session.stopped_at = datetime.now().isoformat()
     if "FOREGROUND_RECORDING_REQUIRED" not in session.reason_codes:
@@ -199,6 +159,7 @@ def stop_field_session(payload: dict[str, Any], *, runtime_root: Path | None = N
 
 def update_field_session_gps(payload: dict[str, Any], *, runtime_root: Path | None = None) -> dict[str, Any]:
     session = _get_or_latest(payload.get("session_id"))
+    _apply_visibility_payload(session, payload)
     gps = normalize_gps(payload)
     if not session.base_gps or payload.get("set_base"):
         session.base_gps = gps
@@ -216,6 +177,7 @@ def update_field_session_gps(payload: dict[str, Any], *, runtime_root: Path | No
 
 def process_field_session_frame(payload: dict[str, Any], *, runtime_root: Path) -> dict[str, Any]:
     session = _get_or_latest(payload.get("session_id"))
+    _apply_visibility_payload(session, payload)
     result = process_progress5_4_realtime_frame(payload, runtime_root=runtime_root, debug_coco=bool(payload.get("debug_coco")))
     session.latest_frame_status = result
     session.latest_measurement = result.get("measurement_result", {})
@@ -228,6 +190,7 @@ def process_field_session_frame(payload: dict[str, Any], *, runtime_root: Path) 
 def shutter_field_session(payload: dict[str, Any], *, runtime_root: Path) -> dict[str, Any]:
     session = _get_or_latest(payload.get("session_id"))
     payload = dict(payload)
+    _apply_visibility_payload(session, payload)
     payload.setdefault("point_id", session.point_id)
     payload.setdefault("operator_name", session.operator_name)
     payload.setdefault("model_status", session.model_status)
@@ -252,6 +215,7 @@ def shutter_field_session(payload: dict[str, Any], *, runtime_root: Path) -> dic
 def record_manual_input(payload: dict[str, Any], *, runtime_root: Path | None = None) -> dict[str, Any]:
     global _LATEST_MANUAL_INPUT
     session = _get_or_latest(payload.get("session_id"), create_if_missing=True)
+    _apply_visibility_payload(session, payload)
     result = {
         "status": "MANUAL_OPERATOR_INPUT_NOT_AI_DETECTION",
         "manual_input_status": "MANUAL_OPERATOR_INPUT_NOT_AI_DETECTION",
@@ -281,7 +245,12 @@ def session_status(session_id: Any | None = None) -> dict[str, Any]:
         "session_id": session.session_id,
         "session_status": session.session_status,
         "recording_status": session.session_status,
-        "foreground_recording_status": "FOREGROUND_RECORDING_REQUIRED",
+        "foreground_recording_status": session.foreground_recording_status,
+        "visibility_state": session.visibility_state,
+        "hidden_started_at": session.hidden_started_at,
+        "hidden_duration_ms": session.hidden_duration_ms,
+        "frame_loop_paused_due_to_hidden": session.frame_loop_paused_due_to_hidden,
+        "browser_throttle_warning": session.browser_throttle_warning,
         "gps": {"base": session.base_gps, "current": session.current_gps, "history_count": len(session.gps_history)},
         "derived_gps": derived,
         "camera_status": session.camera_status,
@@ -298,21 +267,38 @@ def build_latest_result(session_id: Any | None = None, *, frame_result: dict[str
     derived = distance_reliability(session.base_gps, session.current_gps)
     model_status = frame_result.get("model_status") or session.model_status or "MODEL_NOT_READY"
     status = "FIELD_RESULT_PROVISIONAL"
+    result_status = "FIELD_RESULT_PROVISIONAL"
     reason_codes = list(session.reason_codes)
     if model_status == "MODEL_NOT_READY":
         status = "MODEL_NOT_READY_NO_FAKE_DETECTION"
+        result_status = "MODEL_NOT_READY_NO_AI_DETECTION"
         reason_codes.append("MODEL_NOT_READY_NO_FAKE_DETECTION")
     if not measurement.get("clearance_m"):
         reason_codes.append("INSUFFICIENT_GEOMETRY_DATA")
+    if derived.get("gps_accuracy_status") == "GPS_ACCURACY_LOW" or not derived.get("is_distance_reliable"):
+        reason_codes.append("GPS_LOW_ACCURACY_DISTANCE_NOT_RELIABLE")
+    if measurement.get("calibration_status", "CALIBRATION_NOT_READY") != "CALIBRATION_READY":
+        reason_codes.append("CALIBRATION_NOT_READY_CLEARANCE_NOT_FINAL")
+    zone_status = measurement.get("zone_status") if measurement.get("clearance_m") is not None else "INSUFFICIENT_DATA"
+    action_recommendation = measurement.get("action_recommendation")
+    if model_status == "MODEL_NOT_READY":
+        action_recommendation = "Lanjutkan labeling/training custom model; jangan jadikan hasil ini klaim deteksi."
+    elif zone_status == "INSUFFICIENT_DATA":
+        action_recommendation = "Lengkapi model, kalibrasi, dan evidence lapangan sebelum keputusan pemangkasan."
     result = {
         "status": status,
+        "result_status": result_status,
         "session_id": session.session_id,
         "model_status": model_status,
         "geometry_status": "INSUFFICIENT_GEOMETRY_DATA" if not measurement.get("clearance_m") else "GEOMETRY_PROVISIONAL",
         "gps_quality_status": derived["gps_accuracy_status"],
-        "risk_zone": measurement.get("zone_status") or "INSUFFICIENT_DATA",
+        "risk_zone": zone_status,
+        "zone_status": zone_status,
         "clearance_m": measurement.get("clearance_m"),
+        "confidence_status": measurement.get("confidence_status", "CALIBRATION_NOT_READY"),
+        "measurement_quality_label": measurement.get("measurement_quality_label", "INSUFFICIENT_GEOMETRY_DATA"),
         "eta_days": measurement.get("eta_days"),
+        "action_recommendation": action_recommendation,
         "field_result_disclaimer": "FIELD_RESULT_PROVISIONAL",
         "reason_codes": _dedupe(reason_codes),
         **derived,
@@ -340,15 +326,26 @@ def latest_field_session_report(session_id: Any | None = None) -> dict[str, Any]
 def latest_field_session_map(session_id: Any | None = None) -> dict[str, Any]:
     session = _get_or_latest(session_id, create_if_missing=True)
     current = session.current_gps
+    derived = distance_reliability(session.base_gps, session.current_gps)
     if current.get("latitude") is None or current.get("longitude") is None:
-        return {"status": "NO_GPS_NO_MARKER", "session_id": session.session_id, "map_exists": False}
+        SESSION_MAP_PATH.parent.mkdir(parents=True, exist_ok=True)
+        SESSION_MAP_PATH.write_text(_basic_map_html(None, None, session.point_id, session=session, derived=derived), encoding="utf-8")
+        return {
+            "status": "NO_GPS_NO_MARKER",
+            "session_id": session.session_id,
+            "path": str(SESSION_MAP_PATH),
+            "map_url": f"/field-maps/{SESSION_MAP_PATH.name}",
+            "map_exists": True,
+            "message": "GPS belum valid, marker tidak dibuat.",
+        }
     SESSION_MAP_PATH.parent.mkdir(parents=True, exist_ok=True)
     SESSION_MAP_PATH.write_text(
-        _basic_map_html(current.get("latitude"), current.get("longitude"), session.point_id),
+        _basic_map_html(current.get("latitude"), current.get("longitude"), session.point_id, session=session, derived=derived),
         encoding="utf-8",
     )
     return {
-        "status": "MAP_BASIC_FALLBACK",
+        "status": "MAP_HTML_READY",
+        "google_maps_status": "GOOGLE_MAPS_NOT_CONFIGURED",
         "session_id": session.session_id,
         "path": str(SESSION_MAP_PATH),
         "map_url": f"/field-maps/{SESSION_MAP_PATH.name}",
@@ -413,7 +410,10 @@ def _session_row_fields(session: FieldSession, *, page_source: str) -> dict[str,
         "distance_reliability_status": derived.get("distance_reliability_status"),
         "gps_accuracy_status": derived.get("gps_accuracy_status"),
         "gps_quality_reason": derived.get("gps_quality_reason"),
-        "foreground_recording_status": "FOREGROUND_RECORDING_REQUIRED",
+        "foreground_recording_status": session.foreground_recording_status,
+        "visibility_state": session.visibility_state,
+        "hidden_duration_ms": session.hidden_duration_ms,
+        "browser_throttle_warning": session.browser_throttle_warning,
         "manual_input_status": _LATEST_MANUAL_INPUT.get("manual_input_status", ""),
         "page_source": page_source,
         "result_page_url": f"/field-result?session_id={session.session_id}",
@@ -447,12 +447,59 @@ def _base_result(model_status: str) -> dict[str, Any]:
     }
 
 
-def _basic_map_html(lat: Any, lon: Any, point_id: str) -> str:
+def _basic_map_html(
+    lat: Any,
+    lon: Any,
+    point_id: str,
+    *,
+    session: FieldSession,
+    derived: dict[str, Any],
+) -> str:
+    if lat is None or lon is None:
+        marker = "<p>Status: NO_GPS_NO_MARKER</p><p>GPS belum valid, marker tidak dibuat.</p>"
+    else:
+        marker = (
+            "<p>Status: MAP_HTML_READY</p>"
+            f"<p>Latitude: {html.escape(str(lat))}</p>"
+            f"<p>Longitude: {html.escape(str(lon))}</p>"
+            f"<p>Accuracy: {html.escape(str(session.current_gps.get('accuracy')))} m</p>"
+        )
     return f"""<!doctype html>
 <html lang="id"><head><meta charset="utf-8"><title>Field Session Map</title></head>
-<body><h1>Field Session Map</h1><p>Status: MAP_BASIC_FALLBACK</p>
-<p>Point: {html.escape(point_id)}</p><p>Latitude: {lat}</p><p>Longitude: {lon}</p>
+<body><h1>Field Session Map</h1>
+<p>Session: {html.escape(session.session_id)}</p>
+<p>Point: {html.escape(point_id)}</p>{marker}
+<p>Distance reliability: {html.escape(str(derived.get('distance_reliability_status')))}</p>
+<p>Horizontal distance from tree: {html.escape(str(derived.get('horizontal_distance_from_tree_m')))}</p>
 </body></html>"""
+
+
+def _apply_visibility_payload(session: FieldSession, payload: dict[str, Any]) -> None:
+    visibility = str(payload.get("visibility_state") or "").strip()
+    if visibility:
+        session.visibility_state = visibility
+    foreground = str(payload.get("foreground_recording_status") or "").strip()
+    if foreground:
+        session.foreground_recording_status = foreground
+    hidden_started = str(payload.get("hidden_started_at") or "").strip()
+    if hidden_started:
+        session.hidden_started_at = hidden_started
+    hidden_duration = _to_int(payload.get("hidden_duration_ms"))
+    if hidden_duration is not None:
+        session.hidden_duration_ms = hidden_duration
+    if "frame_loop_paused_due_to_hidden" in payload:
+        session.frame_loop_paused_due_to_hidden = _bool(payload.get("frame_loop_paused_due_to_hidden"))
+    warning = str(payload.get("browser_throttle_warning") or "").strip()
+    if warning:
+        session.browser_throttle_warning = warning
+    if session.visibility_state == "hidden":
+        session.foreground_recording_status = "PAGE_HIDDEN_BROWSER_MAY_THROTTLE"
+        session.frame_loop_paused_due_to_hidden = True
+        if not session.browser_throttle_warning:
+            session.browser_throttle_warning = "Halaman tidak aktif. Browser dapat membatasi kamera/timer/GPS."
+        _add_reason(session, "RECORDING_MAY_BE_THROTTLED")
+    elif session.foreground_recording_status in {"", "FOREGROUND_RECORDING_REQUIRED"} and session.session_status == "RECORDING_ACTIVE":
+        session.foreground_recording_status = "FOREGROUND_RECORDING_ACTIVE"
 
 
 def _add_reason(session: FieldSession, reason: str) -> None:
@@ -474,5 +521,14 @@ def _to_float(value: Any) -> float | None:
         return None
     try:
         return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _to_int(value: Any) -> int | None:
+    if value in {None, ""}:
+        return None
+    try:
+        return int(float(value))
     except (TypeError, ValueError):
         return None

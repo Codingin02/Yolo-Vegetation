@@ -13,4 +13,4 @@ def test_progress6_2_missing_gps_is_not_faked(tmp_path: Path) -> None:
     assert status["no_fake_gps"] is True
     assert status["gps"]["base"]["latitude"] is None
     assert status["gps"]["base"]["longitude"] is None
-    assert status["derived_gps"]["distance_reliability_status"] == "GPS_NOT_READY"
+    assert status["derived_gps"]["distance_reliability_status"] == "DISTANCE_NOT_AVAILABLE"

@@ -24,7 +24,7 @@ def build_smoke_status() -> dict[str, object]:
         "unreliable_when_accuracy_larger_than_distance": unreliable["distance_reliability_status"]
         == "GPS_ACCURACY_GREATER_THAN_DISTANCE",
         "reliable_when_distance_exceeds_accuracy": reliable["distance_reliability_status"]
-        == "DISTANCE_RELIABLE_WITH_BROWSER_GPS_LIMITS",
+        == "DISTANCE_REASONABLY_RELIABLE_FOR_FIELD_EVIDENCE",
     }
     status = "PROGRESS_6_2_GPS_POLICY_SMOKE_PASS" if all(checks.values()) else "PROGRESS_6_2_GPS_POLICY_SMOKE_FAIL"
     return {"status": status, "checks": checks, "unreliable": unreliable, "reliable": reliable}

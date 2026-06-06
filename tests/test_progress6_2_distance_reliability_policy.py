@@ -20,4 +20,4 @@ def test_progress6_2_distance_reliability_accepts_distance_larger_than_accuracy(
     result = distance_reliability(base, current)
 
     assert result["is_distance_reliable"] is True
-    assert result["distance_reliability_status"] == "DISTANCE_RELIABLE_WITH_BROWSER_GPS_LIMITS"
+    assert result["distance_reliability_status"] == "DISTANCE_REASONABLY_RELIABLE_FOR_FIELD_EVIDENCE"

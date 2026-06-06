@@ -36,4 +36,5 @@
   bind("session-report", "/field-report");
   bind("session-result", "/field-result");
   bind("session-manual-input", "/field-manual-input");
+  bind("session-acceptance", "/field-acceptance");
 })();
