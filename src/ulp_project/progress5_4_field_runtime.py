@@ -70,6 +70,23 @@ PROGRESS5_4_REPORT_COLUMNS = [
     "csv_path",
     "map_status",
     "reason_codes",
+    "session_id",
+    "recording_status",
+    "base_latitude",
+    "base_longitude",
+    "base_accuracy_m",
+    "current_latitude",
+    "current_longitude",
+    "current_accuracy_m",
+    "horizontal_distance_from_tree_m",
+    "distance_reliability_status",
+    "gps_accuracy_status",
+    "gps_quality_reason",
+    "foreground_recording_status",
+    "manual_input_status",
+    "page_source",
+    "result_page_url",
+    "report_page_url",
 ]
 
 _SMOOTHER = Progress54TemporalSmoother()
@@ -439,12 +456,30 @@ def _build_report_row(
 
 def _append_report_row(row: dict[str, Any]) -> None:
     PROGRESS5_4_REPORT_CSV.parent.mkdir(parents=True, exist_ok=True)
+    ensure_progress5_4_report_schema()
     exists = PROGRESS5_4_REPORT_CSV.exists()
     with PROGRESS5_4_REPORT_CSV.open("a", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=PROGRESS5_4_REPORT_COLUMNS)
         if not exists:
             writer.writeheader()
         writer.writerow({key: row.get(key, "") for key in PROGRESS5_4_REPORT_COLUMNS})
+
+
+def ensure_progress5_4_report_schema() -> None:
+    """Upgrade an existing local runtime CSV header after safe schema additions."""
+    if not PROGRESS5_4_REPORT_CSV.exists():
+        return
+    with PROGRESS5_4_REPORT_CSV.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        fieldnames = reader.fieldnames or []
+        rows = list(reader)
+    if fieldnames and set(PROGRESS5_4_REPORT_COLUMNS).issubset(set(fieldnames)):
+        return
+    with PROGRESS5_4_REPORT_CSV.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=PROGRESS5_4_REPORT_COLUMNS)
+        writer.writeheader()
+        for existing in rows:
+            writer.writerow({key: existing.get(key, "") for key in PROGRESS5_4_REPORT_COLUMNS})
 
 
 def _write_latest_map(row: dict[str, Any]) -> dict[str, Any]:

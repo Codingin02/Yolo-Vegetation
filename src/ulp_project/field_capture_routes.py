@@ -7,6 +7,18 @@ from pathlib import Path
 
 from .calibration_readiness import check_calibration_readiness
 from .field_capture import accept_field_capture_upload, load_field_capture_job, load_field_capture_result
+from .field_session_runtime import (
+    build_latest_result,
+    latest_field_session_map,
+    latest_field_session_report,
+    process_field_session_frame,
+    record_manual_input,
+    session_status,
+    shutter_field_session,
+    start_field_session,
+    stop_field_session,
+    update_field_session_gps,
+)
 from .field_trial_evidence import build_field_trial_evidence_pack, record_hp_result
 from .latency_monitor import ping_latency
 from .model_handoff import check_model_handoff
@@ -52,6 +64,18 @@ def register_field_capture_routes(app) -> None:
     @app.get("/field-trial-checklist")
     def field_trial_checklist_page():
         return render_template("field_trial_checklist.html")
+
+    @app.get("/field-report")
+    def field_report_page():
+        return render_template("field_report.html")
+
+    @app.get("/field-result")
+    def field_result_page():
+        return render_template("field_result.html")
+
+    @app.get("/field-manual-input")
+    def field_manual_input_page():
+        return render_template("field_manual_input.html")
 
     @app.get("/realtime")
     def realtime_alias():
@@ -157,6 +181,40 @@ def register_field_capture_routes(app) -> None:
     def field_progress5_4_realtime_status():
         return jsonify(progress5_4_realtime_status())
 
+    @app.get("/api/field/session/status")
+    def field_session_status_route():
+        return jsonify(session_status(request.args.get("session_id")))
+
+    @app.post("/api/field/session/start")
+    def field_session_start_route():
+        payload = request.get_json(silent=True) if request.is_json else None
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        return jsonify(start_field_session(dict(payload or request.form), runtime_root=runtime)), 201
+
+    @app.post("/api/field/session/stop")
+    def field_session_stop_route():
+        payload = request.get_json(silent=True) if request.is_json else None
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        return jsonify(stop_field_session(dict(payload or request.form), runtime_root=runtime))
+
+    @app.post("/api/field/session/gps-update")
+    def field_session_gps_update_route():
+        payload = request.get_json(silent=True) if request.is_json else None
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        return jsonify(update_field_session_gps(dict(payload or request.form), runtime_root=runtime))
+
+    @app.post("/api/field/session/frame")
+    def field_session_frame_route():
+        payload = request.get_json(silent=True) or {}
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        return jsonify(process_field_session_frame(dict(payload), runtime_root=runtime))
+
+    @app.post("/api/field/session/shutter")
+    def field_session_shutter_route():
+        payload = request.get_json(silent=True) if request.is_json else None
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        return jsonify(shutter_field_session(dict(payload or request.form), runtime_root=runtime))
+
     @app.post("/api/field/realtime-frame")
     def field_progress5_4_realtime_frame():
         payload = request.get_json(silent=True) or {}
@@ -185,7 +243,16 @@ def register_field_capture_routes(app) -> None:
 
     @app.get("/api/field/latest-report")
     def field_progress5_4_latest_report_alias():
-        return jsonify(latest_progress5_4_report())
+        latest = latest_field_session_report(request.args.get("session_id"))
+        if request.args.get("session_id"):
+            return jsonify(latest)
+        if latest.get("status") == "NO_FIELD_SESSION_REPORT_YET":
+            return jsonify({**latest_progress5_4_report(), "field_session": latest})
+        return jsonify(latest)
+
+    @app.get("/api/field/latest-result")
+    def field_session_latest_result_route():
+        return jsonify(build_latest_result(request.args.get("session_id")))
 
     @app.get("/api/field/map-latest")
     def field_progress5_4_map_latest():
@@ -193,7 +260,10 @@ def register_field_capture_routes(app) -> None:
 
     @app.get("/api/field/latest-map")
     def field_progress5_4_latest_map_alias():
-        return jsonify(latest_progress5_4_map())
+        latest = latest_field_session_map(request.args.get("session_id"))
+        if latest.get("status") == "NO_GPS_NO_MARKER":
+            return jsonify({**latest_progress5_4_map(), "field_session": latest})
+        return jsonify(latest)
 
     @app.get("/api/field/gps-status")
     def field_progress5_4_gps_status():
@@ -209,6 +279,12 @@ def register_field_capture_routes(app) -> None:
         runtime = Path(app.config["ULP_RUNTIME_ROOT"])
         result = record_hp_result(dict(payload or request.form), evidence_dir=runtime / "field_trial_evidence")
         return jsonify(result), 201
+
+    @app.post("/api/field/manual-input")
+    def field_manual_input_route():
+        payload = request.get_json(silent=True) if request.is_json else None
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        return jsonify(record_manual_input(dict(payload or request.form), runtime_root=runtime)), 201
 
     @app.get("/api/field-trial/evidence")
     def field_trial_evidence():

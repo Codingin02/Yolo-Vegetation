@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/field_capture.css">
+  <link rel="stylesheet" href="/static/field_capture_glass.css">
+  <title>Field Result</title>
+</head>
+<body>
+  <main class="shell">
+    <header class="glass-hero">
+      <p class="eyebrow">Monitoring Vegetasi 20 kV</p>
+      <h1>Field Result</h1>
+      <p>FIELD_RESULT_PROVISIONAL. MODEL_NOT_READY_NO_FAKE_DETECTION bila model custom belum tersedia.</p>
+    </header>
+    <section class="glass-card">
+      <dl class="glass-grid">
+        <div><dt>status ringkas</dt><dd data-key="status">FIELD_RESULT_PROVISIONAL</dd></div>
+        <div><dt>model status</dt><dd data-key="model_status">MODEL_NOT_READY</dd></div>
+        <div><dt>geometry status</dt><dd data-key="geometry_status">INSUFFICIENT_GEOMETRY_DATA</dd></div>
+        <div><dt>GPS quality status</dt><dd data-key="gps_quality_status">GPS_NOT_READY</dd></div>
+        <div><dt>risk zone</dt><dd data-key="risk_zone">INSUFFICIENT_DATA</dd></div>
+        <div><dt>clearance result</dt><dd data-key="clearance_m">-</dd></div>
+        <div><dt>ETA/prediction</dt><dd data-key="eta_days">-</dd></div>
+        <div><dt>reason codes</dt><dd data-key="reason_codes">-</dd></div>
+      </dl>
+      <p class="notice">Model custom belum tersedia. Sistem tidak membuat deteksi palsu.</p>
+      <p class="notice">Akurasi GPS belum cukup untuk klaim jarak presisi. Data tetap disimpan sebagai evidence lokasi.</p>
+      <nav class="bottom-nav">
+        <a href="/field-capture">Capture</a>
+        <button id="session-report" type="button">Report</button>
+        <button id="session-manual-input" type="button">Manual Input</button>
+      </nav>
+    </section>
+  </main>
+  <script src="/static/field_navigation.js"></script>
+  <script>
+    fetch('/api/field/latest-result' + window.location.search).then(r => r.json()).then(data => {
+      document.querySelectorAll('[data-key]').forEach(node => {
+        const key = node.getAttribute('data-key');
+        const value = data[key] ?? '-';
+        node.textContent = Array.isArray(value) ? value.join(', ') : value;
+      });
+    });
+  </script>
+</body>
+</html>

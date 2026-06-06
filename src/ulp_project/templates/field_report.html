@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/field_capture.css">
+  <link rel="stylesheet" href="/static/field_capture_glass.css">
+  <title>Field Report</title>
+</head>
+<body>
+  <main class="shell">
+    <header class="glass-hero">
+      <p class="eyebrow">Monitoring Vegetasi 20 kV</p>
+      <h1>Field Report</h1>
+      <p>Session snapshot, GPS base/current, jarak mundur, status kamera/model/geometri, CSV, dan map.</p>
+    </header>
+    <section class="glass-card">
+      <dl class="glass-grid" id="field-report-grid">
+        <div><dt>session_id</dt><dd data-key="session_id">-</dd></div>
+        <div><dt>timestamp</dt><dd data-key="timestamp">-</dd></div>
+        <div><dt>point_id</dt><dd data-key="point_id">-</dd></div>
+        <div><dt>operator_name</dt><dd data-key="operator_name">-</dd></div>
+        <div><dt>notes</dt><dd data-key="notes">-</dd></div>
+        <div><dt>secure_context_status</dt><dd data-key="secure_context_status">-</dd></div>
+        <div><dt>public_tunnel_status</dt><dd data-key="public_tunnel_status">-</dd></div>
+        <div><dt>camera_status</dt><dd data-key="camera_status">-</dd></div>
+        <div><dt>gps_status</dt><dd data-key="gps_accuracy_status">-</dd></div>
+        <div><dt>base_latitude</dt><dd data-key="base_latitude">-</dd></div>
+        <div><dt>base_longitude</dt><dd data-key="base_longitude">-</dd></div>
+        <div><dt>base_accuracy_m</dt><dd data-key="base_accuracy_m">-</dd></div>
+        <div><dt>current_latitude</dt><dd data-key="current_latitude">-</dd></div>
+        <div><dt>current_longitude</dt><dd data-key="current_longitude">-</dd></div>
+        <div><dt>current_accuracy_m</dt><dd data-key="current_accuracy_m">-</dd></div>
+        <div><dt>horizontal_distance_from_tree_m</dt><dd data-key="horizontal_distance_from_tree_m">-</dd></div>
+        <div><dt>distance_reliability_status</dt><dd data-key="distance_reliability_status">-</dd></div>
+        <div><dt>model_status</dt><dd data-key="model_status">MODEL_NOT_READY</dd></div>
+        <div><dt>detected_classes</dt><dd data-key="detected_classes">-</dd></div>
+        <div><dt>tree_detected</dt><dd data-key="tree_detected">-</dd></div>
+        <div><dt>conductor_detected</dt><dd data-key="conductor_detected">-</dd></div>
+        <div><dt>pole_detected</dt><dd data-key="pole_detected">-</dd></div>
+        <div><dt>tree_height_m</dt><dd data-key="tree_height_m">-</dd></div>
+        <div><dt>conductor_height_m</dt><dd data-key="conductor_height_m">-</dd></div>
+        <div><dt>clearance_m</dt><dd data-key="clearance_m">-</dd></div>
+        <div><dt>zone_status</dt><dd data-key="zone_status">INSUFFICIENT_DATA</dd></div>
+        <div><dt>result_status</dt><dd data-key="status">NO_FIELD_SESSION_REPORT_YET</dd></div>
+        <div><dt>csv_path</dt><dd data-key="report_csv_url">-</dd></div>
+        <div><dt>map_path</dt><dd data-key="map_url">-</dd></div>
+        <div><dt>reason_codes</dt><dd data-key="reason_codes">-</dd></div>
+      </dl>
+      <nav class="bottom-nav">
+        <a href="/field-capture">Back to Capture</a>
+        <button id="session-result" type="button">Open Result</button>
+        <a href="/field-reports/field_capture_autosave.csv">Download CSV</a>
+        <a href="/api/field/latest-map">Open Map</a>
+      </nav>
+    </section>
+  </main>
+  <script src="/static/field_navigation.js"></script>
+  <script>
+    fetch('/api/field/latest-report' + window.location.search).then(r => r.json()).then(data => {
+      const row = data.row || data.field_session || data;
+      document.querySelectorAll('[data-key]').forEach(node => {
+        const key = node.getAttribute('data-key');
+        const value = row[key] ?? data[key] ?? '-';
+        node.textContent = Array.isArray(value) ? value.join(', ') : value;
+      });
+    });
+  </script>
+</body>
+</html>

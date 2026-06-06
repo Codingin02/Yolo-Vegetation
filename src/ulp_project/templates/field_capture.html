@@ -4,15 +4,47 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/static/field_capture.css">
+  <link rel="stylesheet" href="/static/field_capture_glass.css">
   <title>ULP Field Capture</title>
 </head>
 <body>
   <main class="shell camera-shell">
-    <header class="page-head">
+    <header class="page-head glass-hero">
+      <p class="eyebrow">Monitoring Vegetasi 20 kV</p>
       <h1>Field Capture Browser</h1>
       <p>HP adalah browser field client untuk kamera, GPS background, overlay YOLO/geometri, shutter capture, dan laporan CSV/map. Laptop tetap menjadi server pemrosesan field-trial.</p>
-      <p class="notice">Jika model custom belum tersedia, status tetap MODEL_NOT_READY dan detections kosong. Debug COCO hanya opt-in untuk uji overlay, bukan hasil final.</p>
+      <p class="notice">Native Browser Geolocation memakai enableHighAccuracy, tetapi OS/browser tetap menentukan sumber lokasi. Recording lapangan harus foreground.</p>
+      <div class="pill-row">
+        <span id="glass-url-mode" class="status-pill">HTTPS_PUBLIC_READY / LAN_HTTP_DEBUG_ONLY</span>
+        <span id="glass-gps-status" class="status-pill">GPS_WAITING_PERMISSION</span>
+        <span id="glass-camera-status" class="status-pill">CAMERA_WAITING_PERMISSION</span>
+        <span id="glass-model-status" class="status-pill">MODEL_NOT_READY</span>
+        <span id="glass-recording-status" class="status-pill">RECORDING_STOPPED</span>
+      </div>
     </header>
+
+    <section class="glass-card session-command">
+      <div>
+        <h2>Native Browser Session</h2>
+        <p class="session-note">Tekan Start saat berdiri di bawah pohon. Base GPS menjadi titik bawah pohon; saat operator mundur, jarak horizontal dihitung dengan haversine dan diberi status reliabilitas.</p>
+      </div>
+      <div class="session-actions">
+        <button id="session-start" class="primary-action" type="button">Start</button>
+        <button id="session-stop" type="button">Stop Record</button>
+        <button id="session-report" type="button">Report</button>
+        <button id="session-result" type="button">Result</button>
+        <button id="session-manual-input" type="button">Manual Input</button>
+      </div>
+      <dl class="glass-grid">
+        <div><dt>session_id</dt><dd id="session-id">-</dd></div>
+        <div><dt>foreground_recording_status</dt><dd id="foreground-recording-status">FOREGROUND_RECORDING_REQUIRED</dd></div>
+        <div><dt>horizontal_distance_from_tree_m</dt><dd id="horizontal-distance-from-tree">-</dd></div>
+        <div><dt>distance_reliability_status</dt><dd id="distance-reliability-status">GPS_NOT_READY</dd></div>
+        <div><dt>gps_quality_reason</dt><dd id="gps-quality-reason">GPS_WAITING_PERMISSION</dd></div>
+        <div><dt>movement_status</dt><dd id="movement-status">GPS_NOT_READY</dd></div>
+      </dl>
+      <p id="foreground-warning" class="warning-banner">FOREGROUND_RECORDING_REQUIRED: jika tab hidden, layar mati, atau browser diminimize, proses web bisa throttled.</p>
+    </section>
 
     <section id="remote-https-lock" class="panel remote-lock">
       <h2>Remote HTTPS Field Trial Lock</h2>
@@ -187,5 +219,7 @@
     </section>
   </main>
   <script src="/static/field_capture.js"></script>
+  <script src="/static/field_navigation.js"></script>
+  <script src="/static/field_session.js"></script>
 </body>
 </html>

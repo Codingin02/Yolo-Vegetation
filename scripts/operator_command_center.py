@@ -71,6 +71,10 @@ COMMAND_GROUPS = {
         ".\\venv\\Scripts\\python.exe scripts\\progress6_2_dataset_build_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\progress6_2_training_policy_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\progress6_2_bestpt_runtime_handoff_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_2_ui_route_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_2_session_contract_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_2_gps_policy_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_2_native_browser_gps_camera_gate.py",
     ],
     "WAIT UNTIL MAKESENSE EXPORT": [
         ".\\venv\\Scripts\\python.exe scripts\\phase3_readiness_gate.py",
@@ -175,6 +179,15 @@ MODE_GROUPS = {
         ".\\venv\\Scripts\\python.exe scripts\\progress6_2_training_policy_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\progress6_2_bestpt_runtime_handoff_smoke.py",
     ],
+    "progress6-2-native-browser-gps-camera": [
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_2_ui_route_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_2_session_contract_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_2_gps_policy_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_2_native_browser_gps_camera_gate.py",
+        ".\\venv\\Scripts\\python.exe scripts\\run_remote_realtime_server.py --host 0.0.0.0 --port 5000",
+        "Tunnel: ngrok http 5000",
+        "HP: https://<ngrok-public-url>/field-capture",
+    ],
 }
 
 
@@ -243,9 +256,13 @@ def main() -> int:
     parser.add_argument("--check-trained-model", action="store_true")
     parser.add_argument("--integrate-bestpt-runtime", action="store_true")
     parser.add_argument("--progress6-2-gate", action="store_true")
+    parser.add_argument("--progress6-2-training-gate", action="store_true")
     parser.add_argument("--progress6-2-dataset-build-smoke", action="store_true")
     parser.add_argument("--progress6-2-training-policy-smoke", action="store_true")
     parser.add_argument("--progress6-2-bestpt-handoff-smoke", action="store_true")
+    parser.add_argument("--progress6-2-ui-smoke", action="store_true")
+    parser.add_argument("--progress6-2-session-smoke", action="store_true")
+    parser.add_argument("--progress6-2-gps-policy-smoke", action="store_true")
     parser.add_argument("--all-gates", action="store_true")
     parser.add_argument("--mode", choices=["all", *MODE_GROUPS.keys()], default="all")
     args = parser.parse_args()
@@ -296,10 +313,14 @@ def main() -> int:
         (args.train_yolov8_initial_dry_run, ["scripts\\progress6_1_train_yolov8_initial.py"]),
         (args.check_trained_model, ["scripts\\progress6_1_check_trained_model.py"]),
         (args.integrate_bestpt_runtime, ["scripts\\progress6_1_integrate_bestpt_runtime.py", "--write-example"]),
-        (args.progress6_2_gate, ["scripts\\progress6_2_makesense_export_to_training_gate.py", "--write-reports"]),
+        (args.progress6_2_gate, ["scripts\\progress6_2_native_browser_gps_camera_gate.py"]),
+        (args.progress6_2_training_gate, ["scripts\\progress6_2_makesense_export_to_training_gate.py", "--write-reports"]),
         (args.progress6_2_dataset_build_smoke, ["scripts\\progress6_2_dataset_build_smoke.py"]),
         (args.progress6_2_training_policy_smoke, ["scripts\\progress6_2_training_policy_smoke.py"]),
         (args.progress6_2_bestpt_handoff_smoke, ["scripts\\progress6_2_bestpt_runtime_handoff_smoke.py"]),
+        (args.progress6_2_ui_smoke, ["scripts\\progress6_2_ui_route_smoke.py"]),
+        (args.progress6_2_session_smoke, ["scripts\\progress6_2_session_contract_smoke.py"]),
+        (args.progress6_2_gps_policy_smoke, ["scripts\\progress6_2_gps_policy_smoke.py"]),
         (args.all_gates, ["scripts\\phase17_20_final_system_completion_gate.py"]),
     ]
     selected = [cmd for enabled, cmd in actions if enabled]

@@ -1,0 +1,456 @@
+(function () {
+  const gpsOptions = {
+    enableHighAccuracy: true,
+    timeout: 15000,
+    maximumAge: 0
+  };
+
+  const state = {
+    session_id: window.localStorage.getItem("field_session_id") || "",
+    session_status: "RECORDING_STOPPED",
+    baseGpsPosition: null,
+    currentGpsPosition: null,
+    derivedGps: {
+      horizontal_distance_from_tree_m: null,
+      gps_accuracy_status: "GPS_NOT_READY",
+      gps_quality_reason: "GPS_WAITING_PERMISSION",
+      movement_status: "GPS_NOT_READY",
+      is_distance_reliable: false,
+      distance_reliability_status: "GPS_NOT_READY"
+    },
+    gpsWatchId: null,
+    cameraStream: null,
+    frameTimer: null,
+    frameInFlight: false,
+    frame_process_interval_ms: 1000,
+    max_allowed_latency_ms: 3000,
+    latestMeasurement: {},
+    latestResult: {},
+    latestFrameBase64: "",
+    lastError: ""
+  };
+
+  function el(id) {
+    return document.getElementById(id);
+  }
+
+  function text(id, value) {
+    const node = el(id);
+    if (node) node.textContent = value === undefined || value === null || value === "" ? "-" : value;
+  }
+
+  function value(id) {
+    const node = el(id);
+    return node ? node.value : "";
+  }
+
+  function setValue(id, next) {
+    const node = el(id);
+    if (node) node.value = next === undefined || next === null ? "" : next;
+  }
+
+  function currentUrlMode() {
+    const host = window.location.hostname;
+    const isLocal = host === "localhost" || host === "127.0.0.1" || host === "::1";
+    if (window.location.protocol === "https:") return "HTTPS_PUBLIC_READY";
+    if (isLocal) return "LOCALHOST_DEBUG_ONLY";
+    return "LAN_HTTP_DEBUG_ONLY";
+  }
+
+  function secureContextStatus() {
+    return window.isSecureContext ? "SECURE_CONTEXT_OK" : "INSECURE_CONTEXT_CAMERA_GPS_BLOCKED";
+  }
+
+  function requireSecureFieldContext() {
+    const mode = currentUrlMode();
+    if (mode === "LAN_HTTP_DEBUG_ONLY" && !window.isSecureContext) {
+      handleError("INSECURE_CONTEXT_CAMERA_GPS_BLOCKED_OPEN_HTTPS_TUNNEL", "Buka Public HTTPS URL. Kamera dan GPS membutuhkan HTTPS.");
+      return false;
+    }
+    return true;
+  }
+
+  function gpsFromPosition(position) {
+    return {
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      accuracy: position.coords.accuracy,
+      altitude: position.coords.altitude,
+      altitudeAccuracy: position.coords.altitudeAccuracy,
+      heading: position.coords.heading,
+      speed: position.coords.speed,
+      timestamp: new Date(position.timestamp || Date.now()).toISOString(),
+      source: "GPS_SOURCE_BROWSER"
+    };
+  }
+
+  function requestHighAccuracyGps() {
+    if (!requireSecureFieldContext()) return Promise.reject(new Error("INSECURE_CONTEXT_CAMERA_GPS_BLOCKED_OPEN_HTTPS_TUNNEL"));
+    if (!navigator.geolocation) return Promise.reject(new Error("BROWSER_GEOLOCATION_API_UNAVAILABLE"));
+    text("glass-gps-status", "GPS_WAITING_PERMISSION");
+    text("gps-permission-status", "GPS_WAITING_PERMISSION");
+    return new Promise(function (resolve, reject) {
+      navigator.geolocation.getCurrentPosition(
+        function (position) {
+          const gps = gpsFromPosition(position);
+          state.baseGpsPosition = gps;
+          state.currentGpsPosition = gps;
+          updateGpsQuality();
+          resolve(gps);
+        },
+        function (error) {
+          const status = error && error.code === 1 ? "GPS_PERMISSION_DENIED" : error && error.code === 3 ? "GPS_TIMEOUT" : "GPS_NOT_READY";
+          handleError(status, error && error.message ? error.message : String(error));
+          reject(error);
+        },
+        gpsOptions
+      );
+    });
+  }
+
+  function startGpsWatch() {
+    if (!navigator.geolocation) {
+      handleError("BROWSER_GEOLOCATION_API_UNAVAILABLE", "Browser tidak menyediakan navigator.geolocation.");
+      return null;
+    }
+    stopGpsWatch();
+    state.gpsWatchId = navigator.geolocation.watchPosition(
+      function (position) {
+        state.currentGpsPosition = gpsFromPosition(position);
+        updateGpsQuality();
+        sendGpsUpdate(state.currentGpsPosition, false);
+      },
+      function (error) {
+        const status = error && error.code === 1 ? "GPS_PERMISSION_DENIED" : error && error.code === 3 ? "GPS_TIMEOUT" : "GPS_NOT_READY";
+        handleError(status, error && error.message ? error.message : String(error));
+      },
+      gpsOptions
+    );
+    return state.gpsWatchId;
+  }
+
+  function stopGpsWatch() {
+    if (state.gpsWatchId !== null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(state.gpsWatchId);
+    }
+    state.gpsWatchId = null;
+  }
+
+  async function startCamera() {
+    if (!requireSecureFieldContext()) return false;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      handleError("CAMERA_API_UNAVAILABLE_IN_THIS_CONTEXT", "Browser tidak menyediakan navigator.mediaDevices.getUserMedia.");
+      return false;
+    }
+    const video = el("camera");
+    state.cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
+    });
+    if (video) video.srcObject = state.cameraStream;
+    text("glass-camera-status", "CAMERA_READY");
+    text("camera-status", "CAMERA_READY");
+    text("camera-permission-status", "CAMERA_READY");
+    return true;
+  }
+
+  function stopCamera() {
+    if (state.cameraStream && state.cameraStream.getTracks) {
+      state.cameraStream.getTracks().forEach(function (track) {
+        track.stop();
+      });
+    }
+    state.cameraStream = null;
+    const video = el("camera");
+    if (video) video.srcObject = null;
+    text("glass-camera-status", "CAMERA_STOPPED");
+    text("camera-status", "CAMERA_STOPPED");
+  }
+
+  async function startSession() {
+    try {
+      text("glass-url-mode", currentUrlMode());
+      if (!requireSecureFieldContext()) return;
+      await requestHighAccuracyGps();
+      startGpsWatch();
+      await startCamera();
+      const payload = collectSessionPayload();
+      const result = await postJson("/api/field/session/start", payload);
+      state.session_id = result.session_id || result.session && result.session.session_id || state.session_id;
+      if (state.session_id) window.localStorage.setItem("field_session_id", state.session_id);
+      state.session_status = "RECORDING_ACTIVE";
+      text("session-id", state.session_id);
+      startFrameLoop();
+      renderStatus();
+    } catch (error) {
+      handleError("FIELD_SESSION_START_FAILED", String(error));
+    }
+  }
+
+  async function stopSession() {
+    stopGpsWatch();
+    stopCamera();
+    stopFrameLoop();
+    state.session_status = "RECORDING_STOPPED";
+    await postJson("/api/field/session/stop", { session_id: state.session_id });
+    renderStatus();
+  }
+
+  function startFrameLoop() {
+    stopFrameLoop();
+    state.frameTimer = window.setInterval(sendFrame, state.frame_process_interval_ms);
+    text("frame-interval-status", `${state.frame_process_interval_ms} ms`);
+  }
+
+  function stopFrameLoop() {
+    if (state.frameTimer) window.clearInterval(state.frameTimer);
+    state.frameTimer = null;
+  }
+
+  function updateGpsQuality() {
+    const current = state.currentGpsPosition;
+    const base = state.baseGpsPosition;
+    const distance = computeHaversineMeters(base, current);
+    const currentAccuracy = current && Number.isFinite(Number(current.accuracy)) ? Number(current.accuracy) : null;
+    const baseAccuracy = base && Number.isFinite(Number(base.accuracy)) ? Number(base.accuracy) : null;
+    let gps_accuracy_status = "GPS_NOT_READY";
+    let gps_quality_reason = "GPS_ACCURACY_UNKNOWN";
+    if (currentAccuracy !== null) {
+      if (currentAccuracy <= 5) {
+        gps_accuracy_status = "GPS_ACCURACY_GOOD";
+        gps_quality_reason = "GPS_ACCURACY_LE_5M";
+      } else if (currentAccuracy <= 10) {
+        gps_accuracy_status = "GPS_ACCURACY_MEDIUM";
+        gps_quality_reason = "GPS_ACCURACY_5_TO_10M";
+      } else {
+        gps_accuracy_status = "GPS_ACCURACY_LOW";
+        gps_quality_reason = "GPS_ACCURACY_GT_10M";
+      }
+    }
+    let distance_reliability_status = "GPS_NOT_READY";
+    let is_distance_reliable = false;
+    if (distance !== null) {
+      if (baseAccuracy === null || currentAccuracy === null) {
+        distance_reliability_status = "GPS_ACCURACY_UNKNOWN";
+      } else if (Math.max(baseAccuracy, currentAccuracy) > distance) {
+        distance_reliability_status = "GPS_ACCURACY_GREATER_THAN_DISTANCE";
+      } else {
+        distance_reliability_status = "DISTANCE_RELIABLE_WITH_BROWSER_GPS_LIMITS";
+        is_distance_reliable = true;
+      }
+    }
+    state.derivedGps = {
+      horizontal_distance_from_tree_m: distance,
+      gps_accuracy_status,
+      gps_quality_reason,
+      movement_status: distance && distance > 0.5 ? "MOVED_FROM_TREE_BASE" : "AT_TREE_BASE",
+      is_distance_reliable,
+      distance_reliability_status
+    };
+    renderStatus();
+  }
+
+  function computeHaversineMeters(base, current) {
+    if (!base || !current) return null;
+    const lat1 = Number(base.latitude);
+    const lon1 = Number(base.longitude);
+    const lat2 = Number(current.latitude);
+    const lon2 = Number(current.longitude);
+    if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return null;
+    const radiusM = 6371000;
+    const phi1 = lat1 * Math.PI / 180;
+    const phi2 = lat2 * Math.PI / 180;
+    const dPhi = (lat2 - lat1) * Math.PI / 180;
+    const dLambda = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) ** 2;
+    return Math.round(radiusM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 1000) / 1000;
+  }
+
+  async function sendGpsUpdate(gps, setBase) {
+    if (!state.session_id) return;
+    await postJson("/api/field/session/gps-update", {
+      ...gps,
+      session_id: state.session_id,
+      set_base: Boolean(setBase)
+    });
+  }
+
+  async function sendFrame() {
+    if (state.frameInFlight) return;
+    const video = el("camera");
+    if (!video || !video.videoWidth) {
+      renderOverlay("CAMERA_FRAME_NOT_READY");
+      return;
+    }
+    state.frameInFlight = true;
+    const started = performance.now();
+    try {
+      const image = captureFrameBase64(0.58);
+      const result = await postJson("/api/field/session/frame", {
+        session_id: state.session_id,
+        point_id: value("point_id") || "V001_pohon_sono",
+        image_base64: image,
+        timestamp_client_ms: Date.now(),
+        gps_lat: state.currentGpsPosition && state.currentGpsPosition.latitude,
+        gps_lon: state.currentGpsPosition && state.currentGpsPosition.longitude,
+        gps_accuracy_m: state.currentGpsPosition && state.currentGpsPosition.accuracy
+      });
+      const latency = Math.round(performance.now() - started);
+      if (latency > state.max_allowed_latency_ms) {
+        state.frame_process_interval_ms = Math.min(3000, Math.max(2000, state.frame_process_interval_ms + 1000));
+        text("last-error-status", "HIGH_LATENCY_REDUCED_FPS");
+        startFrameLoop();
+      }
+      state.latestMeasurement = result.measurement_result || {};
+      state.latestResult = result;
+      renderOverlay(result);
+      renderStatus();
+    } catch (error) {
+      handleError("FIELD_SESSION_FRAME_FAILED", String(error));
+    } finally {
+      state.frameInFlight = false;
+    }
+  }
+
+  async function shutterCapture() {
+    const image = captureFrameBase64(0.72);
+    const result = await postJson("/api/field/session/shutter", {
+      session_id: state.session_id,
+      point_id: value("point_id") || "V001_pohon_sono",
+      operator_name: value("operator_name"),
+      notes: value("operator_note"),
+      image_base64: image,
+      base_gps: state.baseGpsPosition,
+      current_gps: state.currentGpsPosition,
+      latest_measurement: state.latestMeasurement,
+      model_status: state.latestResult.model_status || "MODEL_NOT_READY"
+    });
+    if (result.report_csv_url) text("report-path", result.report_csv_url);
+    if (result.map_url) text("map-path", result.map_url);
+    if (result.report_id) text("report-id", result.report_id);
+    renderStatus();
+    return result;
+  }
+
+  function captureFrameBase64(quality) {
+    const video = el("camera");
+    const canvas = el("frame");
+    if (!video || !canvas || !video.videoWidth) return "";
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    state.latestFrameBase64 = canvas.toDataURL("image/jpeg", quality || 0.65);
+    return state.latestFrameBase64;
+  }
+
+  function renderStatus() {
+    text("glass-url-mode", currentUrlMode());
+    text("glass-recording-status", state.session_status);
+    text("glass-gps-status", state.derivedGps.gps_accuracy_status);
+    text("glass-model-status", state.latestResult.model_status || "MODEL_NOT_READY");
+    text("session-id", state.session_id);
+    text("foreground-recording-status", "FOREGROUND_RECORDING_REQUIRED");
+    text("horizontal-distance-from-tree", state.derivedGps.horizontal_distance_from_tree_m);
+    text("distance-reliability-status", state.derivedGps.distance_reliability_status);
+    text("gps-quality-reason", state.derivedGps.gps_quality_reason);
+    text("movement-status", state.derivedGps.movement_status);
+    text("gps-status", state.derivedGps.gps_accuracy_status === "GPS_NOT_READY" ? "GPS_WAITING_PERMISSION" : "GPS_READY");
+    text("gps-accuracy-status", state.currentGpsPosition && state.currentGpsPosition.accuracy ? `${Number(state.currentGpsPosition.accuracy).toFixed(1)} m` : "-");
+  }
+
+  function renderOverlay(payload) {
+    const canvas = el("overlay-canvas");
+    if (!canvas) return;
+    const video = el("camera");
+    canvas.width = video && video.videoWidth ? video.videoWidth : canvas.clientWidth || 640;
+    canvas.height = video && video.videoHeight ? video.videoHeight : canvas.clientHeight || 360;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "rgba(14, 124, 102, 0.78)";
+    ctx.font = "22px Arial";
+    const status = typeof payload === "string" ? payload : payload && payload.model_status === "MODEL_NOT_READY" ? "MODEL_NOT_READY_NO_FAKE_DETECTION" : "FIELD_RESULT_PROVISIONAL";
+    ctx.fillText(status || "FIELD_SESSION_READY", 18, 34);
+    const detections = payload && payload.detections ? payload.detections : [];
+    ctx.strokeStyle = "#00d084";
+    ctx.lineWidth = 3;
+    detections.forEach(function (detection) {
+      const box = detection.bbox || detection.box || {};
+      const x = box.x || box.x1 || 0;
+      const y = box.y || box.y1 || 0;
+      const w = box.width || (box.x2 ? box.x2 - x : 0);
+      const h = box.height || (box.y2 ? box.y2 - y : 0);
+      ctx.strokeRect(x, y, w, h);
+    });
+  }
+
+  function handleError(status, message) {
+    state.lastError = `${status}: ${message}`;
+    text("last-error-status", state.lastError.slice(0, 160));
+    text("glass-recording-status", status);
+    const output = el("status-output");
+    if (output) output.textContent = JSON.stringify({ status, message }, null, 2);
+  }
+
+  function collectSessionPayload() {
+    return {
+      session_id: state.session_id,
+      point_id: value("point_id") || "V001_pohon_sono",
+      operator_name: value("operator_name"),
+      notes: value("operator_note"),
+      secure_context_status: secureContextStatus(),
+      current_url_mode: currentUrlMode(),
+      public_tunnel_status: (el("public-tunnel-status") || {}).textContent || "PUBLIC_TUNNEL_NOT_RUNNING",
+      camera_status: "CAMERA_READY",
+      base_gps: state.baseGpsPosition,
+      current_gps: state.currentGpsPosition,
+      foreground_recording_status: "FOREGROUND_RECORDING_REQUIRED"
+    };
+  }
+
+  async function postJson(url, payload) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {})
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.status || response.statusText);
+    return data;
+  }
+
+  function bind(id, fn) {
+    const node = el(id);
+    if (node) node.addEventListener("click", fn);
+  }
+
+  window.FieldSession = {
+    state,
+    startSession,
+    stopSession,
+    requestHighAccuracyGps,
+    startGpsWatch,
+    stopGpsWatch,
+    startCamera,
+    stopCamera,
+    startFrameLoop,
+    stopFrameLoop,
+    updateGpsQuality,
+    computeHaversineMeters,
+    sendGpsUpdate,
+    sendFrame,
+    shutterCapture,
+    renderStatus,
+    renderOverlay,
+    handleError
+  };
+
+  bind("session-start", startSession);
+  bind("session-stop", stopSession);
+  bind("shutter-capture", shutterCapture);
+  renderStatus();
+})();
