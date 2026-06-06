@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import html
 import json
+import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -16,20 +18,21 @@ from .gps_reliability_policy import (
     distance_reliability as assess_distance_reliability,
     gps_accuracy_status as assess_gps_accuracy_status,
 )
+from .gps_truth_policy import format_coordinate_raw, select_best_gps_sample, validate_gps_evidence
 from .model_handoff import check_model_handoff
 from .paths import PROJECT_ROOT
 from .progress5_4_field_runtime import (
     PROGRESS5_4_REPORT_COLUMNS,
     PROGRESS5_4_REPORT_CSV,
     ensure_progress5_4_report_schema,
-    latest_progress5_4_map,
     latest_progress5_4_measurement,
     process_progress5_4_realtime_frame,
-    write_progress5_4_shutter_capture,
 )
 
-SESSION_RUNTIME_DIR = PROJECT_ROOT / "outputs" / "runtime" / "field_sessions"
-SESSION_MAP_PATH = PROJECT_ROOT / "outputs" / "maps" / "field_session_latest_map.html"
+SESSION_RUNTIME_DIR = PROJECT_ROOT / "data" / "runtime" / "field_sessions"
+SESSION_MAP_DIR = PROJECT_ROOT / "data" / "runtime" / "field_maps"
+SESSION_SMOKE_REPORT_CSV = PROJECT_ROOT / "outputs" / "reports" / "field_capture_smoke_autosave.csv"
+SESSION_ERROR_LOG = PROJECT_ROOT / "data" / "runtime" / "errors" / "session_errors.log"
 
 FIELD_SESSION_REPORT_COLUMNS = [
     "session_id",
@@ -52,6 +55,16 @@ FIELD_SESSION_REPORT_COLUMNS = [
     "page_source",
     "result_page_url",
     "report_page_url",
+    "idempotency_key",
+    "capture_sequence",
+    "source_mode",
+    "gps_lat_raw",
+    "gps_lon_raw",
+    "base_latitude_raw",
+    "base_longitude_raw",
+    "current_latitude_raw",
+    "current_longitude_raw",
+    "gps_precision_status",
 ]
 
 for column in FIELD_SESSION_REPORT_COLUMNS:
@@ -84,12 +97,19 @@ class FieldSession:
     hidden_duration_ms: int = 0
     frame_loop_paused_due_to_hidden: bool = False
     browser_throttle_warning: str = ""
+    start_idempotency_key: str = ""
+    latest_shutter_idempotency_key: str = ""
+    capture_sequence: int = 0
+    source_mode: str = "LIVE_OPERATOR"
     reason_codes: list[str] = field(default_factory=lambda: ["FOREGROUND_RECORDING_REQUIRED"])
 
 
 _SESSIONS: dict[str, FieldSession] = {}
 _LATEST_SESSION_ID = ""
 _LATEST_MANUAL_INPUT: dict[str, Any] = {"status": "NO_MANUAL_INPUT_YET"}
+_START_IDEMPOTENCY: dict[str, str] = {}
+_SHUTTER_IDEMPOTENCY: dict[str, dict[str, Any]] = {}
+_LAST_SHUTTER_FINGERPRINT: dict[str, dict[str, Any]] = {}
 
 
 def gps_accuracy_status(accuracy_m: Any) -> dict[str, Any]:
@@ -105,23 +125,39 @@ def distance_reliability(base: dict[str, Any] | None, current: dict[str, Any] | 
 
 
 def normalize_gps(payload: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "latitude": _to_float(payload.get("latitude") or payload.get("gps_lat") or payload.get("lat")),
-        "longitude": _to_float(payload.get("longitude") or payload.get("gps_lon") or payload.get("lon")),
-        "accuracy": _to_float(payload.get("accuracy") or payload.get("gps_accuracy_m")),
+    gps = {
+        "latitude": _to_float(_first_present(payload, "latitude", "gps_lat", "lat")),
+        "longitude": _to_float(_first_present(payload, "longitude", "gps_lon", "lon")),
+        "accuracy": _to_float(_first_present(payload, "accuracy", "gps_accuracy_m")),
         "altitude": _to_float(payload.get("altitude")),
-        "altitudeAccuracy": _to_float(payload.get("altitudeAccuracy") or payload.get("altitude_accuracy")),
+        "altitudeAccuracy": _to_float(_first_present(payload, "altitudeAccuracy", "altitude_accuracy")),
         "heading": _to_float(payload.get("heading")),
         "speed": _to_float(payload.get("speed")),
         "timestamp": payload.get("timestamp") or datetime.now().isoformat(),
         "source": payload.get("source") or payload.get("gps_source") or "GPS_SOURCE_BROWSER",
     }
+    truth = validate_gps_evidence(gps)
+    gps.update(
+        {
+            "latitude_raw": truth["latitude_raw"],
+            "longitude_raw": truth["longitude_raw"],
+            "gps_precision_status": truth["gps_precision_status"],
+            "gps_marker_status": truth["status"],
+            "gps_quality_reasons": truth["gps_quality_reasons"],
+        }
+    )
+    return gps
 
 
 def start_field_session(payload: dict[str, Any], *, runtime_root: Path | None = None) -> dict[str, Any]:
     global _LATEST_SESSION_ID
+    idempotency_key = str(payload.get("idempotency_key") or "").strip()
+    if idempotency_key and idempotency_key in _START_IDEMPOTENCY:
+        session = _SESSIONS.get(_START_IDEMPOTENCY[idempotency_key])
+        if session:
+            return {**session_status(session.session_id), "status": "FIELD_SESSION_STARTED", "idempotent_replay": True}
     session_id = str(payload.get("session_id") or f"FS_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}")
-    base = normalize_gps(payload.get("base_gps") or payload)
+    base = _select_base_gps(payload)
     model = check_model_handoff()
     session = FieldSession(
         session_id=session_id,
@@ -137,17 +173,29 @@ def start_field_session(payload: dict[str, Any], *, runtime_root: Path | None = 
         camera_status=str(payload.get("camera_status") or "CAMERA_WAITING_PERMISSION"),
         model_status=model.get("model_status", "MODEL_NOT_READY"),
         latest_result=_base_result(model.get("model_status", "MODEL_NOT_READY")),
+        start_idempotency_key=idempotency_key,
+        source_mode=_source_mode(payload, session_id=session_id),
         reason_codes=["FOREGROUND_RECORDING_REQUIRED", "BROWSER_GEOLOCATION_NATIVE_HIGH_ACCURACY_REQUESTED"],
     )
     _apply_visibility_payload(session, payload)
     _SESSIONS[session_id] = session
     _LATEST_SESSION_ID = session_id
+    if idempotency_key:
+        _START_IDEMPOTENCY[idempotency_key] = session_id
     _save_session(session, runtime_root=runtime_root)
     return {**session_status(session_id), "status": "FIELD_SESSION_STARTED"}
 
 
 def stop_field_session(payload: dict[str, Any], *, runtime_root: Path | None = None) -> dict[str, Any]:
-    session = _get_or_latest(payload.get("session_id"))
+    session = _resolve_session_for_stop(payload.get("session_id"))
+    if session is None:
+        return {
+            "status": "NO_ACTIVE_SESSION_TO_STOP",
+            "recording_status": "RECORDING_STOPPED",
+            "session_status": "RECORDING_STOPPED",
+            "no_fake_detection": True,
+            "no_fake_gps": True,
+        }
     _apply_visibility_payload(session, payload)
     session.session_status = "RECORDING_STOPPED"
     session.stopped_at = datetime.now().isoformat()
@@ -169,6 +217,8 @@ def update_field_session_gps(payload: dict[str, Any], *, runtime_root: Path | No
     session.latest_result = {**session.latest_result, **derived}
     if derived["gps_accuracy_status"] == "GPS_ACCURACY_LOW":
         _add_reason(session, "GPS_ACCURACY_LOW")
+    for reason in gps.get("gps_quality_reasons", []):
+        _add_reason(session, str(reason))
     if not derived["is_distance_reliable"]:
         _add_reason(session, str(derived["distance_reliability_status"]))
     _save_session(session, runtime_root=runtime_root)
@@ -188,9 +238,11 @@ def process_field_session_frame(payload: dict[str, Any], *, runtime_root: Path) 
 
 
 def shutter_field_session(payload: dict[str, Any], *, runtime_root: Path) -> dict[str, Any]:
-    session = _get_or_latest(payload.get("session_id"))
+    session = _resolve_session_for_shutter(payload, runtime_root=runtime_root)
     payload = dict(payload)
     _apply_visibility_payload(session, payload)
+    payload.setdefault("image_jpeg_base64", payload.get("image_base64"))
+    payload.setdefault("frame_jpeg_base64", payload.get("image_base64"))
     payload.setdefault("point_id", session.point_id)
     payload.setdefault("operator_name", session.operator_name)
     payload.setdefault("model_status", session.model_status)
@@ -199,15 +251,40 @@ def shutter_field_session(payload: dict[str, Any], *, runtime_root: Path) -> dic
     payload.setdefault("gps_accuracy_m", session.current_gps.get("accuracy"))
     payload.setdefault("gps_source", session.current_gps.get("source", "GPS_SOURCE_BROWSER"))
     payload.setdefault("latest_measurement", session.latest_measurement)
-    report = write_progress5_4_shutter_capture(payload, runtime_root=runtime_root)
+    duplicate = _duplicate_shutter_result(session, payload)
+    if duplicate:
+        return duplicate
+    session.capture_sequence += 1
+    report_id = f"CAP_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{_short_session(session.session_id)}_{session.capture_sequence:04d}"
+    snapshot = _write_session_shutter_image(payload, runtime_root=runtime_root, report_id=report_id)
+    map_result = latest_field_session_map(session.session_id, runtime_root=runtime_root)
+    row = _build_session_report_row(session, payload, report_id=report_id, snapshot_path=snapshot.get("snapshot_path", ""), map_result=map_result)
+    csv_result = append_session_report_row(session, {"row": row, "page_source": "field_session_shutter"})
     session.latest_report = {
-        **report,
+        "status": "FIELD_SESSION_SHUTTER_SAVED",
+        "legacy_status": "FIELD_SESSION_REPORT_WRITTEN",
+        "report_id": report_id,
+        "csv_appended": True,
+        "duplicate_ignored": False,
+        "idempotency_key": row.get("idempotency_key"),
+        "capture_sequence": session.capture_sequence,
+        "snapshot_status": snapshot.get("status"),
+        "snapshot_path": snapshot.get("snapshot_path"),
+        "report_csv_path": csv_result["csv_path"],
+        "report_csv_url": f"/field-reports/{Path(csv_result['csv_path']).name}",
+        "google_sheets_status": "GOOGLE_SHEETS_NOT_CONFIGURED_LOCAL_CSV_READY",
+        "map_status": map_result.get("status"),
+        "map_path": map_result.get("path"),
+        "map_url": f"/field-map/session/{session.session_id}",
+        "map_html_url": map_result.get("map_url"),
         **_session_row_fields(session, page_source="field_session_shutter"),
-        "status": "FIELD_SESSION_REPORT_WRITTEN",
         "report_page_url": f"/field-report?session_id={session.session_id}",
         "result_page_url": f"/field-result?session_id={session.session_id}",
+        "row": row,
+        "no_fake_detection": True,
+        "no_fake_gps": True,
     }
-    append_session_report_row(session, session.latest_report)
+    _remember_shutter(session, payload, session.latest_report)
     _save_session(session, runtime_root=runtime_root)
     return session.latest_report
 
@@ -239,6 +316,7 @@ def record_manual_input(payload: dict[str, Any], *, runtime_root: Path | None = 
 def session_status(session_id: Any | None = None) -> dict[str, Any]:
     session = _get_or_latest(session_id, create_if_missing=True)
     derived = distance_reliability(session.base_gps, session.current_gps)
+    gps_truth = validate_gps_evidence(session.current_gps)
     return {
         "status": "FIELD_SESSION_STATUS_READY",
         "session": asdict(session),
@@ -253,6 +331,10 @@ def session_status(session_id: Any | None = None) -> dict[str, Any]:
         "browser_throttle_warning": session.browser_throttle_warning,
         "gps": {"base": session.base_gps, "current": session.current_gps, "history_count": len(session.gps_history)},
         "derived_gps": derived,
+        "gps_status": derived.get("gps_accuracy_status"),
+        "gps_precision_status": gps_truth["gps_precision_status"],
+        "gps_marker_status": gps_truth["status"],
+        "gps_quality_reasons": gps_truth["gps_quality_reasons"],
         "camera_status": session.camera_status,
         "model_status": session.model_status,
         "no_fake_gps": True,
@@ -320,37 +402,50 @@ def latest_field_session_report(session_id: Any | None = None) -> dict[str, Any]
         "report_csv_url": f"/field-reports/{PROGRESS5_4_REPORT_CSV.name}",
         "result_page_url": f"/field-result?session_id={session.session_id}",
         "report_page_url": f"/field-report?session_id={session.session_id}",
+        "map_url": f"/field-map/session/{session.session_id}",
     }
 
 
-def latest_field_session_map(session_id: Any | None = None) -> dict[str, Any]:
+def latest_field_session_map(session_id: Any | None = None, *, runtime_root: Path | None = None) -> dict[str, Any]:
+    if session_id:
+        _load_session_from_disk(str(session_id), runtime_root=runtime_root)
     session = _get_or_latest(session_id, create_if_missing=True)
     current = session.current_gps
     derived = distance_reliability(session.base_gps, session.current_gps)
-    if current.get("latitude") is None or current.get("longitude") is None:
-        SESSION_MAP_PATH.parent.mkdir(parents=True, exist_ok=True)
-        SESSION_MAP_PATH.write_text(_basic_map_html(None, None, session.point_id, session=session, derived=derived), encoding="utf-8")
+    base_truth = validate_gps_evidence(session.base_gps)
+    current_truth = validate_gps_evidence(current)
+    map_path = _session_map_path(session.session_id, runtime_root=runtime_root)
+    if not current_truth["marker_allowed"]:
+        map_path.parent.mkdir(parents=True, exist_ok=True)
+        map_path.write_text(_basic_map_html(None, None, session.point_id, session=session, derived=derived, gps_truth=current_truth), encoding="utf-8")
         return {
             "status": "NO_GPS_NO_MARKER",
             "session_id": session.session_id,
-            "path": str(SESSION_MAP_PATH),
-            "map_url": f"/field-maps/{SESSION_MAP_PATH.name}",
+            "path": str(map_path),
+            "map_url": f"/field-maps/{map_path.name}",
+            "field_map_url": f"/field-map/session/{session.session_id}",
             "map_exists": True,
             "message": "GPS belum valid, marker tidak dibuat.",
+            "gps_precision_status": current_truth["gps_precision_status"],
+            "gps_quality_reasons": current_truth["gps_quality_reasons"],
         }
-    SESSION_MAP_PATH.parent.mkdir(parents=True, exist_ok=True)
-    SESSION_MAP_PATH.write_text(
-        _basic_map_html(current.get("latitude"), current.get("longitude"), session.point_id, session=session, derived=derived),
+    map_path.parent.mkdir(parents=True, exist_ok=True)
+    map_path.write_text(
+        _basic_map_html(current.get("latitude"), current.get("longitude"), session.point_id, session=session, derived=derived, gps_truth=current_truth, base_truth=base_truth),
         encoding="utf-8",
     )
     return {
         "status": "MAP_HTML_READY",
         "google_maps_status": "GOOGLE_MAPS_NOT_CONFIGURED",
         "session_id": session.session_id,
-        "path": str(SESSION_MAP_PATH),
-        "map_url": f"/field-maps/{SESSION_MAP_PATH.name}",
+        "path": str(map_path),
+        "map_url": f"/field-maps/{map_path.name}",
+        "field_map_url": f"/field-map/session/{session.session_id}",
         "map_exists": True,
-        "fallback": latest_progress5_4_map(),
+        "base_marker_status": base_truth["status"],
+        "current_marker_status": current_truth["status"],
+        "gps_precision_status": current_truth["gps_precision_status"],
+        "gps_quality_reasons": current_truth["gps_quality_reasons"],
     }
 
 
@@ -380,31 +475,35 @@ def classify_clearance(tree_height_m: Any, conductor_height_m: Any = 11.0) -> di
     return {**conductor, "tree_height_m": tree, "clearance_m": clearance, "zone_status": zone}
 
 
-def append_session_report_row(session: FieldSession, report: dict[str, Any]) -> None:
-    PROGRESS5_4_REPORT_CSV.parent.mkdir(parents=True, exist_ok=True)
-    ensure_progress5_4_report_schema()
-    write_header = not PROGRESS5_4_REPORT_CSV.exists()
+def append_session_report_row(session: FieldSession, report: dict[str, Any]) -> dict[str, Any]:
+    csv_path = _session_report_csv(session)
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_report_schema(csv_path)
+    write_header = not csv_path.exists()
     row = {key: "" for key in PROGRESS5_4_REPORT_COLUMNS}
     row.update(report.get("row") or {})
     row.update(_session_row_fields(session, page_source=report.get("page_source") or "field_session"))
-    row["csv_path"] = str(PROGRESS5_4_REPORT_CSV)
-    with PROGRESS5_4_REPORT_CSV.open("a", newline="", encoding="utf-8") as handle:
+    row["csv_path"] = str(csv_path)
+    with csv_path.open("a", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=PROGRESS5_4_REPORT_COLUMNS)
         if write_header:
             writer.writeheader()
         writer.writerow({key: row.get(key, "") for key in PROGRESS5_4_REPORT_COLUMNS})
+    return {"status": "SESSION_REPORT_ROW_APPENDED", "csv_path": str(csv_path), "source_mode": session.source_mode}
 
 
 def _session_row_fields(session: FieldSession, *, page_source: str) -> dict[str, Any]:
     derived = distance_reliability(session.base_gps, session.current_gps)
+    base_truth = validate_gps_evidence(session.base_gps)
+    current_truth = validate_gps_evidence(session.current_gps)
     return {
         "session_id": session.session_id,
         "recording_status": session.session_status,
-        "base_latitude": session.base_gps.get("latitude"),
-        "base_longitude": session.base_gps.get("longitude"),
+        "base_latitude": format_coordinate_raw(session.base_gps.get("latitude")),
+        "base_longitude": format_coordinate_raw(session.base_gps.get("longitude")),
         "base_accuracy_m": session.base_gps.get("accuracy"),
-        "current_latitude": session.current_gps.get("latitude"),
-        "current_longitude": session.current_gps.get("longitude"),
+        "current_latitude": format_coordinate_raw(session.current_gps.get("latitude")),
+        "current_longitude": format_coordinate_raw(session.current_gps.get("longitude")),
         "current_accuracy_m": session.current_gps.get("accuracy"),
         "horizontal_distance_from_tree_m": derived.get("horizontal_distance_from_tree_m"),
         "distance_reliability_status": derived.get("distance_reliability_status"),
@@ -418,7 +517,224 @@ def _session_row_fields(session: FieldSession, *, page_source: str) -> dict[str,
         "page_source": page_source,
         "result_page_url": f"/field-result?session_id={session.session_id}",
         "report_page_url": f"/field-report?session_id={session.session_id}",
+        "source_mode": session.source_mode,
+        "capture_sequence": session.capture_sequence,
+        "gps_lat_raw": current_truth["latitude_raw"],
+        "gps_lon_raw": current_truth["longitude_raw"],
+        "base_latitude_raw": base_truth["latitude_raw"],
+        "base_longitude_raw": base_truth["longitude_raw"],
+        "current_latitude_raw": current_truth["latitude_raw"],
+        "current_longitude_raw": current_truth["longitude_raw"],
+        "gps_precision_status": current_truth["gps_precision_status"],
     }
+
+
+def _build_session_report_row(
+    session: FieldSession,
+    payload: dict[str, Any],
+    *,
+    report_id: str,
+    snapshot_path: str,
+    map_result: dict[str, Any],
+) -> dict[str, Any]:
+    measurement = payload.get("latest_measurement") if isinstance(payload.get("latest_measurement"), dict) else session.latest_measurement
+    measurement = measurement if isinstance(measurement, dict) else {}
+    derived = distance_reliability(session.base_gps, session.current_gps)
+    current_truth = validate_gps_evidence(session.current_gps)
+    return {
+        "report_id": report_id,
+        "timestamp": payload.get("timestamp") or datetime.now().isoformat(),
+        "point_id": payload.get("point_id") or session.point_id or "V001_pohon_sono",
+        "operator_name": payload.get("operator_name") or session.operator_name,
+        "gps_lat": format_coordinate_raw(session.current_gps.get("latitude")) if current_truth["marker_allowed"] else "",
+        "gps_lon": format_coordinate_raw(session.current_gps.get("longitude")) if current_truth["marker_allowed"] else "",
+        "gps_accuracy_m": session.current_gps.get("accuracy") if session.current_gps.get("accuracy") is not None else "NOT_PROVIDED",
+        "gps_source": session.current_gps.get("source") or "GPS_SOURCE_BROWSER",
+        "secure_context_status": session.secure_context_status or "NOT_PROVIDED",
+        "current_url_mode": payload.get("current_url_mode") or "NOT_PROVIDED",
+        "public_tunnel_status": session.public_tunnel_status or "NOT_PROVIDED",
+        "model_status": session.model_status or "MODEL_NOT_READY",
+        "debug_mode": str(bool(payload.get("debug_mode"))).lower(),
+        "detected_classes": ";".join(str(item) for item in measurement.get("detected_classes", [])),
+        "pole_detected": measurement.get("pole_detected", False),
+        "conductor_detected": measurement.get("conductor_detected", False),
+        "tree_detected": measurement.get("tree_detected", False),
+        "pole_reference_height_m": measurement.get("pole_reference_height_m", ""),
+        "pole_pixel_height": measurement.get("pole_pixel_height", ""),
+        "meter_per_px": measurement.get("meter_per_px", ""),
+        "tree_top_px": measurement.get("tree_top_px", ""),
+        "cable_px": measurement.get("cable_px", ""),
+        "tree_height_m": measurement.get("tree_height_m", ""),
+        "cable_height_m": measurement.get("cable_height_m", ""),
+        "clearance_m": measurement.get("clearance_m", ""),
+        "zone_status": measurement.get("zone_status", "INSUFFICIENT_DATA"),
+        "eta_days": measurement.get("eta_days", ""),
+        "risk_level": measurement.get("risk_level", "NOT_AVAILABLE"),
+        "action_recommendation": measurement.get("action_recommendation", "NOT_AVAILABLE"),
+        "latency_ms": payload.get("latency_ms", ""),
+        "smoothing_status": measurement.get("smoothing_status", "NOT_AVAILABLE"),
+        "calibration_status": measurement.get("calibration_status", "CALIBRATION_NOT_READY"),
+        "confidence_status": measurement.get("confidence_status", "MODEL_NOT_READY" if session.model_status == "MODEL_NOT_READY" else "NOT_AVAILABLE"),
+        "environment_status": "ENVIRONMENT_NOT_AVAILABLE",
+        "notes": payload.get("notes") or payload.get("operator_notes") or "",
+        "snapshot_path": snapshot_path,
+        "map_status": map_result.get("status", "NO_GPS_NO_MARKER"),
+        "reason_codes": ";".join(
+            _dedupe(
+                [
+                    *measurement.get("reason_codes", []),
+                    *current_truth.get("gps_quality_reasons", []),
+                    str(derived.get("distance_reliability_status") or ""),
+                    "MODEL_NOT_READY_NO_FAKE_DETECTION" if session.model_status == "MODEL_NOT_READY" else "",
+                ]
+            )
+        ),
+        "idempotency_key": payload.get("idempotency_key") or _shutter_fingerprint(session, payload),
+        **_session_row_fields(session, page_source="field_session_shutter"),
+    }
+
+
+def _select_base_gps(payload: dict[str, Any]) -> dict[str, Any]:
+    samples = payload.get("gps_samples")
+    if isinstance(samples, list):
+        normalized = [normalize_gps(sample) for sample in samples if isinstance(sample, dict)]
+        best = select_best_gps_sample(normalized)
+        if best:
+            return best
+    return normalize_gps(payload.get("base_gps") or payload.get("gps") or payload)
+
+
+def _resolve_session_for_stop(session_id: Any | None) -> FieldSession | None:
+    key = str(session_id or "").strip()
+    if key and key in _SESSIONS:
+        return _SESSIONS[key]
+    active = [session for session in _SESSIONS.values() if session.session_status == "RECORDING_ACTIVE"]
+    if active:
+        return sorted(active, key=lambda item: item.started_at or "", reverse=True)[0]
+    return None
+
+
+def _resolve_session_for_shutter(payload: dict[str, Any], *, runtime_root: Path) -> FieldSession:
+    key = str(payload.get("session_id") or "").strip()
+    if key and key in _SESSIONS:
+        return _SESSIONS[key]
+    active = _resolve_session_for_stop("")
+    if active:
+        return active
+    created = start_field_session({**payload, "session_status": "FIELD_SESSION_AUTOCREATED_FOR_SHUTTER"}, runtime_root=runtime_root)
+    session = _SESSIONS[created["session_id"]]
+    _add_reason(session, "FIELD_SESSION_AUTOCREATED_FOR_SHUTTER")
+    return session
+
+
+def _duplicate_shutter_result(session: FieldSession, payload: dict[str, Any]) -> dict[str, Any] | None:
+    now = time.time()
+    idempotency_key = str(payload.get("idempotency_key") or "").strip()
+    fingerprint = _shutter_fingerprint(session, payload)
+    cache_key = f"{session.session_id}|{idempotency_key}" if idempotency_key else f"{session.session_id}|{fingerprint}"
+    cached = _SHUTTER_IDEMPOTENCY.get(cache_key) or _LAST_SHUTTER_FINGERPRINT.get(f"{session.session_id}|{fingerprint}")
+    if cached and now - float(cached.get("created_monotonic", 0)) <= 2.0:
+        report = dict(cached.get("result") or {})
+        report.update(
+            {
+                "status": "DUPLICATE_SHUTTER_IGNORED",
+                "csv_appended": False,
+                "duplicate_ignored": True,
+                "idempotency_key": idempotency_key or fingerprint,
+                "no_fake_detection": True,
+            }
+        )
+        return report
+    return None
+
+
+def _remember_shutter(session: FieldSession, payload: dict[str, Any], report: dict[str, Any]) -> None:
+    now = time.time()
+    idempotency_key = str(payload.get("idempotency_key") or "").strip()
+    fingerprint = _shutter_fingerprint(session, payload)
+    entry = {"created_monotonic": now, "result": dict(report)}
+    if idempotency_key:
+        _SHUTTER_IDEMPOTENCY[f"{session.session_id}|{idempotency_key}"] = entry
+        session.latest_shutter_idempotency_key = idempotency_key
+    _LAST_SHUTTER_FINGERPRINT[f"{session.session_id}|{fingerprint}"] = entry
+
+
+def _shutter_fingerprint(session: FieldSession, payload: dict[str, Any]) -> str:
+    image = str(payload.get("image_jpeg_base64") or payload.get("frame_jpeg_base64") or payload.get("image_base64") or "")
+    seed = "|".join(
+        [
+            session.session_id,
+            str(payload.get("point_id") or session.point_id),
+            str(payload.get("notes") or payload.get("operator_notes") or ""),
+            str(session.current_gps.get("latitude")),
+            str(session.current_gps.get("longitude")),
+            image[:96],
+        ]
+    )
+    return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:16]
+
+
+def _write_session_shutter_image(payload: dict[str, Any], *, runtime_root: Path, report_id: str) -> dict[str, Any]:
+    from .progress5_4_field_runtime import _decode_image, MAX_SHUTTER_IMAGE_BYTES
+
+    data = _decode_image(payload.get("image_jpeg_base64") or payload.get("frame_jpeg_base64") or payload.get("image_base64"))
+    if data is None:
+        return {"status": "SNAPSHOT_IMAGE_NOT_PROVIDED_METADATA_ONLY", "snapshot_path": ""}
+    if len(data) > MAX_SHUTTER_IMAGE_BYTES:
+        return {"status": "SNAPSHOT_IMAGE_TOO_LARGE_DROPPED_METADATA_ONLY", "snapshot_path": ""}
+    output_dir = runtime_root / "field_captures"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / f"{report_id}.jpg"
+    path.write_bytes(data)
+    return {"status": "SNAPSHOT_IMAGE_WRITTEN_RUNTIME_ONLY", "snapshot_path": str(path)}
+
+
+def _session_report_csv(session: FieldSession) -> Path:
+    return PROGRESS5_4_REPORT_CSV if session.source_mode == "LIVE_OPERATOR" else SESSION_SMOKE_REPORT_CSV
+
+
+def _ensure_report_schema(path: Path) -> None:
+    if not path.exists():
+        return
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        fieldnames = reader.fieldnames or []
+        rows = list(reader)
+    if fieldnames and set(PROGRESS5_4_REPORT_COLUMNS).issubset(set(fieldnames)):
+        return
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=PROGRESS5_4_REPORT_COLUMNS)
+        writer.writeheader()
+        for existing in rows:
+            writer.writerow({key: existing.get(key, "") for key in PROGRESS5_4_REPORT_COLUMNS})
+
+
+def _source_mode(payload: dict[str, Any], *, session_id: str = "") -> str:
+    explicit = str(payload.get("source_mode") or "").strip().upper()
+    if explicit in {"LIVE_OPERATOR", "SMOKE_TEST", "DRY_RUN"}:
+        return explicit
+    text = " ".join(
+        [
+            session_id,
+            str(payload.get("operator_name") or ""),
+            str(payload.get("notes") or payload.get("operator_notes") or ""),
+            str(payload.get("point_id") or ""),
+        ]
+    ).lower()
+    if "smoke" in text or "test" in text:
+        return "SMOKE_TEST"
+    if "dry" in text:
+        return "DRY_RUN"
+    return "LIVE_OPERATOR"
+
+
+def _session_map_path(session_id: str, *, runtime_root: Path | None = None) -> Path:
+    root = (runtime_root / "field_maps") if runtime_root else SESSION_MAP_DIR
+    return root / f"{session_id}.html"
+
+
+def _short_session(session_id: str) -> str:
+    return session_id.replace("FS_", "")[-8:] or uuid.uuid4().hex[:8]
 
 
 def _get_or_latest(session_id: Any | None = None, *, create_if_missing: bool = False) -> FieldSession:
@@ -432,10 +748,39 @@ def _get_or_latest(session_id: Any | None = None, *, create_if_missing: bool = F
     return _SESSIONS[payload["session_id"]]
 
 
+def _load_session_from_disk(session_id: str, *, runtime_root: Path | None = None) -> FieldSession | None:
+    key = str(session_id or "").strip()
+    if not key or key in _SESSIONS:
+        return _SESSIONS.get(key)
+    root = (runtime_root / "field_sessions") if runtime_root else SESSION_RUNTIME_DIR
+    path = root / f"{key}.json"
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    allowed = {field_name for field_name in FieldSession.__dataclass_fields__}
+    session = FieldSession(**{name: data.get(name) for name in allowed if name in data})
+    _SESSIONS[session.session_id] = session
+    return session
+
+
 def _save_session(session: FieldSession, *, runtime_root: Path | None = None) -> None:
     root = (runtime_root / "field_sessions") if runtime_root else SESSION_RUNTIME_DIR
     root.mkdir(parents=True, exist_ok=True)
     (root / f"{session.session_id}.json").write_text(json.dumps(asdict(session), indent=2, ensure_ascii=False), encoding="utf-8")
+    (root / "latest.json").write_text(json.dumps(asdict(session), indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def log_session_exception(exc: Exception, *, route: str, runtime_root: Path | None = None) -> dict[str, Any]:
+    root = runtime_root or (PROJECT_ROOT / "data" / "runtime")
+    path = root / "errors" / "session_errors.log"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"timestamp": datetime.now().isoformat(), "route": route, "error_type": type(exc).__name__, "message": str(exc)[:500]}
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    return {"status": "FIELD_SESSION_ROUTE_EXCEPTION_LOGGED", "error_log": str(path), **payload}
 
 
 def _base_result(model_status: str) -> dict[str, Any]:
@@ -454,15 +799,31 @@ def _basic_map_html(
     *,
     session: FieldSession,
     derived: dict[str, Any],
+    gps_truth: dict[str, Any],
+    base_truth: dict[str, Any] | None = None,
 ) -> str:
     if lat is None or lon is None:
-        marker = "<p>Status: NO_GPS_NO_MARKER</p><p>GPS belum valid, marker tidak dibuat.</p>"
+        marker = (
+            "<p>Status: NO_GPS_NO_MARKER</p>"
+            "<p>GPS belum valid, marker tidak dibuat.</p>"
+            f"<p>GPS precision status: {html.escape(str(gps_truth.get('gps_precision_status')))}</p>"
+            f"<p>Reason: {html.escape(';'.join(str(item) for item in gps_truth.get('gps_quality_reasons', [])))}</p>"
+        )
     else:
+        base = session.base_gps
+        base_lines = ""
+        if base_truth and base_truth.get("marker_allowed"):
+            base_lines = (
+                f"<p>Base marker bawah pohon: {html.escape(format_coordinate_raw(base.get('latitude')))}, "
+                f"{html.escape(format_coordinate_raw(base.get('longitude')))}</p>"
+            )
         marker = (
             "<p>Status: MAP_HTML_READY</p>"
-            f"<p>Latitude: {html.escape(str(lat))}</p>"
-            f"<p>Longitude: {html.escape(str(lon))}</p>"
+            f"{base_lines}"
+            f"<p>Current marker operator/kamera: {html.escape(format_coordinate_raw(lat))}, {html.escape(format_coordinate_raw(lon))}</p>"
             f"<p>Accuracy: {html.escape(str(session.current_gps.get('accuracy')))} m</p>"
+            f"<p>Accuracy circle radius: {html.escape(str(session.current_gps.get('accuracy')))} m</p>"
+            "<p>Polyline: base marker ke current marker.</p>"
         )
     return f"""<!doctype html>
 <html lang="id"><head><meta charset="utf-8"><title>Field Session Map</title></head>
@@ -471,6 +832,7 @@ def _basic_map_html(
 <p>Point: {html.escape(point_id)}</p>{marker}
 <p>Distance reliability: {html.escape(str(derived.get('distance_reliability_status')))}</p>
 <p>Horizontal distance from tree: {html.escape(str(derived.get('horizontal_distance_from_tree_m')))}</p>
+<p>GPS digunakan sebagai evidence lokasi dan jarak horizontal kasar; bukan kalibrasi pixel-to-meter.</p>
 </body></html>"""
 
 
@@ -532,3 +894,10 @@ def _to_int(value: Any) -> int | None:
         return int(float(value))
     except (TypeError, ValueError):
         return None
+
+
+def _first_present(payload: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        if key in payload and payload.get(key) not in {None, ""}:
+            return payload.get(key)
+    return None

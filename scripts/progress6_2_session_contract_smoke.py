@@ -54,7 +54,7 @@ def build_smoke_status() -> dict[str, object]:
         "gps_browser_source": gps["gps"]["source"] == "GPS_SOURCE_BROWSER",
         "frame_no_fake_detection": frame.get("no_fake_detection") is True,
         "frame_model_not_ready_no_fake": frame.get("model_status") == "MODEL_NOT_READY" and frame.get("detections") == [],
-        "report_written": report["status"] == "FIELD_SESSION_REPORT_WRITTEN",
+        "report_written": report["status"] in {"FIELD_SESSION_REPORT_WRITTEN", "FIELD_SESSION_SHUTTER_SAVED"},
         "stop_recording_stopped": stop["session_status"] == "RECORDING_STOPPED",
     }
     status = "PROGRESS_6_2_SESSION_CONTRACT_SMOKE_PASS" if all(checks.values()) else "PROGRESS_6_2_SESSION_CONTRACT_SMOKE_FAIL"

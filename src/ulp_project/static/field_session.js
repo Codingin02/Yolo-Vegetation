@@ -28,8 +28,16 @@
     cameraStream: null,
     frameTimer: null,
     frameInFlight: false,
+    shutterInFlight: false,
     frame_process_interval_ms: 1000,
     max_allowed_latency_ms: 3000,
+    gpsSamples: [],
+    gpsSampleWindowStartedAt: 0,
+    baseGpsLocked: false,
+    baseGpsLockStatus: "GPS_BASE_NOT_LOCKED",
+    wakeLock: null,
+    startIdempotencyKey: "",
+    sessionRouteFallbackUsed: false,
     latestMeasurement: {},
     latestResult: {},
     latestFrameBase64: "",
@@ -90,6 +98,42 @@
     };
   }
 
+  function isValidCoordinatePair(gps) {
+    if (!gps) return false;
+    const lat = Number(gps.latitude);
+    const lon = Number(gps.longitude);
+    return Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+  }
+
+  function rememberGpsSample(gps) {
+    if (!state.gpsSampleWindowStartedAt) state.gpsSampleWindowStartedAt = Date.now();
+    if (isValidCoordinatePair(gps)) state.gpsSamples.push(gps);
+    if (state.gpsSamples.length > 24) state.gpsSamples = state.gpsSamples.slice(-24);
+    const best = selectBestGpsSample(state.gpsSamples);
+    if (best && !state.baseGpsLocked) {
+      state.baseGpsPosition = best;
+      const elapsed = Date.now() - state.gpsSampleWindowStartedAt;
+      if (state.gpsSamples.length >= 5 || elapsed >= 20000) {
+        state.baseGpsLocked = true;
+        state.baseGpsLockStatus = "GPS_BASE_LOCKED_BEST_SAMPLE";
+      } else {
+        state.baseGpsLockStatus = "GPS_BASE_PROVISIONAL_WAITING_FOR_5_SAMPLES_OR_20S";
+      }
+    }
+    text("gps-base-lock-status", state.baseGpsLockStatus);
+  }
+
+  function selectBestGpsSample(samples) {
+    const valid = (samples || []).filter(isValidCoordinatePair);
+    if (!valid.length) return null;
+    return valid.slice().sort(function (a, b) {
+      const aa = Number.isFinite(Number(a.accuracy)) ? Number(a.accuracy) : 999999;
+      const ba = Number.isFinite(Number(b.accuracy)) ? Number(b.accuracy) : 999999;
+      if (aa !== ba) return aa - ba;
+      return String(b.timestamp || "").localeCompare(String(a.timestamp || ""));
+    })[0];
+  }
+
   function requestHighAccuracyGps() {
     if (!requireSecureFieldContext()) return Promise.reject(new Error("INSECURE_CONTEXT_CAMERA_GPS_BLOCKED_OPEN_HTTPS_TUNNEL"));
     if (!navigator.geolocation) return Promise.reject(new Error("BROWSER_GEOLOCATION_API_UNAVAILABLE"));
@@ -99,7 +143,8 @@
       navigator.geolocation.getCurrentPosition(
         function (position) {
           const gps = gpsFromPosition(position);
-          state.baseGpsPosition = gps;
+          rememberGpsSample(gps);
+          if (!state.baseGpsPosition) state.baseGpsPosition = gps;
           state.currentGpsPosition = gps;
           updateGpsQuality();
           resolve(gps);
@@ -123,6 +168,7 @@
     state.gpsWatchId = navigator.geolocation.watchPosition(
       function (position) {
         state.currentGpsPosition = gpsFromPosition(position);
+        rememberGpsSample(state.currentGpsPosition);
         updateGpsQuality();
         sendGpsUpdate(state.currentGpsPosition, false);
       },
@@ -164,6 +210,27 @@
     return true;
   }
 
+  async function requestWakeLock() {
+    if (!("wakeLock" in navigator) || !navigator.wakeLock || !navigator.wakeLock.request) return;
+    try {
+      state.wakeLock = await navigator.wakeLock.request("screen");
+      text("wake-lock-status", "WAKE_LOCK_REQUESTED");
+    } catch (error) {
+      text("wake-lock-status", "WAKE_LOCK_NOT_AVAILABLE");
+    }
+  }
+
+  async function releaseWakeLock() {
+    if (state.wakeLock && state.wakeLock.release) {
+      try {
+        await state.wakeLock.release();
+      } catch (error) {
+        // Browser may release wake lock implicitly when page visibility changes.
+      }
+    }
+    state.wakeLock = null;
+  }
+
   function stopCamera() {
     if (state.cameraStream && state.cameraStream.getTracks) {
       state.cameraStream.getTracks().forEach(function (track) {
@@ -181,15 +248,22 @@
     try {
       text("glass-url-mode", currentUrlMode());
       if (!requireSecureFieldContext()) return;
-      await requestHighAccuracyGps();
+      await requestWakeLock();
+      try {
+        await requestHighAccuracyGps();
+      } catch (gpsError) {
+        handleError("GPS_INITIAL_FIX_TIMEOUT_SESSION_CONTINUES", String(gpsError));
+      }
       startGpsWatch();
       await startCamera();
+      state.startIdempotencyKey = state.startIdempotencyKey || `START_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
       const payload = collectSessionPayload();
       const result = await postJson("/api/field/session/start", payload);
       state.session_id = result.session_id || result.session && result.session.session_id || state.session_id;
       if (state.session_id) window.localStorage.setItem("field_session_id", state.session_id);
       state.session_status = "RECORDING_ACTIVE";
       text("session-id", state.session_id);
+      document.body.classList.add("camera-mode-active");
       startFrameLoop();
       renderStatus();
     } catch (error) {
@@ -201,8 +275,14 @@
     stopGpsWatch();
     stopCamera();
     stopFrameLoop();
+    await releaseWakeLock();
     state.session_status = "RECORDING_STOPPED";
-    await postJson("/api/field/session/stop", collectSessionPayload());
+    document.body.classList.remove("camera-mode-active");
+    try {
+      await postJson("/api/field/session/stop", collectSessionPayload());
+    } catch (error) {
+      handleError("FIELD_SESSION_STOP_FAILED_JSON_GUARD", String(error));
+    }
     renderStatus();
   }
 
@@ -243,7 +323,7 @@
       if (baseAccuracy === null || currentAccuracy === null) {
         distance_reliability_status = "GPS_ACCURACY_UNKNOWN";
       } else if (Math.max(baseAccuracy, currentAccuracy) > distance) {
-        distance_reliability_status = "GPS_ACCURACY_GREATER_THAN_DISTANCE";
+        distance_reliability_status = "DISTANCE_NOT_RELIABLE_ACCURACY_GT_DISTANCE";
       } else if (distance < 1) {
         distance_reliability_status = "DISTANCE_TOO_SMALL_FOR_GPS_RELIABILITY";
       } else if (distance >= 2 * Math.max(baseAccuracy, currentAccuracy)) {
@@ -329,8 +409,15 @@
   }
 
   async function shutterCapture() {
+    if (state.shutterInFlight) {
+      handleError("DUPLICATE_SHUTTER_IGNORED_CLIENT_IN_FLIGHT", "Shutter sedang menyimpan. Tunggu toast selesai.");
+      return { status: "DUPLICATE_SHUTTER_IGNORED_CLIENT_IN_FLIGHT" };
+    }
+    state.shutterInFlight = true;
+    setShutterDisabled(true);
     const image = captureFrameBase64(0.72);
-    const result = await postJson("/api/field/session/shutter", {
+    const idempotencyKey = `SHUTTER_${state.session_id || "NOSESSION"}_${Date.now()}`;
+    const payload = {
       session_id: state.session_id,
       point_id: value("point_id") || "V001_pohon_sono",
       operator_name: value("operator_name"),
@@ -338,15 +425,58 @@
       image_base64: image,
       base_gps: state.baseGpsPosition,
       current_gps: state.currentGpsPosition,
+      gps_samples: state.gpsSamples,
+      base_gps_lock_status: state.baseGpsLockStatus,
       latest_measurement: state.latestMeasurement,
       model_status: state.latestResult.model_status || "MODEL_NOT_READY",
+      idempotency_key: idempotencyKey,
+      source_mode: "LIVE_OPERATOR",
       ...visibilityPayload()
-    });
+    };
+    let result;
+    try {
+      result = await postJson("/api/field/session/shutter", payload);
+    } catch (error) {
+      if (state.sessionRouteFallbackUsed) throw error;
+      state.sessionRouteFallbackUsed = true;
+      handleError("SESSION_API_DEGRADED_FALLBACK_USED", String(error));
+      result = await postJson("/api/field/shutter-capture", {
+        ...payload,
+        image_jpeg_base64: image,
+        gps_lat: state.currentGpsPosition && state.currentGpsPosition.latitude,
+        gps_lon: state.currentGpsPosition && state.currentGpsPosition.longitude,
+        gps_accuracy_m: state.currentGpsPosition && state.currentGpsPosition.accuracy
+      });
+      result.session_api_fallback_status = "SESSION_API_DEGRADED_FALLBACK_USED";
+    } finally {
+      state.shutterInFlight = false;
+      setShutterDisabled(false);
+    }
     if (result.report_csv_url) text("report-path", result.report_csv_url);
     if (result.map_url) text("map-path", result.map_url);
     if (result.report_id) text("report-id", result.report_id);
+    showToast(result.status || "FIELD_SESSION_SHUTTER_SAVED");
     renderStatus();
     return result;
+  }
+
+  function setShutterDisabled(disabled) {
+    const button = el("shutter-capture");
+    if (button) {
+      button.disabled = Boolean(disabled);
+      button.setAttribute("aria-busy", disabled ? "true" : "false");
+    }
+  }
+
+  function showToast(message) {
+    const toast = el("field-toast");
+    if (!toast) return;
+    toast.hidden = false;
+    toast.textContent = message;
+    window.clearTimeout(showToast._timer);
+    showToast._timer = window.setTimeout(function () {
+      toast.hidden = true;
+    }, 2400);
   }
 
   function captureFrameBase64(quality) {
@@ -375,6 +505,10 @@
     text("distance-reliability-status", state.derivedGps.distance_reliability_status);
     text("gps-quality-reason", state.derivedGps.gps_quality_reason);
     text("movement-status", state.derivedGps.movement_status);
+    text("gps-base-lock-status", state.baseGpsLockStatus);
+    text("camera-session-chip", state.session_id ? state.session_id.slice(-8) : "-");
+    text("camera-gps-chip", state.derivedGps.gps_accuracy_status);
+    text("camera-distance-chip", state.derivedGps.horizontal_distance_from_tree_m === null ? "DISTANCE_NOT_AVAILABLE" : `${state.derivedGps.horizontal_distance_from_tree_m} m`);
     text("gps-status", state.derivedGps.gps_accuracy_status === "GPS_ACCURACY_UNKNOWN" ? "GPS_WAITING_PERMISSION" : "GPS_READY");
     text("gps-accuracy-status", state.currentGpsPosition && state.currentGpsPosition.accuracy ? `${Number(state.currentGpsPosition.accuracy).toFixed(1)} m` : "-");
     const warning = el("foreground-warning");
@@ -429,6 +563,9 @@
       camera_status: "CAMERA_READY",
       base_gps: state.baseGpsPosition,
       current_gps: state.currentGpsPosition,
+      gps_samples: state.gpsSamples,
+      base_gps_lock_status: state.baseGpsLockStatus,
+      idempotency_key: state.startIdempotencyKey,
       ...visibilityPayload()
     };
   }
@@ -485,6 +622,11 @@
     if (node) node.addEventListener("click", fn);
   }
 
+  function openSessionMap() {
+    const path = state.session_id ? `/field-map/session/${encodeURIComponent(state.session_id)}` : "/api/field/latest-map";
+    window.open(path, "_blank", "noopener");
+  }
+
   window.FieldSession = {
     state,
     startSession,
@@ -510,6 +652,7 @@
   bind("session-start", startSession);
   bind("session-stop", stopSession);
   bind("shutter-capture", shutterCapture);
+  bind("open-map-report", openSessionMap);
   document.addEventListener("visibilitychange", handleVisibilityChange);
   renderStatus();
 })();

@@ -237,7 +237,7 @@
         setFieldStatus("last-error-status", String((error && error.message) || error).slice(0, 120));
         setStatus({ status, message: String((error && error.message) || error), fallback: "Tanpa GPS, shutter tetap bisa tersimpan tetapi map marker tidak dibuat." });
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   }
 
@@ -610,11 +610,11 @@
   addClick("start-realtime", startRealtimeDetection);
   addClick("stop-realtime", stopRealtimeDetection);
   addClick("capture-frame", captureStillFrame);
-  addClick("shutter-capture", shutterCapture);
+  addClick("legacy-shutter-capture", shutterCapture);
   addClick("manual-prediction", runManualPrediction);
   addClick("snapshot-report", sendSnapshotReport);
   addClick("copy-report-link", openReportLink);
-  addClick("open-map-report", openMapReport);
+  addClick("legacy-open-map-report", openMapReport);
   addClick("debug-coco-overlay", debugCocoOverlay);
   addClick("refresh-tunnel-status", refreshTunnelStatus);
   addClick("refresh-tunnel-status-secondary", refreshTunnelStatus);

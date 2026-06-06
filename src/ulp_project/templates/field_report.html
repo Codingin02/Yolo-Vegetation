@@ -15,58 +15,86 @@
       <p>Session snapshot, GPS base/current, jarak mundur, status kamera/model/geometri, CSV, dan map.</p>
     </header>
     <section class="glass-card">
-      <div class="evidence-sections">
-        <h2>Session Evidence</h2>
-        <h2>GPS Evidence</h2>
-        <h2>Camera/Frame Evidence</h2>
-        <h2>AI/Model Evidence</h2>
-        <h2>Geometry/Measurement Evidence</h2>
-        <h2>Operator Notes</h2>
-        <h2>CSV/Map Links</h2>
-        <h2>Limitations</h2>
+      <div class="evidence-section-grid">
+        <section class="evidence-section">
+          <h2>Session Evidence</h2>
+          <dl class="glass-grid">
+            <div><dt>session_id</dt><dd data-key="session_id">-</dd></div>
+            <div><dt>timestamp</dt><dd data-key="timestamp">-</dd></div>
+            <div><dt>point_id</dt><dd data-key="point_id">-</dd></div>
+            <div><dt>operator_name</dt><dd data-key="operator_name">-</dd></div>
+            <div><dt>foreground_recording_status</dt><dd data-key="foreground_recording_status">FOREGROUND_RECORDING_REQUIRED</dd></div>
+          </dl>
+        </section>
+        <section class="evidence-section">
+          <h2>GPS Evidence</h2>
+          <dl class="glass-grid">
+            <div><dt>base_latitude</dt><dd data-key="base_latitude">-</dd></div>
+            <div><dt>base_longitude</dt><dd data-key="base_longitude">-</dd></div>
+            <div><dt>base_accuracy_m</dt><dd data-key="base_accuracy_m">-</dd></div>
+            <div><dt>current_latitude</dt><dd data-key="current_latitude">-</dd></div>
+            <div><dt>current_longitude</dt><dd data-key="current_longitude">-</dd></div>
+            <div><dt>current_accuracy_m</dt><dd data-key="current_accuracy_m">-</dd></div>
+            <div><dt>horizontal_distance_from_tree_m</dt><dd data-key="horizontal_distance_from_tree_m">-</dd></div>
+            <div><dt>distance_reliability_status</dt><dd data-key="distance_reliability_status">DISTANCE_NOT_AVAILABLE</dd></div>
+          </dl>
+        </section>
+        <section class="evidence-section">
+          <h2>Camera/Frame Evidence</h2>
+          <dl class="glass-grid">
+            <div><dt>camera_status</dt><dd data-key="camera_status">-</dd></div>
+            <div><dt>visibility_state</dt><dd data-key="visibility_state">visible</dd></div>
+            <div><dt>hidden_duration_ms</dt><dd data-key="hidden_duration_ms">0</dd></div>
+            <div><dt>browser_throttle_warning</dt><dd data-key="browser_throttle_warning">-</dd></div>
+          </dl>
+        </section>
+        <section class="evidence-section">
+          <h2>AI/Model Evidence</h2>
+          <dl class="glass-grid">
+            <div><dt>model_status</dt><dd data-key="model_status">MODEL_NOT_READY</dd></div>
+            <div><dt>detected_classes</dt><dd data-key="detected_classes">-</dd></div>
+            <div><dt>tree_detected</dt><dd data-key="tree_detected">-</dd></div>
+            <div><dt>conductor_detected</dt><dd data-key="conductor_detected">-</dd></div>
+            <div><dt>pole_detected</dt><dd data-key="pole_detected">-</dd></div>
+          </dl>
+        </section>
+        <section class="evidence-section">
+          <h2>Geometry/Measurement Evidence</h2>
+          <dl class="glass-grid">
+            <div><dt>tree_height_m</dt><dd data-key="tree_height_m">-</dd></div>
+            <div><dt>conductor_height_m</dt><dd data-key="conductor_height_m">-</dd></div>
+            <div><dt>clearance_m</dt><dd data-key="clearance_m">-</dd></div>
+            <div><dt>zone_status</dt><dd data-key="zone_status">INSUFFICIENT_DATA</dd></div>
+            <div><dt>result_status</dt><dd data-key="status">NO_FIELD_SESSION_REPORT_YET</dd></div>
+          </dl>
+        </section>
+        <section class="evidence-section">
+          <h2>CSV/Map Links</h2>
+          <dl class="glass-grid">
+            <div><dt>csv_path</dt><dd data-key="report_csv_url">-</dd></div>
+            <div><dt>map_path</dt><dd data-key="map_url">-</dd></div>
+          </dl>
+        </section>
+        <section class="evidence-section">
+          <h2>Limitations</h2>
+          <p>MODEL_NOT_READY berarti tidak ada deteksi palsu. GPS adalah evidence lokasi dan jarak horizontal kasar, bukan kalibrasi pixel-to-meter.</p>
+          <p data-key="reason_codes">-</p>
+        </section>
+        <section class="evidence-section">
+          <h2>Operator Notes</h2>
+          <p data-key="notes">-</p>
+        </section>
       </div>
-      <dl class="glass-grid" id="field-report-grid">
-        <div><dt>session_id</dt><dd data-key="session_id">-</dd></div>
-        <div><dt>timestamp</dt><dd data-key="timestamp">-</dd></div>
-        <div><dt>point_id</dt><dd data-key="point_id">-</dd></div>
-        <div><dt>operator_name</dt><dd data-key="operator_name">-</dd></div>
-        <div><dt>notes</dt><dd data-key="notes">-</dd></div>
-        <div><dt>secure_context_status</dt><dd data-key="secure_context_status">-</dd></div>
-        <div><dt>public_tunnel_status</dt><dd data-key="public_tunnel_status">-</dd></div>
-        <div><dt>visibility_state</dt><dd data-key="visibility_state">-</dd></div>
-        <div><dt>foreground_recording_status</dt><dd data-key="foreground_recording_status">FOREGROUND_RECORDING_REQUIRED</dd></div>
-        <div><dt>hidden_duration_ms</dt><dd data-key="hidden_duration_ms">0</dd></div>
-        <div><dt>browser_throttle_warning</dt><dd data-key="browser_throttle_warning">-</dd></div>
-        <div><dt>camera_status</dt><dd data-key="camera_status">-</dd></div>
-        <div><dt>gps_status</dt><dd data-key="gps_accuracy_status">-</dd></div>
-        <div><dt>base_latitude</dt><dd data-key="base_latitude">-</dd></div>
-        <div><dt>base_longitude</dt><dd data-key="base_longitude">-</dd></div>
-        <div><dt>base_accuracy_m</dt><dd data-key="base_accuracy_m">-</dd></div>
-        <div><dt>current_latitude</dt><dd data-key="current_latitude">-</dd></div>
-        <div><dt>current_longitude</dt><dd data-key="current_longitude">-</dd></div>
-        <div><dt>current_accuracy_m</dt><dd data-key="current_accuracy_m">-</dd></div>
-        <div><dt>horizontal_distance_from_tree_m</dt><dd data-key="horizontal_distance_from_tree_m">-</dd></div>
-        <div><dt>distance_reliability_status</dt><dd data-key="distance_reliability_status">-</dd></div>
-        <div><dt>model_status</dt><dd data-key="model_status">MODEL_NOT_READY</dd></div>
-        <div><dt>detected_classes</dt><dd data-key="detected_classes">-</dd></div>
-        <div><dt>tree_detected</dt><dd data-key="tree_detected">-</dd></div>
-        <div><dt>conductor_detected</dt><dd data-key="conductor_detected">-</dd></div>
-        <div><dt>pole_detected</dt><dd data-key="pole_detected">-</dd></div>
-        <div><dt>tree_height_m</dt><dd data-key="tree_height_m">-</dd></div>
-        <div><dt>conductor_height_m</dt><dd data-key="conductor_height_m">-</dd></div>
-        <div><dt>clearance_m</dt><dd data-key="clearance_m">-</dd></div>
-        <div><dt>zone_status</dt><dd data-key="zone_status">INSUFFICIENT_DATA</dd></div>
-        <div><dt>result_status</dt><dd data-key="status">NO_FIELD_SESSION_REPORT_YET</dd></div>
-        <div><dt>csv_path</dt><dd data-key="report_csv_url">-</dd></div>
-        <div><dt>map_path</dt><dd data-key="map_url">-</dd></div>
-        <div><dt>reason_codes</dt><dd data-key="reason_codes">-</dd></div>
-      </dl>
+      <details class="developer-debug">
+        <summary>Developer Detail</summary>
+        <pre id="report-raw-json">REPORT_DETAIL_PENDING</pre>
+      </details>
       <nav class="bottom-nav">
         <a href="/field-capture">Back to Capture</a>
         <button id="session-result" type="button">Open Result</button>
         <button id="session-acceptance" type="button">Acceptance</button>
         <a href="/field-reports/field_capture_autosave.csv">Download CSV</a>
-        <a href="/api/field/latest-map">Open Map</a>
+        <a id="report-map-link" href="/api/field/latest-map">Open Map</a>
       </nav>
     </section>
   </main>
@@ -79,6 +107,11 @@
         const value = row[key] ?? data[key] ?? '-';
         node.textContent = Array.isArray(value) ? value.join(', ') : value;
       });
+      const raw = document.getElementById('report-raw-json');
+      if (raw) raw.textContent = JSON.stringify(data, null, 2);
+      const map = row.map_url || data.map_url || '';
+      const link = document.getElementById('report-map-link');
+      if (link && map) link.href = map;
     });
   </script>
 </body>

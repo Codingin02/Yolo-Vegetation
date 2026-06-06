@@ -28,16 +28,18 @@
         <h2>Native Browser Session</h2>
         <p class="session-note">Tekan Start saat berdiri di bawah pohon. Base GPS menjadi titik bawah pohon; saat operator mundur, jarak horizontal dihitung dengan haversine dan diberi status reliabilitas.</p>
       </div>
-      <div class="session-actions">
+      <div class="session-actions preflight-actions">
         <button id="session-start" class="primary-action" type="button">Start</button>
-        <button id="session-stop" type="button">Stop Record</button>
-        <button id="session-report" type="button">Report</button>
-        <button id="session-result" type="button">Result</button>
-        <button id="session-manual-input" type="button">Manual Input</button>
-        <button id="session-acceptance" type="button">Acceptance</button>
+        <a class="button-link" href="/field-report">Report</a>
+        <a class="button-link" href="/field-result">Result</a>
+        <a class="button-link" href="/field-manual-input">Manual</a>
+        <a class="button-link" href="/api/field/latest-map">Map</a>
+        <a id="session-acceptance" class="button-link" href="/field-acceptance">Acceptance</a>
       </div>
       <dl class="glass-grid">
         <div><dt>session_id</dt><dd id="session-id">-</dd></div>
+        <div><dt>gps_base_lock_status</dt><dd id="gps-base-lock-status">GPS_BASE_NOT_LOCKED</dd></div>
+        <div><dt>wake_lock</dt><dd id="wake-lock-status">WAKE_LOCK_NOT_REQUESTED</dd></div>
         <div><dt>foreground_recording_status</dt><dd id="foreground-recording-status">FOREGROUND_RECORDING_REQUIRED</dd></div>
         <div><dt>visibility_state</dt><dd id="visibility-state">visible</dd></div>
         <div><dt>hidden_duration_ms</dt><dd id="hidden-duration-ms">0</dd></div>
@@ -66,23 +68,26 @@
       </div>
     </section>
 
-    <section class="camera-panel">
+    <section class="camera-panel camera-stage">
       <div class="realtime-stage">
         <video id="camera" playsinline autoplay muted></video>
         <canvas id="overlay-canvas"></canvas>
+        <div class="camera-overlay-chips" aria-live="polite">
+          <span>MODEL_NOT_READY_NO_FAKE_DETECTION</span>
+          <span id="camera-gps-chip">GPS_WAITING_PERMISSION</span>
+          <span id="camera-distance-chip">DISTANCE_NOT_AVAILABLE</span>
+          <span id="camera-session-chip">-</span>
+        </div>
+        <div id="field-toast" class="field-toast" hidden>FIELD_SESSION_READY</div>
       </div>
       <canvas id="frame" hidden></canvas>
-      <div class="camera-actions">
-        <button id="camera-permission" type="button">Izinkan Kamera</button>
-        <button id="gps-btn" type="button">Izinkan GPS</button>
-        <button id="start-camera" type="button">Start kamera</button>
-        <button id="start-realtime" type="button">Mulai Deteksi</button>
-        <button id="stop-realtime" type="button">Stop Deteksi</button>
-        <button id="shutter-capture" type="button">Jepret / Shutter</button>
-        <button id="snapshot-report" type="button">Simpan Laporan</button>
-        <button id="copy-report-link" type="button">Buka Spreadsheet/CSV</button>
-        <button id="open-map-report" type="button">Buka Map</button>
-        <a id="open-field-trial-checklist" class="button-link" href="/field-trial-checklist">Checklist Field Trial</a>
+      <div class="camera-actions camera-bottom-bar" role="toolbar" aria-label="Field camera controls">
+        <button id="session-stop" type="button">Stop</button>
+        <button id="open-map-report" type="button">Map</button>
+        <button id="session-report" type="button">Report</button>
+        <button id="shutter-capture" class="shutter-button" type="button" aria-label="Jepret / Shutter">Shutter</button>
+        <button id="session-result" type="button">Result</button>
+        <button id="session-manual-input" type="button">Manual</button>
       </div>
     </section>
 
@@ -110,13 +115,24 @@
         <div><dt>Confidence</dt><dd id="confidence-status">-</dd></div>
         <div><dt>Mode</dt><dd id="mode-label">CAMERA_SHUTTER_READY</dd></div>
       </dl>
-      <div class="actions">
-        <button id="ping-btn" type="button">Test koneksi laptop/server</button>
-        <button id="refresh-tunnel-status" type="button">Tunnel Status</button>
-        <button id="refresh-tunnel-status-secondary" type="button">Tunnel Status ulang</button>
-        <button id="failure-recovery-help" type="button">Failure Recovery Help</button>
-      </div>
-      <p class="hint">Diagnostic labels: HTTPS_PUBLIC_READY, LAN_HTTP_DEBUG_ONLY, LOCALHOST_DEBUG_ONLY, INSECURE_CONTEXT_CAMERA_GPS_BLOCKED, INSECURE_CONTEXT_CAMERA_GPS_BLOCKED_OPEN_HTTPS_TUNNEL, SECURE_CONTEXT_OK, LOCAL_DEV_CONTEXT, INSECURE_CONTEXT_CAMERA_GPS_MAY_FAIL, SECURE_CONTEXT_EXPECTED, HTTP_LAN, HTTPS_SECURE, CAMERA_API_UNAVAILABLE_IN_THIS_CONTEXT, GPS_PERMISSION_DENIED, GPS_TIMEOUT. Kamera/GPS otomatis membutuhkan HTTPS. Tombol Mulai Deteksi adalah workflow baru untuk Mulai deteksi/prediksi. Open Field Trial Checklist tersedia melalui tombol Checklist Field Trial.</p>
+      <details class="developer-debug">
+        <summary>Developer Debug</summary>
+        <div class="actions">
+          <button id="ping-btn" type="button">Test koneksi laptop/server</button>
+          <button id="camera-permission" type="button">Izinkan Kamera</button>
+          <button id="gps-btn" type="button">Izinkan GPS</button>
+          <button id="start-camera" type="button">Start kamera</button>
+          <button id="start-realtime" type="button">Mulai Deteksi</button>
+          <button id="stop-realtime" type="button">Stop Deteksi</button>
+          <button id="snapshot-report" type="button">Simpan Laporan</button>
+          <button id="copy-report-link" type="button">Buka Spreadsheet/CSV</button>
+          <button id="refresh-tunnel-status" type="button">Tunnel Status</button>
+          <button id="refresh-tunnel-status-secondary" type="button">Tunnel Status ulang</button>
+          <button id="failure-recovery-help" type="button">Failure Recovery Help</button>
+          <a id="open-field-trial-checklist" class="button-link" href="/field-trial-checklist">Checklist Field Trial</a>
+        </div>
+        <p class="hint">Diagnostic labels: HTTPS_PUBLIC_READY, LAN_HTTP_DEBUG_ONLY, LOCALHOST_DEBUG_ONLY, INSECURE_CONTEXT_CAMERA_GPS_BLOCKED, INSECURE_CONTEXT_CAMERA_GPS_BLOCKED_OPEN_HTTPS_TUNNEL, SECURE_CONTEXT_OK, LOCAL_DEV_CONTEXT, INSECURE_CONTEXT_CAMERA_GPS_MAY_FAIL, SECURE_CONTEXT_EXPECTED, HTTP_LAN, HTTPS_SECURE, CAMERA_API_UNAVAILABLE_IN_THIS_CONTEXT, GPS_PERMISSION_DENIED, GPS_TIMEOUT. Kamera/GPS otomatis membutuhkan HTTPS. Tombol Mulai Deteksi adalah workflow baru untuk Mulai deteksi/prediksi. Open Field Trial Checklist tersedia melalui tombol Checklist Field Trial.</p>
+      </details>
     </section>
 
     <section class="panel">
@@ -217,10 +233,11 @@
       </div>
     </details>
 
-    <section class="panel">
+    <details class="panel developer-debug">
+      <summary><strong>Developer Debug</strong></summary>
       <h2>Network Debug</h2>
       <pre id="network-debug">NETWORK_DEBUG_EMPTY</pre>
-    </section>
+    </details>
   </main>
   <script src="/static/field_capture.js"></script>
   <script src="/static/field_navigation.js"></script>

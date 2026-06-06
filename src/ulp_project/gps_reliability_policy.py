@@ -76,6 +76,7 @@ def distance_reliability(base: dict[str, Any] | None, current: dict[str, Any] | 
         return {
             **base_payload,
             "distance_reliability_status": "GPS_ACCURACY_GREATER_THAN_DISTANCE",
+            "distance_reliability_status_progress6_5": "DISTANCE_NOT_RELIABLE_ACCURACY_GT_DISTANCE",
         }
     if distance < 1.0:
         return {

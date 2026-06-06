@@ -18,6 +18,7 @@ from .field_session_runtime import (
     build_latest_result,
     latest_field_session_map,
     latest_field_session_report,
+    log_session_exception,
     process_field_session_frame,
     record_manual_input,
     session_status,
@@ -200,13 +201,21 @@ def register_field_capture_routes(app) -> None:
     def field_session_start_route():
         payload = request.get_json(silent=True) if request.is_json else None
         runtime = Path(app.config["ULP_RUNTIME_ROOT"])
-        return jsonify(start_field_session(dict(payload or request.form), runtime_root=runtime)), 201
+        try:
+            return jsonify(start_field_session(dict(payload or request.form), runtime_root=runtime)), 201
+        except Exception as exc:  # pragma: no cover - defensive live route guard
+            logged = log_session_exception(exc, route="/api/field/session/start", runtime_root=runtime)
+            return jsonify({**logged, "status": "FIELD_SESSION_START_FAILED", "no_fake_detection": True}), 500
 
     @app.post("/api/field/session/stop")
     def field_session_stop_route():
         payload = request.get_json(silent=True) if request.is_json else None
         runtime = Path(app.config["ULP_RUNTIME_ROOT"])
-        return jsonify(stop_field_session(dict(payload or request.form), runtime_root=runtime))
+        try:
+            return jsonify(stop_field_session(dict(payload or request.form), runtime_root=runtime))
+        except Exception as exc:  # pragma: no cover - defensive live route guard
+            logged = log_session_exception(exc, route="/api/field/session/stop", runtime_root=runtime)
+            return jsonify({**logged, "status": "FIELD_SESSION_STOP_FAILED", "recording_status": "RECORDING_STOPPED"}), 500
 
     @app.post("/api/field/session/gps-update")
     def field_session_gps_update_route():
@@ -224,7 +233,11 @@ def register_field_capture_routes(app) -> None:
     def field_session_shutter_route():
         payload = request.get_json(silent=True) if request.is_json else None
         runtime = Path(app.config["ULP_RUNTIME_ROOT"])
-        return jsonify(shutter_field_session(dict(payload or request.form), runtime_root=runtime))
+        try:
+            return jsonify(shutter_field_session(dict(payload or request.form), runtime_root=runtime))
+        except Exception as exc:  # pragma: no cover - defensive live route guard
+            logged = log_session_exception(exc, route="/api/field/session/shutter", runtime_root=runtime)
+            return jsonify({**logged, "status": "FIELD_SESSION_SHUTTER_FAILED", "csv_appended": False}), 500
 
     @app.post("/api/field/realtime-frame")
     def field_progress5_4_realtime_frame():
@@ -271,12 +284,25 @@ def register_field_capture_routes(app) -> None:
 
     @app.get("/api/field/latest-map")
     def field_progress5_4_latest_map_alias():
-        latest = latest_field_session_map(request.args.get("session_id"))
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        latest = latest_field_session_map(request.args.get("session_id"), runtime_root=runtime)
         if request.args.get("session_id"):
             return jsonify(latest)
-        if latest.get("status") == "NO_GPS_NO_MARKER":
-            return jsonify({**latest, "progress5_4_fallback": latest_progress5_4_map()})
         return jsonify(latest)
+
+    @app.get("/api/field/session/<session_id>/map")
+    def field_session_specific_map_api(session_id: str):
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        return jsonify(latest_field_session_map(session_id, runtime_root=runtime))
+
+    @app.get("/field-map/session/<session_id>")
+    def field_session_specific_map_page(session_id: str):
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        latest = latest_field_session_map(session_id, runtime_root=runtime)
+        path = Path(str(latest.get("path") or ""))
+        if path.exists():
+            return send_from_directory(path.parent, path.name, as_attachment=False)
+        return jsonify(latest), 404
 
     @app.get("/api/field/gps-status")
     def field_progress5_4_gps_status():
@@ -340,6 +366,12 @@ def register_field_capture_routes(app) -> None:
 
     @app.get("/field-maps/<path:filename>")
     def field_maps(filename: str):
+        runtime_map = Path(app.config["ULP_RUNTIME_ROOT"]) / "field_maps" / filename
+        if runtime_map.exists():
+            return send_from_directory(runtime_map.parent, runtime_map.name, as_attachment=False)
+        data_map = PROJECT_ROOT / "data" / "runtime" / "field_maps" / filename
+        if data_map.exists():
+            return send_from_directory(data_map.parent, data_map.name, as_attachment=False)
         return send_from_directory(PROJECT_ROOT / "outputs" / "maps", filename, as_attachment=False)
 
     @app.get("/favicon.ico")

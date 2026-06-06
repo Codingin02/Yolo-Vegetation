@@ -21,8 +21,8 @@ def run_smoke() -> dict[str, object]:
             "/api/field/session/gps-update",
             json={
                 "session_id": "MAP_SMOKE",
-                "latitude": -7.123,
-                "longitude": 110.456,
+                "latitude": -7.1234567,
+                "longitude": 110.4567891,
                 "accuracy": 8,
             },
         )
