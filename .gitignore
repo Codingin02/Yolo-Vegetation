@@ -17,7 +17,9 @@ data/dataset_yolo/01_makesense_export/
 data/dataset_yolo/02_label_audit/
 data/dataset_yolo/03_dataset_build/
 data/dataset_yolo/field_multiclass_v1/
+data/dataset_yolo/v001_pohon_sono_only_v1/
 data/metadata/*.csv
+data/metadata/*.json
 data/metadata/*.txt
 data/cache/
 data/runtime/

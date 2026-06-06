@@ -14,20 +14,26 @@ MODEL_CANDIDATES = [
 ]
 
 
+def is_runtime_approved_model(path: str | Path) -> bool:
+    candidate = Path(path)
+    marker = candidate.with_name(f"{candidate.name}.runtime_ready.json")
+    return candidate.exists() and marker.exists()
+
+
 def resolve_model_path(model_path: str | Path | None = None) -> Path | None:
     if model_path:
         candidate = Path(model_path)
-        return candidate if candidate.exists() else None
+        return candidate if is_runtime_approved_model(candidate) else None
     for candidate in MODEL_CANDIDATES:
-        if candidate.exists():
+        if is_runtime_approved_model(candidate):
             return candidate
     return None
 
 
 def _no_model_result(input_path: str | Path, requested_model: str | Path | None = None) -> dict[str, object]:
-    warnings = ["No trained YOLO field model is available."]
+    warnings = ["No runtime-approved YOLO field model is available."]
     if requested_model:
-        warnings.append(f"Requested model not found: {requested_model}")
+        warnings.append(f"Requested model is missing or not runtime-approved: {requested_model}")
     return DetectionRuntimeResult(
         status="MODEL_NOT_READY",
         input_path=str(input_path),

@@ -19,7 +19,7 @@ def test_split_pairs_is_deterministic(tmp_path: Path):
 def test_build_dataset_dry_run_waits_for_labels_without_creating_target(tmp_path: Path):
     target = tmp_path / "field_multiclass_v1"
     summary = build_dataset(
-        point="V001_pohon_sono",
+        point="UNIT_TEST_POINT_WITHOUT_LABELS",
         target_dir=target,
         val_ratio=0.2,
         seed=23050874166,

@@ -8,6 +8,7 @@ from typing import Any
 
 from .classes import CLASS_ORDER
 from .environmental_sources import environmental_source_status, load_environmental_source_config
+from .inference_runtime import is_runtime_approved_model
 from .metadata import IMAGE_EXTENSIONS
 from .paths import PROJECT_ROOT
 
@@ -118,6 +119,7 @@ def collect_project_status(project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
         project_root / "runs" / "detect" / "field_multiclass_v1" / "weights" / "best.pt",
     ]
     model_path = next((path for path in model_candidates if path.exists()), None)
+    runtime_model_path = next((path for path in model_candidates if is_runtime_approved_model(path)), None)
     environmental_ready = False
     env_source = environmental_source_status(load_environmental_source_config(project_root / "configs" / "surabaya_perak_environment.yaml"))
     field_capture_page = project_root / "src" / "ulp_project" / "templates" / "field_capture.html"
@@ -168,8 +170,10 @@ def collect_project_status(project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
             "vegetation_risk_model": (project_root / "src" / "ulp_project" / "vegetation_risk_model.py").exists(),
         },
         "model": {
-            "status": "MODEL_READY" if model_path else "MODEL_NOT_READY",
-            "path": str(model_path) if model_path else "",
+            "status": "MODEL_READY" if runtime_model_path else "MODEL_NOT_READY",
+            "path": str(runtime_model_path) if runtime_model_path else "",
+            "candidate_path": str(model_path) if model_path else "",
+            "runtime_approval_required": True,
         },
         "flask": {
             "status": "READY_WITH_MODEL_NOT_READY_STATE",
