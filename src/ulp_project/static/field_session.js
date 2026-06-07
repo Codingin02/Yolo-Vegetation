@@ -113,11 +113,18 @@
     if (best && !state.baseGpsLocked) {
       state.baseGpsPosition = best;
       const elapsed = Date.now() - state.gpsSampleWindowStartedAt;
-      if (state.gpsSamples.length >= 5 || elapsed >= 20000) {
+      if (state.gpsSamples.length >= 5 || elapsed >= 8000) {
         state.baseGpsLocked = true;
-        state.baseGpsLockStatus = "GPS_BASE_LOCKED_BEST_SAMPLE";
+        const accuracy = Number(best.accuracy);
+        if (Number.isFinite(accuracy) && accuracy <= 5) {
+          state.baseGpsLockStatus = "GPS_BASE_LOCKED_BEST_SAMPLE";
+        } else if (Number.isFinite(accuracy) && accuracy <= 10) {
+          state.baseGpsLockStatus = "GPS_BASE_LOCKED_LOW_ACCURACY_LIMITED";
+        } else {
+          state.baseGpsLockStatus = "GPS_BASE_NOT_RELIABLE_SAVE_EVIDENCE_ONLY";
+        }
       } else {
-        state.baseGpsLockStatus = "GPS_BASE_PROVISIONAL_WAITING_FOR_5_SAMPLES_OR_20S";
+        state.baseGpsLockStatus = "GPS_BASE_PROVISIONAL_WAITING_FOR_5_SAMPLES_OR_8S";
       }
     }
     text("gps-base-lock-status", state.baseGpsLockStatus);
@@ -195,14 +202,25 @@
       return false;
     }
     const video = el("camera");
-    state.cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: "environment" },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      },
-      audio: false
-    });
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30, max: 30 }
+        },
+        audio: false
+      });
+    } catch (firstError) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+      } catch (secondError) {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
+    }
+    state.cameraStream = stream;
     if (video) video.srcObject = state.cameraStream;
     text("glass-camera-status", "CAMERA_READY");
     text("camera-status", "CAMERA_READY");
@@ -263,6 +281,11 @@
       if (state.session_id) window.localStorage.setItem("field_session_id", state.session_id);
       state.session_status = "RECORDING_ACTIVE";
       text("session-id", state.session_id);
+      if (document.body && document.body.dataset.page === "field-capture-preflight") {
+        const target = `/field-camera?session_id=${encodeURIComponent(state.session_id || "")}`;
+        window.location.assign(target);
+        return;
+      }
       document.body.classList.add("camera-mode-active");
       startFrameLoop();
       renderStatus();
@@ -510,6 +533,7 @@
     text("camera-gps-chip", state.derivedGps.gps_accuracy_status);
     text("camera-distance-chip", state.derivedGps.horizontal_distance_from_tree_m === null ? "DISTANCE_NOT_AVAILABLE" : `${state.derivedGps.horizontal_distance_from_tree_m} m`);
     text("gps-status", state.derivedGps.gps_accuracy_status === "GPS_ACCURACY_UNKNOWN" ? "GPS_WAITING_PERMISSION" : "GPS_READY");
+    text("gps-source-status", state.currentGpsPosition ? "GPS_SOURCE_BROWSER" : "GPS_NOT_PROVIDED");
     text("gps-accuracy-status", state.currentGpsPosition && state.currentGpsPosition.accuracy ? `${Number(state.currentGpsPosition.accuracy).toFixed(1)} m` : "-");
     const warning = el("foreground-warning");
     if (warning) {

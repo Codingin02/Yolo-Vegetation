@@ -24,6 +24,8 @@ data/metadata/*.json
 data/metadata/*.txt
 data/cache/
 data/runtime/
+data/growth_model/pohon_sono/*.xlsx
+data/growth_model/derived/
 dataset_botol/
 results/
 outputs/*

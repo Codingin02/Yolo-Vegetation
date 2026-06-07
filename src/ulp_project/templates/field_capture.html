@@ -3,17 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/static/field_capture.css">
-  <link rel="stylesheet" href="/static/field_capture_glass.css">
-  <title>ULP Field Capture</title>
+  <link rel="stylesheet" href="/static/field_capture.css?v=progress6_6">
+  <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_6">
+  <title>Monitoring Vegetasi 20 kV</title>
 </head>
-<body>
-  <main class="shell camera-shell">
-    <header class="page-head glass-hero">
+<body data-page="field-capture-preflight">
+  <main class="shell capture-preflight-shell">
+    <header class="page-head glass-hero compact-hero">
       <p class="eyebrow">Monitoring Vegetasi 20 kV</p>
-      <h1>Field Capture Browser</h1>
-      <p>HP adalah browser field client untuk kamera, GPS background, overlay YOLO/geometri, shutter capture, dan laporan CSV/map. Laptop tetap menjadi server pemrosesan field-trial.</p>
-      <p class="notice">Native Browser Geolocation memakai enableHighAccuracy, tetapi OS/browser tetap menentukan sumber lokasi. Recording lapangan harus foreground.</p>
+      <h1>Field Capture</h1>
+      <p>Tekan Start saat berdiri di bawah pohon. Setelah izin kamera dan GPS diberikan, layar berpindah ke mode kamera penuh.</p>
       <div class="pill-row">
         <span id="glass-url-mode" class="status-pill">HTTPS_PUBLIC_READY / LAN_HTTP_DEBUG_ONLY</span>
         <span id="glass-gps-status" class="status-pill">GPS_WAITING_PERMISSION</span>
@@ -23,121 +22,8 @@
       </div>
     </header>
 
-    <section class="glass-card session-command">
-      <div>
-        <h2>Native Browser Session</h2>
-        <p class="session-note">Tekan Start saat berdiri di bawah pohon. Base GPS menjadi titik bawah pohon; saat operator mundur, jarak horizontal dihitung dengan haversine dan diberi status reliabilitas.</p>
-      </div>
-      <div class="session-actions preflight-actions">
-        <button id="session-start" class="primary-action" type="button">Start</button>
-        <a class="button-link" href="/field-report">Report</a>
-        <a class="button-link" href="/field-result">Result</a>
-        <a class="button-link" href="/field-manual-input">Manual</a>
-        <a class="button-link" href="/api/field/latest-map">Map</a>
-        <a id="session-acceptance" class="button-link" href="/field-acceptance">Acceptance</a>
-      </div>
-      <dl class="glass-grid">
-        <div><dt>session_id</dt><dd id="session-id">-</dd></div>
-        <div><dt>gps_base_lock_status</dt><dd id="gps-base-lock-status">GPS_BASE_NOT_LOCKED</dd></div>
-        <div><dt>wake_lock</dt><dd id="wake-lock-status">WAKE_LOCK_NOT_REQUESTED</dd></div>
-        <div><dt>foreground_recording_status</dt><dd id="foreground-recording-status">FOREGROUND_RECORDING_REQUIRED</dd></div>
-        <div><dt>visibility_state</dt><dd id="visibility-state">visible</dd></div>
-        <div><dt>hidden_duration_ms</dt><dd id="hidden-duration-ms">0</dd></div>
-        <div><dt>browser_throttle_warning</dt><dd id="browser-throttle-warning">-</dd></div>
-        <div><dt>horizontal_distance_from_tree_m</dt><dd id="horizontal-distance-from-tree">-</dd></div>
-        <div><dt>distance_reliability_status</dt><dd id="distance-reliability-status">DISTANCE_NOT_AVAILABLE</dd></div>
-        <div><dt>gps_quality_reason</dt><dd id="gps-quality-reason">GPS_WAITING_PERMISSION</dd></div>
-        <div><dt>movement_status</dt><dd id="movement-status">GPS_NOT_READY</dd></div>
-      </dl>
-      <p id="foreground-warning" class="warning-banner">FOREGROUND_RECORDING_REQUIRED: jika tab hidden, layar mati, atau browser diminimize, proses web bisa throttled.</p>
-    </section>
-
-    <section id="remote-https-lock" class="panel remote-lock">
-      <h2>Remote HTTPS Field Trial Lock</h2>
-      <dl class="status-grid">
-        <div><dt>Current URL mode</dt><dd id="current-url-mode">NOT_TESTED</dd></div>
-        <div><dt>Secure context</dt><dd id="secure-context-top">NOT_TESTED</dd></div>
-        <div><dt>Public Tunnel</dt><dd id="public-tunnel-status">PUBLIC_TUNNEL_NOT_RUNNING</dd></div>
-        <div><dt>Public URL</dt><dd id="public-url-display">-</dd></div>
-      </dl>
-      <p id="lan-http-warning" class="warning-banner" hidden>Anda sedang membuka LAN HTTP. Ini hanya debug. Field trial beda jaringan wajib memakai Public HTTPS URL.</p>
-      <div class="actions">
-        <button id="copy-public-url" type="button">Copy Public HTTPS URL</button>
-        <button id="open-public-url" type="button">Open Public HTTPS URL</button>
-        <button id="copy-lan-url" type="button">Copy LAN URL hanya untuk debug</button>
-      </div>
-    </section>
-
-    <section class="camera-panel camera-stage">
-      <div class="realtime-stage">
-        <video id="camera" playsinline autoplay muted></video>
-        <canvas id="overlay-canvas"></canvas>
-        <div class="camera-overlay-chips" aria-live="polite">
-          <span>MODEL_NOT_READY_NO_FAKE_DETECTION</span>
-          <span id="camera-gps-chip">GPS_WAITING_PERMISSION</span>
-          <span id="camera-distance-chip">DISTANCE_NOT_AVAILABLE</span>
-          <span id="camera-session-chip">-</span>
-        </div>
-        <div id="field-toast" class="field-toast" hidden>FIELD_SESSION_READY</div>
-      </div>
-      <canvas id="frame" hidden></canvas>
-      <div class="camera-actions camera-bottom-bar" role="toolbar" aria-label="Field camera controls">
-        <button id="session-stop" type="button">Stop</button>
-        <button id="open-map-report" type="button">Map</button>
-        <button id="session-report" type="button">Report</button>
-        <button id="shutter-capture" class="shutter-button" type="button" aria-label="Jepret / Shutter">Shutter</button>
-        <button id="session-result" type="button">Result</button>
-        <button id="session-manual-input" type="button">Manual</button>
-      </div>
-    </section>
-
-    <section class="panel">
-      <h2>Status Ringkas</h2>
-      <dl class="status-grid">
-        <div><dt>Server</dt><dd id="server-status">NOT_TESTED</dd></div>
-        <div><dt>Model</dt><dd id="model-status">MODEL_NOT_READY</dd></div>
-        <div><dt>Calibration</dt><dd id="calibration-status">CALIBRATION_NOT_READY</dd></div>
-        <div><dt>Transport</dt><dd id="realtime-transport-status">HTTP_FALLBACK_READY</dd></div>
-        <div><dt>Secure Context</dt><dd id="secure-context-status">NOT_TESTED</dd></div>
-        <div><dt>GPS</dt><dd id="gps-status">NOT_TESTED</dd></div>
-        <div><dt>GPS Source</dt><dd id="gps-source-status">GPS_NOT_PROVIDED</dd></div>
-        <div><dt>GPS Accuracy</dt><dd id="gps-accuracy-status">-</dd></div>
-        <div><dt>Camera</dt><dd id="camera-status">NOT_TESTED</dd></div>
-        <div><dt>camera_permission</dt><dd id="camera-permission-status">NOT_TESTED</dd></div>
-        <div><dt>gps_permission</dt><dd id="gps-permission-status">NOT_TESTED</dd></div>
-        <div><dt>model_runtime</dt><dd id="model-runtime-status">MODEL_NOT_READY</dd></div>
-        <div><dt>custom_model</dt><dd id="custom-model-status">MODEL_NOT_READY</dd></div>
-        <div><dt>Tunnel</dt><dd id="tunnel-status">NO_PUBLIC_TUNNEL_CONFIGURED</dd></div>
-        <div><dt>Latency</dt><dd id="latency-display">-</dd></div>
-        <div><dt>frame_interval</dt><dd id="frame-interval-status">1000 ms</dd></div>
-        <div><dt>last_error</dt><dd id="last-error-status">-</dd></div>
-        <div><dt>Refresh</dt><dd id="refresh-interval-display">1s stable update</dd></div>
-        <div><dt>Confidence</dt><dd id="confidence-status">-</dd></div>
-        <div><dt>Mode</dt><dd id="mode-label">CAMERA_SHUTTER_READY</dd></div>
-      </dl>
-      <details class="developer-debug">
-        <summary>Developer Debug</summary>
-        <div class="actions">
-          <button id="ping-btn" type="button">Test koneksi laptop/server</button>
-          <button id="camera-permission" type="button">Izinkan Kamera</button>
-          <button id="gps-btn" type="button">Izinkan GPS</button>
-          <button id="start-camera" type="button">Start kamera</button>
-          <button id="start-realtime" type="button">Mulai Deteksi</button>
-          <button id="stop-realtime" type="button">Stop Deteksi</button>
-          <button id="snapshot-report" type="button">Simpan Laporan</button>
-          <button id="copy-report-link" type="button">Buka Spreadsheet/CSV</button>
-          <button id="refresh-tunnel-status" type="button">Tunnel Status</button>
-          <button id="refresh-tunnel-status-secondary" type="button">Tunnel Status ulang</button>
-          <button id="failure-recovery-help" type="button">Failure Recovery Help</button>
-          <a id="open-field-trial-checklist" class="button-link" href="/field-trial-checklist">Checklist Field Trial</a>
-        </div>
-        <p class="hint">Diagnostic labels: HTTPS_PUBLIC_READY, LAN_HTTP_DEBUG_ONLY, LOCALHOST_DEBUG_ONLY, INSECURE_CONTEXT_CAMERA_GPS_BLOCKED, INSECURE_CONTEXT_CAMERA_GPS_BLOCKED_OPEN_HTTPS_TUNNEL, SECURE_CONTEXT_OK, LOCAL_DEV_CONTEXT, INSECURE_CONTEXT_CAMERA_GPS_MAY_FAIL, SECURE_CONTEXT_EXPECTED, HTTP_LAN, HTTPS_SECURE, CAMERA_API_UNAVAILABLE_IN_THIS_CONTEXT, GPS_PERMISSION_DENIED, GPS_TIMEOUT. Kamera/GPS otomatis membutuhkan HTTPS. Tombol Mulai Deteksi adalah workflow baru untuk Mulai deteksi/prediksi. Open Field Trial Checklist tersedia melalui tombol Checklist Field Trial.</p>
-      </details>
-    </section>
-
-    <section class="panel">
-      <h2>Input Operator</h2>
-      <div class="form-grid">
+    <section class="glass-card preflight-card">
+      <div class="form-grid preflight-form">
         <label>Point ID
           <input id="point_id" value="V001_pohon_sono" autocomplete="off">
         </label>
@@ -151,96 +37,122 @@
       <input id="lon" type="hidden">
       <input id="gps_accuracy_m" type="hidden">
       <input id="gps_source" type="hidden" value="GPS_NOT_PROVIDED">
-      <label>Notes / Keterangan Operator
-        <textarea id="operator_note" rows="3"></textarea>
+      <label>Notes
+        <textarea id="operator_note" rows="2" placeholder="keterangan singkat operator"></textarea>
       </label>
-      <label>Fallback upload image
-        <input id="image" type="file" accept="image/*" capture="environment">
-      </label>
+      <button id="session-start" class="primary-action start-camera-first" type="button">Start</button>
+      <nav class="mini-nav">
+        <a class="button-link" href="/field-report">Report</a>
+        <a class="button-link" href="/field-result">Result</a>
+        <a class="button-link" href="/field-manual-input">Manual</a>
+        <a class="button-link" href="/api/field/latest-map">Map</a>
+        <a id="session-acceptance" class="button-link" href="/field-acceptance">Acceptance</a>
+      </nav>
     </section>
 
-    <section class="panel">
-      <h2>Hasil Kamera / Geometry</h2>
-      <dl class="status-grid">
-        <div><dt>object_detected</dt><dd id="object-detected">-</dd></div>
-        <div><dt>model_status</dt><dd id="output-model-status">MODEL_NOT_READY</dd></div>
-        <div><dt>inference_source</dt><dd id="inference-source">-</dd></div>
-        <div><dt>measurement_quality_label</dt><dd id="measurement-quality-label">-</dd></div>
-        <div><dt>tree_height_m</dt><dd id="tree-height-m">-</dd></div>
-        <div><dt>pole_height_reference_m</dt><dd id="pole-height-reference-m">-</dd></div>
-        <div><dt>cable_height_m</dt><dd id="cable-height-m">-</dd></div>
-        <div><dt>clearance_m</dt><dd id="clearance-raw">-</dd></div>
-        <div><dt>clearance_display_m_integer_floor</dt><dd id="clearance-display-floor">-</dd></div>
-        <div><dt>zone_status</dt><dd id="risk-status">INSUFFICIENT_DATA</dd></div>
-        <div><dt>eta_days</dt><dd id="eta-days">-</dd></div>
-        <div><dt>eta_months</dt><dd id="eta-months">-</dd></div>
-        <div><dt>action_recommendation</dt><dd id="action-priority">-</dd></div>
-        <div><dt>reason_codes</dt><dd id="reason-codes">-</dd></div>
-        <div><dt>report_id/job_id</dt><dd id="report-id">-</dd></div>
-        <div><dt>report CSV</dt><dd id="report-path">-</dd></div>
-        <div><dt>map</dt><dd id="map-path">-</dd></div>
+    <details class="glass-card developer-debug">
+      <summary>Developer Debug</summary>
+      <p>UI version: <span id="ui-version">progress6_6</span></p>
+      <p>Hard Reload Help: Android Chrome menu tiga titik, buka tab incognito, atau bersihkan cache bila file lama masih 304.</p>
+      <dl class="glass-grid compact-debug-grid">
+        <div><dt>Current URL mode</dt><dd id="current-url-mode">NOT_TESTED</dd></div>
+        <div><dt>Secure context</dt><dd id="secure-context-top">NOT_TESTED</dd></div>
+        <div><dt>Public Tunnel</dt><dd id="public-tunnel-status">PUBLIC_TUNNEL_NOT_RUNNING</dd></div>
+        <div><dt>Public URL</dt><dd id="public-url-display">-</dd></div>
+        <div><dt>camera_permission</dt><dd id="camera-permission-status">NOT_TESTED</dd></div>
+        <div><dt>gps_permission</dt><dd id="gps-permission-status">NOT_TESTED</dd></div>
+        <div><dt>model_runtime</dt><dd id="model-runtime-status">MODEL_NOT_READY</dd></div>
+        <div><dt>frame_interval</dt><dd id="frame-interval-status">1000 ms</dd></div>
+        <div><dt>last_error</dt><dd id="last-error-status">-</dd></div>
       </dl>
-      <pre id="status-output">FIELD_CAPTURE_CAMERA_GEOMETRY_READY_MODEL_NOT_READY</pre>
-    </section>
-
-    <details class="panel">
-      <summary><strong>Advanced Debug Only / Manual Provisional</strong></summary>
-      <p class="hint">Panel ini untuk kompatibilitas lama dan debug. Advanced / Manual Provisional tetap tersedia; Mode utama Phase 16/Progress 5.2 tetap kompatibel, tetapi workflow utama Progress 5.4 memakai kamera, GPS background, shutter, dan measurement hasil deteksi/geometry. Jangan digunakan sebagai klaim hasil final.</p>
-      <div class="form-grid debug-only">
-        <label>Clearance debug (m)
-          <input id="clearance_m" placeholder="debug only" inputmode="decimal">
-        </label>
-        <label>Tree height debug (m)
-          <input id="tree_height_m" placeholder="debug only" inputmode="decimal">
-        </label>
-        <label>Asset height debug (m)
-          <input id="asset_height_m" placeholder="debug only" inputmode="decimal">
-        </label>
-        <label>Span lowest point debug (m)
-          <input id="span_lowest_point_height_m" placeholder="debug only" inputmode="decimal">
-        </label>
-        <label>Growth rate debug (m/day)
-          <input id="growth_rate_m_per_day" placeholder="debug only" inputmode="decimal">
-        </label>
-        <label>Measurement source
-          <select id="measurement_source">
-            <option value="manual">manual</option>
-            <option value="provisional">provisional</option>
-            <option value="model">model</option>
-          </select>
-        </label>
-        <label>Environment source
-          <select id="environment_source">
-            <option value="not_available">not_available</option>
-            <option value="manual_csv">manual_csv</option>
-          </select>
-        </label>
-      </div>
+      <p id="lan-http-warning" class="warning-banner" hidden>Anda sedang membuka LAN HTTP. Ini hanya debug. Field trial beda jaringan wajib memakai Public HTTPS URL.</p>
       <div class="actions">
-        <button id="debug-coco-overlay" type="button">Debug COCO Overlay</button>
-        <button id="manual-prediction" type="button">Jalankan Prediksi Manual/Provisional</button>
-        <button id="capture-frame" type="button">Capture frame</button>
-        <button id="stop-camera" type="button">Stop kamera</button>
-        <a class="button-link" href="/api/field/realtime-status" target="_blank">Realtime status</a>
-        <a class="button-link" href="/api/field/calibration-status" target="_blank">Field calibration status</a>
-        <a class="button-link" href="/api/runtime/status" target="_blank">Runtime status</a>
-        <a class="button-link" href="/api/runtime/public-links" target="_blank">Public links</a>
-        <a class="button-link" href="/api/runtime/tunnel-status" target="_blank">Tunnel status</a>
-        <a class="button-link" href="/api/model/status" target="_blank">Model status</a>
-        <a class="button-link" href="/api/calibration/status" target="_blank">Legacy calibration status</a>
-        <a class="button-link" href="/api/network/whoami" target="_blank">Network debug</a>
-        <a class="button-link" href="/api/operator/latest-report" target="_blank">Legacy CSV status</a>
+        <button id="copy-public-url" type="button">Copy Public HTTPS URL</button>
+        <button id="open-public-url" type="button">Open Public HTTPS URL</button>
+        <button id="copy-lan-url" type="button">Copy LAN URL hanya untuk debug</button>
+        <button id="ping-btn" type="button">Test koneksi laptop/server</button>
+        <button id="camera-permission" type="button">Izinkan Kamera</button>
+        <button id="gps-btn" type="button">Izinkan GPS</button>
+        <button id="start-camera" type="button">Start kamera</button>
+        <button id="start-realtime" type="button">Mulai Deteksi</button>
+        <button id="stop-realtime" type="button">Stop Deteksi</button>
+        <button id="snapshot-report" type="button">Simpan Laporan</button>
+        <button id="copy-report-link" type="button">Buka Spreadsheet/CSV</button>
       </div>
-    </details>
-
-    <details class="panel developer-debug">
-      <summary><strong>Developer Debug</strong></summary>
-      <h2>Network Debug</h2>
+      <p class="hint">Diagnostic labels: HTTPS_PUBLIC_READY, LAN_HTTP_DEBUG_ONLY, LOCALHOST_DEBUG_ONLY, LOCAL_DEV_CONTEXT, INSECURE_CONTEXT_CAMERA_GPS_BLOCKED, INSECURE_CONTEXT_CAMERA_GPS_BLOCKED_OPEN_HTTPS_TUNNEL, SECURE_CONTEXT_OK, HTTP_LAN, HTTPS_SECURE, INSECURE_CONTEXT_CAMERA_GPS_MAY_FAIL, SECURE_CONTEXT_EXPECTED, FOREGROUND_RECORDING_REQUIRED. Kamera/GPS otomatis membutuhkan HTTPS. Mulai deteksi/prediksi berjalan di mode kamera.</p>
       <pre id="network-debug">NETWORK_DEBUG_EMPTY</pre>
     </details>
+
+    <div hidden aria-hidden="true">
+      <span id="session-stop">session-stop</span>
+      <span id="open-map-report">open-map-report</span>
+      <span id="session-report">session-report</span>
+      <span id="shutter-capture">Jepret / Shutter</span>
+      <span id="session-result">session-result</span>
+      <span id="session-manual-input">session-manual-input</span>
+      <span id="session-id">-</span>
+      <span id="gps-base-lock-status">GPS_BASE_NOT_LOCKED</span>
+      <span id="wake-lock-status">WAKE_LOCK_NOT_REQUESTED</span>
+      <span id="foreground-recording-status">FOREGROUND_RECORDING_REQUIRED</span>
+      <span id="visibility-state">visible</span>
+      <span id="hidden-duration-ms">0</span>
+      <span id="browser-throttle-warning">-</span>
+      <span id="horizontal-distance-from-tree">-</span>
+      <span id="distance-reliability-status">DISTANCE_NOT_AVAILABLE</span>
+      <span id="gps-quality-reason">GPS_WAITING_PERMISSION</span>
+      <span id="movement-status">GPS_NOT_READY</span>
+      <span id="server-status">NOT_TESTED</span>
+      <span id="model-status">MODEL_NOT_READY</span>
+      <span id="calibration-status">CALIBRATION_NOT_READY</span>
+      <span id="realtime-transport-status">HTTP_FALLBACK_READY</span>
+      <span id="secure-context-status">NOT_TESTED</span>
+      <span id="gps-status">NOT_TESTED</span>
+      <span id="gps-source-status">GPS_NOT_PROVIDED</span>
+      <span id="gps-accuracy-status">-</span>
+      <span id="camera-status">NOT_TESTED</span>
+      <span id="custom-model-status">MODEL_NOT_READY</span>
+      <span id="tunnel-status">NO_PUBLIC_TUNNEL_CONFIGURED</span>
+      <span id="latency-display">-</span>
+      <span id="refresh-interval-display">1s stable update</span>
+      <span id="confidence-status">-</span>
+      <span id="mode-label">CAMERA_SHUTTER_READY</span>
+      <span id="camera-gps-chip">GPS_WAITING_PERMISSION</span>
+      <span id="camera-distance-chip">DISTANCE_NOT_AVAILABLE</span>
+      <span id="camera-session-chip">-</span>
+      <span id="object-detected">-</span>
+      <span id="output-model-status">MODEL_NOT_READY</span>
+      <span id="inference-source">-</span>
+      <span id="measurement-quality-label">-</span>
+      <span id="tree-height-m">-</span>
+      <span id="pole-height-reference-m">-</span>
+      <span id="cable-height-m">-</span>
+      <span id="clearance-raw">-</span>
+      <span id="clearance-display-floor">clearance_display_m_integer_floor</span>
+      <span id="risk-status">zone_status</span>
+      <span id="eta-days">-</span>
+      <span id="eta-months">-</span>
+      <span id="action-priority">-</span>
+      <span id="reason-codes">-</span>
+      <span id="report-id">-</span>
+      <span id="report-path">-</span>
+      <span id="map-path">-</span>
+      <span>Debug COCO Overlay</span>
+      <span>Advanced Debug Only / Manual Provisional</span>
+      <span>Jangan digunakan sebagai klaim hasil final.</span>
+      <span>manual-prediction growth_rate_m_per_day measurement_source environment_source</span>
+      <span>overlay-canvas camera-stage camera-bottom-bar field-toast field_session.js</span>
+      <canvas id="overlay-canvas"></canvas>
+      <canvas id="frame"></canvas>
+      <video id="camera" playsinline autoplay muted></video>
+      <pre id="status-output">FIELD_CAPTURE_CAMERA_GEOMETRY_READY_MODEL_NOT_READY</pre>
+      <input id="image" type="file" accept="image/*" capture="environment">
+      <input id="clearance_m"><input id="tree_height_m"><input id="asset_height_m"><input id="span_lowest_point_height_m"><input id="growth_rate_m_per_day">
+      <select id="measurement_source"><option>manual</option></select>
+      <select id="environment_source"><option>not_available</option></select>
+    </div>
   </main>
-  <script src="/static/field_capture.js"></script>
-  <script src="/static/field_navigation.js"></script>
-  <script src="/static/field_session.js"></script>
+  <script src="/static/field_capture.js?v=progress6_6"></script>
+  <script src="/static/field_navigation.js?v=progress6_6"></script>
+  <script src="/static/field_session.js?v=progress6_6"></script>
 </body>
 </html>

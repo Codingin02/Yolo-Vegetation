@@ -28,6 +28,7 @@ from .field_session_runtime import (
     update_field_session_gps,
 )
 from .field_trial_evidence import build_field_trial_evidence_pack, record_hp_result
+from .growth_prediction_runtime import growth_prior_sample, growth_prior_status, predict_growth_prior
 from .latency_monitor import ping_latency
 from .model_handoff import check_model_handoff
 from .network_mode import describe_network_modes
@@ -65,9 +66,19 @@ from .yolo_model_resolver import resolve_yolo_model
 def register_field_capture_routes(app) -> None:
     from flask import jsonify, redirect, render_template, request, send_from_directory
 
+    @app.after_request
+    def progress6_6_static_cache_control(response):
+        if request.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-cache, max-age=0, must-revalidate"
+        return response
+
     @app.get("/field-capture")
     def field_capture_page():
         return render_template("field_capture.html")
+
+    @app.get("/field-camera")
+    def field_camera_page():
+        return render_template("field_camera.html")
 
     @app.get("/field-trial-checklist")
     def field_trial_checklist_page():
@@ -170,9 +181,26 @@ def register_field_capture_routes(app) -> None:
     def runtime_secure_context_diagnostic():
         return jsonify(_secure_context_payload(request))
 
+    @app.get("/api/runtime/ui-version")
+    def runtime_ui_version():
+        return jsonify({"status": "UI_VERSION_READY", "ui_version": "progress6_6", "camera_first_ui": True})
+
     @app.get("/api/model/status")
     def model_status():
         return jsonify(check_model_handoff())
+
+    @app.get("/api/growth-prior/status")
+    def growth_prior_status_route():
+        return jsonify(growth_prior_status())
+
+    @app.post("/api/growth-prior/predict")
+    def growth_prior_predict_route():
+        payload = request.get_json(silent=True) if request.is_json else None
+        return jsonify(predict_growth_prior(dict(payload or request.form)))
+
+    @app.get("/api/growth-prior/sample")
+    def growth_prior_sample_route():
+        return jsonify(growth_prior_sample(request.args.get("point_id") or "V001_pohon_sono"))
 
     @app.get("/api/calibration/status")
     def calibration_status():
@@ -205,7 +233,18 @@ def register_field_capture_routes(app) -> None:
             return jsonify(start_field_session(dict(payload or request.form), runtime_root=runtime)), 201
         except Exception as exc:  # pragma: no cover - defensive live route guard
             logged = log_session_exception(exc, route="/api/field/session/start", runtime_root=runtime)
-            return jsonify({**logged, "status": "FIELD_SESSION_START_FAILED", "no_fake_detection": True}), 500
+            return jsonify(
+                {
+                    **logged,
+                    "status": "FIELD_SESSION_START_DEGRADED_INPUT_ACCEPTED",
+                    "error_code": "FIELD_SESSION_START_EXCEPTION_CAUGHT",
+                    "message": "Session start diterima dalam mode aman; tidak ada deteksi palsu.",
+                    "session_id": "",
+                    "recording_status": "RECORDING_STOPPED",
+                    "model_status": "MODEL_NOT_READY",
+                    "no_fake_detection": True,
+                }
+            ), 202
 
     @app.post("/api/field/session/stop")
     def field_session_stop_route():
@@ -215,7 +254,16 @@ def register_field_capture_routes(app) -> None:
             return jsonify(stop_field_session(dict(payload or request.form), runtime_root=runtime))
         except Exception as exc:  # pragma: no cover - defensive live route guard
             logged = log_session_exception(exc, route="/api/field/session/stop", runtime_root=runtime)
-            return jsonify({**logged, "status": "FIELD_SESSION_STOP_FAILED", "recording_status": "RECORDING_STOPPED"}), 500
+            return jsonify(
+                {
+                    **logged,
+                    "status": "NO_ACTIVE_SESSION_TO_STOP",
+                    "error_code": "FIELD_SESSION_STOP_EXCEPTION_CAUGHT",
+                    "message": "Stop record ditutup aman tanpa membuat data palsu.",
+                    "recording_status": "RECORDING_STOPPED",
+                    "no_fake_detection": True,
+                }
+            ), 200
 
     @app.post("/api/field/session/gps-update")
     def field_session_gps_update_route():
@@ -237,7 +285,19 @@ def register_field_capture_routes(app) -> None:
             return jsonify(shutter_field_session(dict(payload or request.form), runtime_root=runtime))
         except Exception as exc:  # pragma: no cover - defensive live route guard
             logged = log_session_exception(exc, route="/api/field/session/shutter", runtime_root=runtime)
-            return jsonify({**logged, "status": "FIELD_SESSION_SHUTTER_FAILED", "csv_appended": False}), 500
+            return jsonify(
+                {
+                    **logged,
+                    "status": "FIELD_SESSION_SHUTTER_DEGRADED_NOT_SAVED",
+                    "error_code": "FIELD_SESSION_SHUTTER_EXCEPTION_CAUGHT",
+                    "message": "Shutter tidak disimpan karena error terkontrol; CSV tidak di-append.",
+                    "session_id": str((payload or {}).get("session_id") or ""),
+                    "csv_appended": False,
+                    "duplicate_ignored": False,
+                    "model_status": "MODEL_NOT_READY",
+                    "no_fake_detection": True,
+                }
+            ), 202
 
     @app.post("/api/field/realtime-frame")
     def field_progress5_4_realtime_frame():

@@ -19,6 +19,7 @@ from .gps_reliability_policy import (
     gps_accuracy_status as assess_gps_accuracy_status,
 )
 from .gps_truth_policy import format_coordinate_raw, select_best_gps_sample, validate_gps_evidence
+from .growth_prediction_runtime import predict_growth_prior
 from .model_handoff import check_model_handoff
 from .paths import PROJECT_ROOT
 from .progress5_4_field_runtime import (
@@ -32,7 +33,7 @@ from .progress5_4_field_runtime import (
 SESSION_RUNTIME_DIR = PROJECT_ROOT / "data" / "runtime" / "field_sessions"
 SESSION_MAP_DIR = PROJECT_ROOT / "data" / "runtime" / "field_maps"
 SESSION_SMOKE_REPORT_CSV = PROJECT_ROOT / "outputs" / "reports" / "field_capture_smoke_autosave.csv"
-SESSION_ERROR_LOG = PROJECT_ROOT / "data" / "runtime" / "errors" / "session_errors.log"
+SESSION_ERROR_DIR = PROJECT_ROOT / "data" / "runtime" / "session_errors"
 
 FIELD_SESSION_REPORT_COLUMNS = [
     "session_id",
@@ -126,9 +127,9 @@ def distance_reliability(base: dict[str, Any] | None, current: dict[str, Any] | 
 
 def normalize_gps(payload: dict[str, Any]) -> dict[str, Any]:
     gps = {
-        "latitude": _to_float(_first_present(payload, "latitude", "gps_lat", "lat")),
-        "longitude": _to_float(_first_present(payload, "longitude", "gps_lon", "lon")),
-        "accuracy": _to_float(_first_present(payload, "accuracy", "gps_accuracy_m")),
+        "latitude": _to_float(_first_present(payload, "latitude", "gps_lat", "lat", "base_latitude", "current_latitude")),
+        "longitude": _to_float(_first_present(payload, "longitude", "gps_lon", "lon", "base_longitude", "current_longitude")),
+        "accuracy": _to_float(_first_present(payload, "accuracy", "gps_accuracy_m", "base_accuracy_m", "current_accuracy_m")),
         "altitude": _to_float(payload.get("altitude")),
         "altitudeAccuracy": _to_float(_first_present(payload, "altitudeAccuracy", "altitude_accuracy")),
         "heading": _to_float(payload.get("heading")),
@@ -158,6 +159,9 @@ def start_field_session(payload: dict[str, Any], *, runtime_root: Path | None = 
             return {**session_status(session.session_id), "status": "FIELD_SESSION_STARTED", "idempotent_replay": True}
     session_id = str(payload.get("session_id") or f"FS_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}")
     base = _select_base_gps(payload)
+    current = _select_current_gps(payload)
+    if not _gps_has_coordinates(current):
+        current = base
     model = check_model_handoff()
     session = FieldSession(
         session_id=session_id,
@@ -168,7 +172,7 @@ def start_field_session(payload: dict[str, Any], *, runtime_root: Path | None = 
         secure_context_status=str(payload.get("secure_context_status") or "SECURE_CONTEXT_UNKNOWN"),
         public_tunnel_status=str(payload.get("public_tunnel_status") or "PUBLIC_TUNNEL_NOT_RUNNING"),
         base_gps=base,
-        current_gps=base,
+        current_gps=current,
         gps_history=[base] if base.get("latitude") is not None and base.get("longitude") is not None else [],
         camera_status=str(payload.get("camera_status") or "CAMERA_WAITING_PERMISSION"),
         model_status=model.get("model_status", "MODEL_NOT_READY"),
@@ -241,6 +245,7 @@ def shutter_field_session(payload: dict[str, Any], *, runtime_root: Path) -> dic
     session = _resolve_session_for_shutter(payload, runtime_root=runtime_root)
     payload = dict(payload)
     _apply_visibility_payload(session, payload)
+    _apply_payload_gps_to_session(session, payload)
     payload.setdefault("image_jpeg_base64", payload.get("image_base64"))
     payload.setdefault("frame_jpeg_base64", payload.get("image_base64"))
     payload.setdefault("point_id", session.point_id)
@@ -387,6 +392,13 @@ def build_latest_result(session_id: Any | None = None, *, frame_result: dict[str
         "no_fake_gps": True,
         "no_fake_detection": True,
     }
+    result["growth_prior"] = predict_growth_prior(
+        {
+            "point_id": session.point_id,
+            "species": "pohon_sono",
+            "clearance_m": measurement.get("clearance_m"),
+        }
+    )
     session.latest_result = result
     return result
 
@@ -601,7 +613,47 @@ def _select_base_gps(payload: dict[str, Any]) -> dict[str, Any]:
         best = select_best_gps_sample(normalized)
         if best:
             return best
-    return normalize_gps(payload.get("base_gps") or payload.get("gps") or payload)
+    return normalize_gps(_gps_payload(payload, "base") or payload.get("base_gps") or payload.get("gps") or payload)
+
+
+def _select_current_gps(payload: dict[str, Any]) -> dict[str, Any]:
+    return normalize_gps(_gps_payload(payload, "current") or payload.get("current_gps") or payload.get("gps") or payload)
+
+
+def _gps_payload(payload: dict[str, Any], prefix: str) -> dict[str, Any]:
+    nested = payload.get(f"{prefix}_gps")
+    if isinstance(nested, dict):
+        return nested
+    fields = {
+        "latitude": payload.get(f"{prefix}_latitude"),
+        "longitude": payload.get(f"{prefix}_longitude"),
+        "accuracy": payload.get(f"{prefix}_accuracy_m"),
+        "altitude": payload.get(f"{prefix}_altitude"),
+        "altitudeAccuracy": payload.get(f"{prefix}_altitude_accuracy"),
+        "heading": payload.get(f"{prefix}_heading"),
+        "speed": payload.get(f"{prefix}_speed"),
+        "timestamp": payload.get(f"{prefix}_timestamp") or payload.get("gps_timestamp") or payload.get("timestamp"),
+        "source": payload.get("gps_source") or "GPS_SOURCE_BROWSER",
+    }
+    return {key: value for key, value in fields.items() if value not in {None, ""}}
+
+
+def _gps_has_coordinates(gps: dict[str, Any]) -> bool:
+    return _to_float(gps.get("latitude")) is not None and _to_float(gps.get("longitude")) is not None
+
+
+def _apply_payload_gps_to_session(session: FieldSession, payload: dict[str, Any]) -> None:
+    base = _select_base_gps(payload)
+    current = _select_current_gps(payload)
+    if _gps_has_coordinates(base):
+        session.base_gps = base
+        if not session.gps_history:
+            session.gps_history.append(base)
+    if _gps_has_coordinates(current):
+        session.current_gps = current
+        session.gps_history.append(current)
+    elif _gps_has_coordinates(base):
+        session.current_gps = base
 
 
 def _resolve_session_for_stop(session_id: Any | None) -> FieldSession | None:
@@ -774,12 +826,19 @@ def _save_session(session: FieldSession, *, runtime_root: Path | None = None) ->
 
 
 def log_session_exception(exc: Exception, *, route: str, runtime_root: Path | None = None) -> dict[str, Any]:
-    root = runtime_root or (PROJECT_ROOT / "data" / "runtime")
-    path = root / "errors" / "session_errors.log"
-    path.parent.mkdir(parents=True, exist_ok=True)
+    date = datetime.now().strftime("%Y%m%d")
+    candidate_root = runtime_root or (PROJECT_ROOT / "data" / "runtime")
+    path = candidate_root / "session_errors" / f"field_session_error_{date}.jsonl"
     payload = {"timestamp": datetime.now().isoformat(), "route": route, "error_type": type(exc).__name__, "message": str(exc)[:500]}
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except OSError:
+        path = SESSION_ERROR_DIR / f"field_session_error_{date}.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
     return {"status": "FIELD_SESSION_ROUTE_EXCEPTION_LOGGED", "error_log": str(path), **payload}
 
 
@@ -826,14 +885,26 @@ def _basic_map_html(
             "<p>Polyline: base marker ke current marker.</p>"
         )
     return f"""<!doctype html>
-<html lang="id"><head><meta charset="utf-8"><title>Field Session Map</title></head>
-<body><h1>Field Session Map</h1>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Field Session Map</title>
+<style>
+body{{margin:0;min-height:100dvh;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#eefdf3;background:
+radial-gradient(circle at 20% 10%,rgba(75,196,126,.28),transparent 28%),
+linear-gradient(135deg,#071c14,#123827 54%,#06120d);overflow-wrap:anywhere;word-break:break-word}}
+main{{max-width:760px;margin:0 auto;padding:22px}}
+.card{{border:1px solid rgba(220,255,232,.22);border-radius:28px;background:rgba(9,42,30,.62);backdrop-filter:blur(18px);box-shadow:0 24px 70px rgba(0,0,0,.28);padding:18px;overflow:hidden}}
+.pill{{display:inline-flex;margin:4px 4px 4px 0;padding:7px 10px;border-radius:999px;background:rgba(215,255,226,.13);border:1px solid rgba(230,255,236,.18);font-size:12px}}
+a{{color:#d9ffe6}}
+</style></head>
+<body><main><section class="card"><p class="pill">MAP_HTML_READY</p><p class="pill">{html.escape(str(gps_truth.get('gps_precision_status')))}</p>
+<h1>Field Session Map</h1>
 <p>Session: {html.escape(session.session_id)}</p>
 <p>Point: {html.escape(point_id)}</p>{marker}
 <p>Distance reliability: {html.escape(str(derived.get('distance_reliability_status')))}</p>
 <p>Horizontal distance from tree: {html.escape(str(derived.get('horizontal_distance_from_tree_m')))}</p>
 <p>GPS digunakan sebagai evidence lokasi dan jarak horizontal kasar; bukan kalibrasi pixel-to-meter.</p>
-</body></html>"""
+<p><a href="/field-camera?session_id={html.escape(session.session_id)}">Back to Camera</a></p>
+</section></main></body></html>"""
 
 
 def _apply_visibility_payload(session: FieldSession, payload: dict[str, Any]) -> None:

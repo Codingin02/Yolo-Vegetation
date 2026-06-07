@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/static/field_capture.css">
-  <link rel="stylesheet" href="/static/field_capture_glass.css">
+  <link rel="stylesheet" href="/static/field_capture.css?v=progress6_6">
+  <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_6">
   <title>Field Report</title>
 </head>
 <body>
@@ -69,6 +69,16 @@
           </dl>
         </section>
         <section class="evidence-section">
+          <h2>Growth Prior</h2>
+          <dl class="glass-grid">
+            <div><dt>growth_prior_status</dt><dd id="growth-prior-status">GROWTH_PRIOR_PENDING</dd></div>
+            <div><dt>growth/year</dt><dd id="growth-year">-</dd></div>
+            <div><dt>ETA 3m</dt><dd id="growth-eta-3m">-</dd></div>
+            <div><dt>source_status</dt><dd id="growth-source-status">PROXY_NOT_FIELD_OBSERVED</dd></div>
+          </dl>
+          <p class="notice">Dataset pertumbuhan adalah PROXY_NOT_FIELD_OBSERVED; bukan klaim akurasi biologis final.</p>
+        </section>
+        <section class="evidence-section">
           <h2>CSV/Map Links</h2>
           <dl class="glass-grid">
             <div><dt>csv_path</dt><dd data-key="report_csv_url">-</dd></div>
@@ -78,7 +88,7 @@
         <section class="evidence-section">
           <h2>Limitations</h2>
           <p>MODEL_NOT_READY berarti tidak ada deteksi palsu. GPS adalah evidence lokasi dan jarak horizontal kasar, bukan kalibrasi pixel-to-meter.</p>
-          <p data-key="reason_codes">-</p>
+          <p class="chip-wrap" data-key="reason_codes">-</p>
         </section>
         <section class="evidence-section">
           <h2>Operator Notes</h2>
@@ -98,20 +108,35 @@
       </nav>
     </section>
   </main>
-  <script src="/static/field_navigation.js"></script>
+  <script src="/static/field_navigation.js?v=progress6_6"></script>
   <script>
+    function renderChips(node, value) {
+      const values = Array.isArray(value) ? value : String(value || '-').split(/[;,]/).filter(Boolean);
+      node.innerHTML = values.map(v => '<span class="reason-chip">' + String(v).trim() + '</span>').join('') || '-';
+    }
     fetch('/api/field/latest-report' + window.location.search).then(r => r.json()).then(data => {
       const row = data.row || data.field_session || data;
       document.querySelectorAll('[data-key]').forEach(node => {
         const key = node.getAttribute('data-key');
         const value = row[key] ?? data[key] ?? '-';
-        node.textContent = Array.isArray(value) ? value.join(', ') : value;
+        if (key === 'reason_codes') renderChips(node, value);
+        else node.textContent = Array.isArray(value) ? value.join(', ') : value;
       });
       const raw = document.getElementById('report-raw-json');
       if (raw) raw.textContent = JSON.stringify(data, null, 2);
       const map = row.map_url || data.map_url || '';
       const link = document.getElementById('report-map-link');
       if (link && map) link.href = map;
+      return fetch('/api/growth-prior/predict', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({point_id: row.point_id || data.point_id || 'V001_pohon_sono', clearance_m: row.clearance_m || data.clearance_m || null})
+      });
+    }).then(r => r.json()).then(growth => {
+      document.getElementById('growth-prior-status').textContent = growth.growth_prior_status || growth.status || '-';
+      document.getElementById('growth-year').textContent = growth.estimated_height_growth_m_per_year ?? '-';
+      document.getElementById('growth-eta-3m').textContent = growth.eta_to_3m_clearance_days ?? '-';
+      document.getElementById('growth-source-status').textContent = growth.source_status || 'PROXY_NOT_FIELD_OBSERVED';
     });
   </script>
 </body>

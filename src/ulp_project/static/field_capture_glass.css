@@ -78,6 +78,52 @@ body::before {
   transition: opacity 320ms cubic-bezier(0.22, 1, 0.36, 1), transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.capture-preflight-shell {
+  max-width: 720px;
+  min-height: 100dvh;
+  display: grid;
+  align-content: center;
+  gap: 12px;
+}
+
+.compact-hero h1 {
+  margin-bottom: 8px;
+}
+
+.preflight-card {
+  display: grid;
+  gap: 14px;
+}
+
+.preflight-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.start-camera-first {
+  min-height: 64px;
+  border-radius: 28px;
+  font-size: 20px;
+}
+
+.mini-nav {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mini-nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 40px;
+  border-radius: 20px;
+  text-align: center;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .session-command {
   display: grid;
   gap: 14px;
@@ -381,6 +427,21 @@ body.camera-mode-active .camera-bottom-bar {
   gap: 6px;
 }
 
+.reason-chip {
+  display: inline-flex;
+  max-width: 100%;
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: rgba(14, 124, 102, 0.14);
+  border: 1px solid rgba(14, 124, 102, 0.2);
+  color: var(--glass-ink);
+  font-size: 12px;
+  font-weight: 800;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .page-transitioning {
   opacity: 0.72;
   transform: translateY(12px);
@@ -442,6 +503,15 @@ body.camera-mode-active .camera-bottom-bar {
 
   .camera-bottom-bar .shutter-button {
     min-height: 52px;
+  }
+
+  .capture-preflight-shell {
+    align-content: start;
+  }
+
+  .preflight-form,
+  .mini-nav {
+    grid-template-columns: 1fr !important;
   }
 }
 

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/static/field_capture.css">
-  <link rel="stylesheet" href="/static/field_capture_glass.css">
+  <link rel="stylesheet" href="/static/field_capture.css?v=progress6_6">
+  <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_6">
   <title>Field Result</title>
 </head>
 <body>
@@ -39,6 +39,7 @@
             <div><dt>distance reliability</dt><dd data-key="distance_reliability_status">DISTANCE_NOT_AVAILABLE</dd></div>
           </dl>
           <p class="notice">Akurasi GPS belum cukup untuk klaim jarak presisi. Data tetap disimpan sebagai evidence lokasi.</p>
+          <p class="notice">Jarak mundur tersimpan, tetapi belum layak untuk klaim presisi jika akurasi GPS lebih besar dari jarak.</p>
         </section>
         <section class="evidence-section">
           <h2>Geometry</h2>
@@ -56,6 +57,16 @@
           <h2>Reason Codes</h2>
           <p class="chip-wrap" data-key="reason_codes">-</p>
         </section>
+        <section class="evidence-section">
+          <h2>Growth Prior</h2>
+          <dl class="glass-grid">
+            <div><dt>growth_prior_status</dt><dd id="growth-prior-status">GROWTH_PRIOR_PENDING</dd></div>
+            <div><dt>growth/year</dt><dd id="growth-year">-</dd></div>
+            <div><dt>ETA 3m</dt><dd id="growth-eta-3m">-</dd></div>
+            <div><dt>source_status</dt><dd id="growth-source-status">PROXY_NOT_FIELD_OBSERVED</dd></div>
+          </dl>
+          <p class="notice">Growth prior memakai dataset proxy, bukan observasi lapangan final.</p>
+        </section>
       </div>
       <details class="developer-debug">
         <summary>Developer Detail</summary>
@@ -70,19 +81,34 @@
       </nav>
     </section>
   </main>
-  <script src="/static/field_navigation.js"></script>
+  <script src="/static/field_navigation.js?v=progress6_6"></script>
   <script>
+    function renderChips(node, value) {
+      const values = Array.isArray(value) ? value : String(value || '-').split(/[;,]/).filter(Boolean);
+      node.innerHTML = values.map(v => '<span class="reason-chip">' + String(v).trim() + '</span>').join('') || '-';
+    }
     fetch('/api/field/latest-result' + window.location.search).then(r => r.json()).then(data => {
       document.querySelectorAll('[data-key]').forEach(node => {
         const key = node.getAttribute('data-key');
         const value = data[key] ?? '-';
-        node.textContent = Array.isArray(value) ? value.join(', ') : value;
+        if (key === 'reason_codes') renderChips(node, value);
+        else node.textContent = Array.isArray(value) ? value.join(', ') : value;
       });
       const raw = document.getElementById('result-raw-json');
       if (raw) raw.textContent = JSON.stringify(data, null, 2);
       const sessionId = data.session_id || new URLSearchParams(window.location.search).get('session_id') || '';
       const link = document.getElementById('result-map-link');
       if (link && sessionId) link.href = '/field-map/session/' + encodeURIComponent(sessionId);
+      return fetch('/api/growth-prior/predict', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({point_id: data.point_id || 'V001_pohon_sono', clearance_m: data.clearance_m || null})
+      });
+    }).then(r => r.json()).then(growth => {
+      document.getElementById('growth-prior-status').textContent = growth.growth_prior_status || growth.status || '-';
+      document.getElementById('growth-year').textContent = growth.estimated_height_growth_m_per_year ?? '-';
+      document.getElementById('growth-eta-3m').textContent = growth.eta_to_3m_clearance_days ?? '-';
+      document.getElementById('growth-source-status').textContent = growth.source_status || 'PROXY_NOT_FIELD_OBSERVED';
     });
   </script>
 </body>

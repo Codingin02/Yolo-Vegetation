@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_6">
+  <link rel="stylesheet" href="/static/field_camera.css?v=progress6_6">
+  <title>Field Camera</title>
+</head>
+<body data-page="field-camera" class="camera-mode-active">
+  <main class="field-camera-root">
+    <section class="camera-stage field-camera-stage" aria-label="Kamera lapangan">
+      <video id="camera" playsinline autoplay muted></video>
+      <canvas id="overlay-canvas"></canvas>
+      <canvas id="frame" hidden></canvas>
+      <div class="camera-top-bar">
+        <span class="camera-chip">MODEL_NOT_READY_NO_FAKE_DETECTION</span>
+        <span id="camera-gps-chip" class="camera-chip">GPS_WAITING_PERMISSION</span>
+        <span id="camera-distance-chip" class="camera-chip">DISTANCE_NOT_AVAILABLE</span>
+        <span id="camera-session-chip" class="camera-chip">-</span>
+      </div>
+      <div id="field-toast" class="field-toast" hidden>FIELD_SESSION_READY</div>
+      <div id="foreground-warning" class="foreground-camera-warning" hidden>Halaman tidak aktif. Browser dapat membatasi kamera/timer/GPS.</div>
+      <nav class="camera-bottom-bar" role="toolbar" aria-label="Field camera controls">
+        <button id="session-stop" type="button">Stop</button>
+        <button id="open-map-report" type="button">Map</button>
+        <button id="session-report" type="button">Report</button>
+        <button id="shutter-capture" class="shutter-button" type="button" aria-label="Jepret / Shutter">●</button>
+        <button id="session-result" type="button">Result</button>
+        <button id="session-manual-input" type="button">Manual</button>
+      </nav>
+    </section>
+
+    <details class="camera-debug">
+      <summary>Developer Debug</summary>
+      <p>UI version: progress6_6</p>
+      <dl class="glass-grid">
+        <div><dt>session_id</dt><dd id="session-id">-</dd></div>
+        <div><dt>gps_base_lock_status</dt><dd id="gps-base-lock-status">GPS_BASE_NOT_LOCKED</dd></div>
+        <div><dt>wake_lock</dt><dd id="wake-lock-status">WAKE_LOCK_NOT_REQUESTED</dd></div>
+        <div><dt>foreground_recording_status</dt><dd id="foreground-recording-status">FOREGROUND_RECORDING_REQUIRED</dd></div>
+        <div><dt>visibility_state</dt><dd id="visibility-state">visible</dd></div>
+        <div><dt>hidden_duration_ms</dt><dd id="hidden-duration-ms">0</dd></div>
+        <div><dt>browser_throttle_warning</dt><dd id="browser-throttle-warning">-</dd></div>
+        <div><dt>horizontal_distance_from_tree_m</dt><dd id="horizontal-distance-from-tree">-</dd></div>
+        <div><dt>distance_reliability_status</dt><dd id="distance-reliability-status">DISTANCE_NOT_AVAILABLE</dd></div>
+        <div><dt>gps_quality_reason</dt><dd id="gps-quality-reason">GPS_WAITING_PERMISSION</dd></div>
+        <div><dt>movement_status</dt><dd id="movement-status">GPS_NOT_READY</dd></div>
+        <div><dt>gps_status</dt><dd id="gps-status">GPS_WAITING_PERMISSION</dd></div>
+        <div><dt>gps_source</dt><dd id="gps-source-status">GPS_NOT_PROVIDED</dd></div>
+        <div><dt>gps_accuracy</dt><dd id="gps-accuracy-status">-</dd></div>
+        <div><dt>camera_status</dt><dd id="camera-status">CAMERA_WAITING_PERMISSION</dd></div>
+        <div><dt>frame_interval</dt><dd id="frame-interval-status">1000 ms</dd></div>
+        <div><dt>last_error</dt><dd id="last-error-status">-</dd></div>
+      </dl>
+      <pre id="status-output">FIELD_CAMERA_PROGRESS6_6_READY</pre>
+    </details>
+
+    <div hidden aria-hidden="true">
+      <input id="point_id" value="V001_pohon_sono">
+      <input id="operator_name">
+      <textarea id="operator_note"></textarea>
+      <span id="glass-url-mode">HTTPS_PUBLIC_READY</span>
+      <span id="glass-gps-status">GPS_WAITING_PERMISSION</span>
+      <span id="glass-camera-status">CAMERA_WAITING_PERMISSION</span>
+      <span id="glass-model-status">MODEL_NOT_READY</span>
+      <span id="glass-recording-status">RECORDING_ACTIVE</span>
+      <span id="report-path">-</span>
+      <span id="map-path">-</span>
+      <span id="report-id">-</span>
+      <span id="public-tunnel-status">PUBLIC_TUNNEL_NOT_RUNNING</span>
+    </div>
+  </main>
+  <script src="/static/field_navigation.js?v=progress6_6"></script>
+  <script src="/static/field_session.js?v=progress6_6"></script>
+  <script src="/static/field_camera.js?v=progress6_6"></script>
+</body>
+</html>
