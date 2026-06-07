@@ -22,6 +22,7 @@
   function bind(id, path) {
     const el = document.getElementById(id);
     if (!el) return;
+    if (document.body && document.body.dataset.page === "field-camera" && (id === "session-result" || id === "session-manual-input" || id === "session-report")) return;
     el.addEventListener("click", function () {
       go(path);
     });
@@ -34,7 +35,7 @@
   };
 
   bind("session-report", "/field-report");
-  bind("session-result", "/field-result");
+  bind("session-result", "/field-spreadsheet/session/" + encodeURIComponent(currentSessionId()));
   bind("session-manual-input", "/field-manual-input");
   bind("session-acceptance", "/field-acceptance");
 })();

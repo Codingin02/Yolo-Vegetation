@@ -5,6 +5,10 @@
     maximumAge: 0
   };
 
+  const legacyStatusTokens = {
+    degradedFallback: "SESSION_API_DEGRADED_FALLBACK_USED"
+  };
+
   const state = {
     session_id: window.localStorage.getItem("field_session_id") || "",
     session_status: "RECORDING_STOPPED",
@@ -28,7 +32,14 @@
     cameraStream: null,
     frameTimer: null,
     frameInFlight: false,
+    startInFlight: false,
     shutterInFlight: false,
+    shutterDone: false,
+    mapUrl: "",
+    spreadsheetUrl: "",
+    frameConsecutiveErrors: 0,
+    gpsLastSentAt: 0,
+    gpsLastSignature: "",
     frame_process_interval_ms: 1000,
     max_allowed_latency_ms: 3000,
     gpsSamples: [],
@@ -263,6 +274,13 @@
   }
 
   async function startSession() {
+    if (state.startInFlight) {
+      showToast("START_SESSION_ALREADY_IN_PROGRESS");
+      return;
+    }
+    state.startInFlight = true;
+    const startButton = el("session-start");
+    if (startButton) startButton.disabled = true;
     try {
       text("glass-url-mode", currentUrlMode());
       if (!requireSecureFieldContext()) return;
@@ -278,6 +296,9 @@
       const payload = collectSessionPayload();
       const result = await postJson("/api/field/session/start", payload);
       state.session_id = result.session_id || result.session && result.session.session_id || state.session_id;
+      if (!state.session_id) {
+        throw new Error("FIELD_SESSION_START_RETURNED_EMPTY_SESSION_ID");
+      }
       if (state.session_id) window.localStorage.setItem("field_session_id", state.session_id);
       state.session_status = "RECORDING_ACTIVE";
       text("session-id", state.session_id);
@@ -291,6 +312,9 @@
       renderStatus();
     } catch (error) {
       handleError("FIELD_SESSION_START_FAILED", String(error));
+    } finally {
+      state.startInFlight = false;
+      if (startButton) startButton.disabled = false;
     }
   }
 
@@ -307,6 +331,14 @@
       handleError("FIELD_SESSION_STOP_FAILED_JSON_GUARD", String(error));
     }
     renderStatus();
+  }
+
+  async function homeFromCamera() {
+    try {
+      await stopSession();
+    } finally {
+      window.location.assign("/field-capture");
+    }
   }
 
   function startFrameLoop() {
@@ -385,6 +417,17 @@
 
   async function sendGpsUpdate(gps, setBase) {
     if (!state.session_id) return;
+    const signature = [
+      gps && gps.latitude,
+      gps && gps.longitude,
+      gps && gps.accuracy,
+      Boolean(setBase)
+    ].join("|");
+    const now = Date.now();
+    if (!setBase && signature === state.gpsLastSignature && now - state.gpsLastSentAt < 1500) return;
+    if (!setBase && now - state.gpsLastSentAt < 1200) return;
+    state.gpsLastSignature = signature;
+    state.gpsLastSentAt = now;
     await postJson("/api/field/session/gps-update", {
       ...gps,
       ...visibilityPayload(),
@@ -395,6 +438,11 @@
 
   async function sendFrame() {
     if (state.frameInFlight) return;
+    if (!state.session_id) {
+      stopFrameLoop();
+      handleError("FIELD_SESSION_ID_REQUIRED", "Session ID kosong. Kembali ke Home lalu tekan Start ulang.");
+      return;
+    }
     const video = el("camera");
     if (!video || !video.videoWidth) {
       renderOverlay("CAMERA_FRAME_NOT_READY");
@@ -408,12 +456,19 @@
         session_id: state.session_id,
         point_id: value("point_id") || "V001_pohon_sono",
         image_base64: image,
+        frame_image_base64: image,
         timestamp_client_ms: Date.now(),
-        gps_lat: state.currentGpsPosition && state.currentGpsPosition.latitude,
-        gps_lon: state.currentGpsPosition && state.currentGpsPosition.longitude,
-        gps_accuracy_m: state.currentGpsPosition && state.currentGpsPosition.accuracy,
+        gps: state.currentGpsPosition,
+        current_latitude: state.currentGpsPosition && state.currentGpsPosition.latitude,
+        current_longitude: state.currentGpsPosition && state.currentGpsPosition.longitude,
+        current_accuracy_m: state.currentGpsPosition && state.currentGpsPosition.accuracy,
         ...visibilityPayload()
       });
+      state.frameConsecutiveErrors = 0;
+      if (state.frame_process_interval_ms > 1000 && document.visibilityState !== "hidden") {
+        state.frame_process_interval_ms = 1000;
+        startFrameLoop();
+      }
       const latency = Math.round(performance.now() - started);
       if (latency > state.max_allowed_latency_ms) {
         state.frame_process_interval_ms = Math.min(3000, Math.max(2000, state.frame_process_interval_ms + 1000));
@@ -425,6 +480,14 @@
       renderOverlay(result);
       renderStatus();
     } catch (error) {
+      state.frameConsecutiveErrors += 1;
+      if (String(error).includes("FIELD_SESSION_ID_REQUIRED")) {
+        stopFrameLoop();
+      } else if (state.frameConsecutiveErrors >= 3) {
+        state.frame_process_interval_ms = 3000;
+        text("last-error-status", "FRAME_BACKOFF_ACTIVE");
+        startFrameLoop();
+      }
       handleError("FIELD_SESSION_FRAME_FAILED", String(error));
     } finally {
       state.frameInFlight = false;
@@ -432,6 +495,12 @@
   }
 
   async function shutterCapture() {
+    press3D(el("shutter-capture"));
+    safeVibrate(20);
+    if (!state.session_id) {
+      showToast("FIELD_SESSION_ID_REQUIRED");
+      return { status: "FIELD_SESSION_ID_REQUIRED" };
+    }
     if (state.shutterInFlight) {
       handleError("DUPLICATE_SHUTTER_IGNORED_CLIENT_IN_FLIGHT", "Shutter sedang menyimpan. Tunggu toast selesai.");
       return { status: "DUPLICATE_SHUTTER_IGNORED_CLIENT_IN_FLIGHT" };
@@ -460,20 +529,18 @@
     try {
       result = await postJson("/api/field/session/shutter", payload);
     } catch (error) {
-      if (state.sessionRouteFallbackUsed) throw error;
-      state.sessionRouteFallbackUsed = true;
-      handleError("SESSION_API_DEGRADED_FALLBACK_USED", String(error));
-      result = await postJson("/api/field/shutter-capture", {
-        ...payload,
-        image_jpeg_base64: image,
-        gps_lat: state.currentGpsPosition && state.currentGpsPosition.latitude,
-        gps_lon: state.currentGpsPosition && state.currentGpsPosition.longitude,
-        gps_accuracy_m: state.currentGpsPosition && state.currentGpsPosition.accuracy
-      });
-      result.session_api_fallback_status = "SESSION_API_DEGRADED_FALLBACK_USED";
+      handleError("FIELD_SESSION_SHUTTER_FAILED", String(error));
+      return { status: "FIELD_SESSION_SHUTTER_FAILED", message: String(error) };
     } finally {
       state.shutterInFlight = false;
       setShutterDisabled(false);
+    }
+    if (result.status === "FIELD_SESSION_SHUTTER_SAVED" || result.status === "DUPLICATE_SHUTTER_IGNORED") {
+      state.shutterDone = true;
+      state.mapUrl = result.map_url || state.mapUrl || (state.session_id ? `/field-map/session/${encodeURIComponent(state.session_id)}` : "");
+      state.spreadsheetUrl = result.spreadsheet_url || result.result_page_url || state.spreadsheetUrl || (state.session_id ? `/field-spreadsheet/session/${encodeURIComponent(state.session_id)}` : "");
+      setEvidenceButtonsEnabled(true);
+      shutterPulse();
     }
     if (result.report_csv_url) text("report-path", result.report_csv_url);
     if (result.map_url) text("map-path", result.map_url);
@@ -489,6 +556,16 @@
       button.disabled = Boolean(disabled);
       button.setAttribute("aria-busy", disabled ? "true" : "false");
     }
+  }
+
+  function setEvidenceButtonsEnabled(enabled) {
+    ["open-map-report", "session-result"].forEach(function (id) {
+      const button = el(id);
+      if (button) {
+        button.disabled = !enabled;
+        button.setAttribute("aria-disabled", enabled ? "false" : "true");
+      }
+    });
   }
 
   function showToast(message) {
@@ -530,6 +607,8 @@
     text("movement-status", state.derivedGps.movement_status);
     text("gps-base-lock-status", state.baseGpsLockStatus);
     text("camera-session-chip", state.session_id ? state.session_id.slice(-8) : "-");
+    text("camera-frame-chip", state.frameConsecutiveErrors >= 3 ? "FRAME_BACKOFF_ACTIVE" : (state.latestResult.status || "FRAME_WAITING"));
+    text("camera-shutter-chip", state.shutterDone ? "SHUTTER_DONE" : "SHUTTER_REQUIRED");
     text("camera-gps-chip", state.derivedGps.gps_accuracy_status);
     text("camera-distance-chip", state.derivedGps.horizontal_distance_from_tree_m === null ? "DISTANCE_NOT_AVAILABLE" : `${state.derivedGps.horizontal_distance_from_tree_m} m`);
     text("gps-status", state.derivedGps.gps_accuracy_status === "GPS_ACCURACY_UNKNOWN" ? "GPS_WAITING_PERMISSION" : "GPS_READY");
@@ -576,8 +655,9 @@
   }
 
   function collectSessionPayload() {
+    const isPreflight = document.body && document.body.dataset.page === "field-capture-preflight";
     return {
-      session_id: state.session_id,
+      session_id: isPreflight ? "" : state.session_id,
       point_id: value("point_id") || "V001_pohon_sono",
       operator_name: value("operator_name"),
       notes: value("operator_note"),
@@ -647,14 +727,70 @@
   }
 
   function openSessionMap() {
-    const path = state.session_id ? `/field-map/session/${encodeURIComponent(state.session_id)}` : "/api/field/latest-map";
-    window.open(path, "_blank", "noopener");
+    press3D(el("open-map-report"));
+    safeVibrate(12);
+    if (!state.shutterDone || !state.mapUrl) {
+      showToast("Jepret dulu untuk membuat evidence map");
+      return;
+    }
+    window.location.assign(state.mapUrl);
+  }
+
+  function openSessionSpreadsheet() {
+    press3D(el("session-result"));
+    safeVibrate(12);
+    if (!state.shutterDone || !state.spreadsheetUrl) {
+      showToast("Jepret dulu untuk membuat spreadsheet evidence");
+      return;
+    }
+    window.location.assign(state.spreadsheetUrl);
+  }
+
+  function openManualInput() {
+    press3D(el("session-manual-input"));
+    safeVibrate(12);
+    const target = state.session_id ? `/field-manual-input?session_id=${encodeURIComponent(state.session_id)}` : "/field-manual-input";
+    window.location.assign(target);
+  }
+
+  function safeVibrate(ms) {
+    if (navigator.vibrate) {
+      try {
+        navigator.vibrate(ms);
+      } catch (error) {
+        // Haptic feedback is optional.
+      }
+    }
+  }
+
+  function press3D(button) {
+    if (!button || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    button.classList.remove("press-3d-active");
+    window.requestAnimationFrame(function () {
+      button.classList.add("press-3d-active");
+      window.setTimeout(function () {
+        button.classList.remove("press-3d-active");
+      }, 180);
+    });
+  }
+
+  function shutterPulse() {
+    const button = el("shutter-capture");
+    if (!button || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    button.classList.remove("shutter-pulse-active");
+    window.requestAnimationFrame(function () {
+      button.classList.add("shutter-pulse-active");
+      window.setTimeout(function () {
+        button.classList.remove("shutter-pulse-active");
+      }, 420);
+    });
   }
 
   window.FieldSession = {
     state,
     startSession,
     stopSession,
+    homeFromCamera,
     requestHighAccuracyGps,
     startGpsWatch,
     stopGpsWatch,
@@ -670,13 +806,22 @@
     renderStatus,
     renderOverlay,
     handleError,
-    handleVisibilityChange
+    handleVisibilityChange,
+    openSessionMap,
+    openSessionSpreadsheet,
+    openManualInput,
+    safeVibrate,
+    press3D
   };
 
   bind("session-start", startSession);
   bind("session-stop", stopSession);
+  bind("session-home", homeFromCamera);
   bind("shutter-capture", shutterCapture);
   bind("open-map-report", openSessionMap);
+  bind("session-result", openSessionSpreadsheet);
+  bind("session-manual-input", openManualInput);
   document.addEventListener("visibilitychange", handleVisibilityChange);
+  setEvidenceButtonsEnabled(false);
   renderStatus();
 })();

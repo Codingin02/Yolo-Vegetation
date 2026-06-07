@@ -442,6 +442,13 @@ body.camera-mode-active .camera-bottom-bar {
   word-break: break-word;
 }
 
+.button-link.is-disabled,
+.mini-nav .is-disabled {
+  opacity: 0.52;
+  pointer-events: none;
+  filter: saturate(0.65);
+}
+
 .page-transitioning {
   opacity: 0.72;
   transform: translateY(12px);

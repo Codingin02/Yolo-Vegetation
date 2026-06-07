@@ -16,11 +16,13 @@ from .field_acceptance_runtime import (
 )
 from .field_session_runtime import (
     build_latest_result,
+    field_session_spreadsheet,
     latest_field_session_map,
     latest_field_session_report,
     log_session_exception,
     process_field_session_frame,
     record_manual_input,
+    render_field_session_spreadsheet_html,
     session_status,
     shutter_field_session,
     start_field_session,
@@ -183,7 +185,7 @@ def register_field_capture_routes(app) -> None:
 
     @app.get("/api/runtime/ui-version")
     def runtime_ui_version():
-        return jsonify({"status": "UI_VERSION_READY", "ui_version": "progress6_6", "camera_first_ui": True})
+        return jsonify({"status": "UI_VERSION_READY", "ui_version": "progress6_7", "camera_first_ui": True})
 
     @app.get("/api/model/status")
     def model_status():
@@ -233,13 +235,19 @@ def register_field_capture_routes(app) -> None:
             return jsonify(start_field_session(dict(payload or request.form), runtime_root=runtime)), 201
         except Exception as exc:  # pragma: no cover - defensive live route guard
             logged = log_session_exception(exc, route="/api/field/session/start", runtime_root=runtime)
+            fallback_session_id = f"FS_DEGRADED_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             return jsonify(
                 {
                     **logged,
+                    "ok": False,
                     "status": "FIELD_SESSION_START_DEGRADED_INPUT_ACCEPTED",
                     "error_code": "FIELD_SESSION_START_EXCEPTION_CAUGHT",
                     "message": "Session start diterima dalam mode aman; tidak ada deteksi palsu.",
-                    "session_id": "",
+                    "session_id": fallback_session_id,
+                    "camera_url": f"/field-camera?session_id={fallback_session_id}",
+                    "map_enabled": False,
+                    "result_enabled": False,
+                    "shutter_required": True,
                     "recording_status": "RECORDING_STOPPED",
                     "model_status": "MODEL_NOT_READY",
                     "no_fake_detection": True,
@@ -269,20 +277,53 @@ def register_field_capture_routes(app) -> None:
     def field_session_gps_update_route():
         payload = request.get_json(silent=True) if request.is_json else None
         runtime = Path(app.config["ULP_RUNTIME_ROOT"])
-        return jsonify(update_field_session_gps(dict(payload or request.form), runtime_root=runtime))
+        try:
+            result = update_field_session_gps(dict(payload or request.form), runtime_root=runtime)
+            status_code = int(result.pop("http_status", 200))
+            return jsonify(result), status_code
+        except Exception as exc:  # pragma: no cover - live guard
+            logged = log_session_exception(exc, route="/api/field/session/gps-update", runtime_root=runtime)
+            return jsonify(
+                {
+                    **logged,
+                    "status": "GPS_INVALID_SAFE",
+                    "error_code": "FIELD_SESSION_GPS_UPDATE_EXCEPTION_CAUGHT",
+                    "session_id": str((payload or {}).get("session_id") or ""),
+                    "no_fake_gps": True,
+                    "no_fake_detection": True,
+                }
+            ), 202
 
     @app.post("/api/field/session/frame")
     def field_session_frame_route():
         payload = request.get_json(silent=True) or {}
         runtime = Path(app.config["ULP_RUNTIME_ROOT"])
-        return jsonify(process_field_session_frame(dict(payload), runtime_root=runtime))
+        try:
+            result = process_field_session_frame(dict(payload), runtime_root=runtime)
+            status_code = int(result.pop("http_status", 200))
+            return jsonify(result), status_code
+        except Exception as exc:  # pragma: no cover - live guard
+            logged = log_session_exception(exc, route="/api/field/session/frame", runtime_root=runtime)
+            return jsonify(
+                {
+                    **logged,
+                    "status": "TREE_MODEL_INFERENCE_FAILED_SAFE",
+                    "error_code": "FIELD_SESSION_FRAME_EXCEPTION_CAUGHT",
+                    "session_id": str(payload.get("session_id") or ""),
+                    "detections": [],
+                    "detected_classes": [],
+                    "no_fake_detection": True,
+                }
+            ), 202
 
     @app.post("/api/field/session/shutter")
     def field_session_shutter_route():
         payload = request.get_json(silent=True) if request.is_json else None
         runtime = Path(app.config["ULP_RUNTIME_ROOT"])
         try:
-            return jsonify(shutter_field_session(dict(payload or request.form), runtime_root=runtime))
+            result = shutter_field_session(dict(payload or request.form), runtime_root=runtime)
+            status_code = int(result.pop("http_status", 200))
+            return jsonify(result), status_code
         except Exception as exc:  # pragma: no cover - defensive live route guard
             logged = log_session_exception(exc, route="/api/field/session/shutter", runtime_root=runtime)
             return jsonify(
@@ -298,6 +339,16 @@ def register_field_capture_routes(app) -> None:
                     "no_fake_detection": True,
                 }
             ), 202
+
+    @app.get("/api/field/session/<session_id>/spreadsheet")
+    def field_session_spreadsheet_api(session_id: str):
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        return jsonify(field_session_spreadsheet(session_id, runtime_root=runtime))
+
+    @app.get("/field-spreadsheet/session/<session_id>")
+    def field_session_spreadsheet_page(session_id: str):
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        return render_field_session_spreadsheet_html(session_id, runtime_root=runtime)
 
     @app.post("/api/field/realtime-frame")
     def field_progress5_4_realtime_frame():

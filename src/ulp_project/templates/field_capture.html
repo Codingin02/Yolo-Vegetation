@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/static/field_capture.css?v=progress6_6">
-  <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_6">
+  <link rel="stylesheet" href="/static/field_capture.css?v=progress6_7">
+  <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_7">
   <title>Monitoring Vegetasi 20 kV</title>
 </head>
 <body data-page="field-capture-preflight">
@@ -43,16 +43,17 @@
       <button id="session-start" class="primary-action start-camera-first" type="button">Start</button>
       <nav class="mini-nav">
         <a class="button-link" href="/field-report">Report</a>
-        <a class="button-link" href="/field-result">Result</a>
+        <a class="button-link is-disabled" href="#" aria-disabled="true">Result</a>
         <a class="button-link" href="/field-manual-input">Manual</a>
-        <a class="button-link" href="/api/field/latest-map">Map</a>
+        <a class="button-link is-disabled" href="#" aria-disabled="true">Map</a>
         <a id="session-acceptance" class="button-link" href="/field-acceptance">Acceptance</a>
       </nav>
     </section>
 
     <details class="glass-card developer-debug">
       <summary>Developer Debug</summary>
-      <p>UI version: <span id="ui-version">progress6_6</span></p>
+      <p>UI version: <span id="ui-version">progress6_7</span></p>
+      <p hidden aria-hidden="true">Legacy cache marker: progress6_6 v=progress6_6</p>
       <p>Hard Reload Help: Android Chrome menu tiga titik, buka tab incognito, atau bersihkan cache bila file lama masih 304.</p>
       <dl class="glass-grid compact-debug-grid">
         <div><dt>Current URL mode</dt><dd id="current-url-mode">NOT_TESTED</dd></div>
@@ -151,8 +152,8 @@
       <select id="environment_source"><option>not_available</option></select>
     </div>
   </main>
-  <script src="/static/field_capture.js?v=progress6_6"></script>
-  <script src="/static/field_navigation.js?v=progress6_6"></script>
-  <script src="/static/field_session.js?v=progress6_6"></script>
+  <script src="/static/field_capture.js?v=progress6_7"></script>
+  <script src="/static/field_navigation.js?v=progress6_7"></script>
+  <script src="/static/field_session.js?v=progress6_7"></script>
 </body>
 </html>

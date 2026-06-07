@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/static/field_capture.css?v=progress6_6">
-  <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_6">
+  <link rel="stylesheet" href="/static/field_capture.css?v=progress6_7">
+  <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_7">
   <title>Field Report</title>
 </head>
 <body>
@@ -101,14 +101,14 @@
       </details>
       <nav class="bottom-nav">
         <a href="/field-capture">Back to Capture</a>
-        <button id="session-result" type="button">Open Result</button>
+        <button id="session-result" type="button">Open Spreadsheet Result</button>
         <button id="session-acceptance" type="button">Acceptance</button>
         <a href="/field-reports/field_capture_autosave.csv">Download CSV</a>
-        <a id="report-map-link" href="/api/field/latest-map">Open Map</a>
+        <a id="report-map-link" href="#">Open Map</a>
       </nav>
     </section>
   </main>
-  <script src="/static/field_navigation.js?v=progress6_6"></script>
+  <script src="/static/field_navigation.js?v=progress6_7"></script>
   <script>
     function renderChips(node, value) {
       const values = Array.isArray(value) ? value : String(value || '-').split(/[;,]/).filter(Boolean);

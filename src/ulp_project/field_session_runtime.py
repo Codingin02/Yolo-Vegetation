@@ -29,6 +29,7 @@ from .progress5_4_field_runtime import (
     latest_progress5_4_measurement,
     process_progress5_4_realtime_frame,
 )
+from .tree_detection_runtime import decode_frame_image_bytes, infer_tree_candidate, tree_model_status
 
 SESSION_RUNTIME_DIR = PROJECT_ROOT / "data" / "runtime" / "field_sessions"
 SESSION_MAP_DIR = PROJECT_ROOT / "data" / "runtime" / "field_maps"
@@ -66,6 +67,15 @@ FIELD_SESSION_REPORT_COLUMNS = [
     "current_latitude_raw",
     "current_longitude_raw",
     "gps_precision_status",
+    "tree_model_status",
+    "tree_confidence",
+    "tree_bbox",
+    "pole_model_status",
+    "conductor_model_status",
+    "growth_prior_status",
+    "growth_year_m",
+    "eta_3m_status",
+    "spreadsheet_url",
 ]
 
 for column in FIELD_SESSION_REPORT_COLUMNS:
@@ -126,6 +136,7 @@ def distance_reliability(base: dict[str, Any] | None, current: dict[str, Any] | 
 
 
 def normalize_gps(payload: dict[str, Any]) -> dict[str, Any]:
+    payload = _coerce_gps_payload(payload)
     gps = {
         "latitude": _to_float(_first_present(payload, "latitude", "gps_lat", "lat", "base_latitude", "current_latitude")),
         "longitude": _to_float(_first_present(payload, "longitude", "gps_lon", "lon", "base_longitude", "current_longitude")),
@@ -150,13 +161,35 @@ def normalize_gps(payload: dict[str, Any]) -> dict[str, Any]:
     return gps
 
 
+def _coerce_gps_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    payload = dict(payload or {})
+    coords = payload.get("coords")
+    if isinstance(coords, dict):
+        payload = {**coords, **payload}
+    gps = payload.get("gps")
+    if isinstance(gps, dict):
+        payload = {**gps, **payload}
+    if "current_latitude" in payload and "latitude" not in payload:
+        payload["latitude"] = payload.get("current_latitude")
+    if "current_longitude" in payload and "longitude" not in payload:
+        payload["longitude"] = payload.get("current_longitude")
+    if "current_accuracy_m" in payload and "accuracy" not in payload:
+        payload["accuracy"] = payload.get("current_accuracy_m")
+    return payload
+
+
 def start_field_session(payload: dict[str, Any], *, runtime_root: Path | None = None) -> dict[str, Any]:
     global _LATEST_SESSION_ID
     idempotency_key = str(payload.get("idempotency_key") or "").strip()
     if idempotency_key and idempotency_key in _START_IDEMPOTENCY:
         session = _SESSIONS.get(_START_IDEMPOTENCY[idempotency_key])
         if session:
-            return {**session_status(session.session_id), "status": "FIELD_SESSION_STARTED", "idempotent_replay": True}
+            return {
+                **session_status(session.session_id),
+                **_session_start_contract(session.session_id),
+                "status": "FIELD_SESSION_STARTED",
+                "idempotent_replay": True,
+            }
     session_id = str(payload.get("session_id") or f"FS_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}")
     base = _select_base_gps(payload)
     current = _select_current_gps(payload)
@@ -187,7 +220,7 @@ def start_field_session(payload: dict[str, Any], *, runtime_root: Path | None = 
     if idempotency_key:
         _START_IDEMPOTENCY[idempotency_key] = session_id
     _save_session(session, runtime_root=runtime_root)
-    return {**session_status(session_id), "status": "FIELD_SESSION_STARTED"}
+    return {**session_status(session_id), **_session_start_contract(session_id), "status": "FIELD_SESSION_STARTED"}
 
 
 def stop_field_session(payload: dict[str, Any], *, runtime_root: Path | None = None) -> dict[str, Any]:
@@ -210,7 +243,15 @@ def stop_field_session(payload: dict[str, Any], *, runtime_root: Path | None = N
 
 
 def update_field_session_gps(payload: dict[str, Any], *, runtime_root: Path | None = None) -> dict[str, Any]:
-    session = _get_or_latest(payload.get("session_id"))
+    session = _resolve_existing_session(payload.get("session_id"), runtime_root=runtime_root)
+    if session is None:
+        return {
+            "status": "FIELD_SESSION_ID_REQUIRED" if not str(payload.get("session_id") or "").strip() else "FIELD_SESSION_NOT_FOUND",
+            "session_id": str(payload.get("session_id") or ""),
+            "http_status": 400 if not str(payload.get("session_id") or "").strip() else 404,
+            "no_fake_gps": True,
+            "no_fake_detection": True,
+        }
     _apply_visibility_payload(session, payload)
     gps = normalize_gps(payload)
     if not session.base_gps or payload.get("set_base"):
@@ -226,13 +267,57 @@ def update_field_session_gps(payload: dict[str, Any], *, runtime_root: Path | No
     if not derived["is_distance_reliable"]:
         _add_reason(session, str(derived["distance_reliability_status"]))
     _save_session(session, runtime_root=runtime_root)
-    return {"status": "FIELD_SESSION_GPS_UPDATED", "session_id": session.session_id, "gps": gps, "derived_gps": derived, "no_fake_gps": True}
+    status = "GPS_UPDATED"
+    if not _gps_has_coordinates(gps):
+        status = "GPS_INVALID_SAFE"
+    elif not derived.get("is_distance_reliable"):
+        status = str(derived.get("distance_reliability_status") or "GPS_UPDATED")
+    return {
+        "status": status,
+        "legacy_status": "FIELD_SESSION_GPS_UPDATED",
+        "session_id": session.session_id,
+        "gps": gps,
+        "derived_gps": derived,
+        "no_fake_gps": True,
+        "no_fake_detection": True,
+    }
 
 
 def process_field_session_frame(payload: dict[str, Any], *, runtime_root: Path) -> dict[str, Any]:
-    session = _get_or_latest(payload.get("session_id"))
+    key = str(payload.get("session_id") or "").strip()
+    if not key:
+        return {
+            "status": "FIELD_SESSION_ID_REQUIRED",
+            "error_code": "FIELD_SESSION_ID_REQUIRED",
+            "http_status": 400,
+            "detections": [],
+            "detected_classes": [],
+            "no_fake_detection": True,
+            "no_fake_gps": True,
+        }
+    session = _resolve_existing_session(key, runtime_root=runtime_root)
+    if session is None:
+        return {
+            "status": "FIELD_SESSION_NOT_FOUND",
+            "session_id": key,
+            "http_status": 404,
+            "detections": [],
+            "detected_classes": [],
+            "no_fake_detection": True,
+            "no_fake_gps": True,
+        }
     _apply_visibility_payload(session, payload)
-    result = process_progress5_4_realtime_frame(payload, runtime_root=runtime_root, debug_coco=bool(payload.get("debug_coco")))
+    _apply_payload_gps_to_session(session, payload)
+    decode = decode_frame_image_bytes(payload)
+    if decode["status"] in {"FRAME_SKIPPED_NO_IMAGE", "FRAME_DECODE_FAILED_SAFE", "FRAME_TOO_LARGE_DROPPED_SAFE"}:
+        result = _safe_frame_result(session, status=decode["status"], extra=decode)
+        session.latest_frame_status = result
+        session.latest_measurement = result.get("measurement_result", {})
+        session.latest_result = build_latest_result(session.session_id, frame_result=result)
+        _save_session(session, runtime_root=runtime_root)
+        return result
+    tree = infer_tree_candidate(payload)
+    result = _session_frame_result_from_tree(session, tree)
     session.latest_frame_status = result
     session.latest_measurement = result.get("measurement_result", {})
     session.model_status = result.get("model_status", session.model_status)
@@ -242,12 +327,25 @@ def process_field_session_frame(payload: dict[str, Any], *, runtime_root: Path) 
 
 
 def shutter_field_session(payload: dict[str, Any], *, runtime_root: Path) -> dict[str, Any]:
+    if not str(payload.get("session_id") or "").strip() and _source_mode(payload, session_id="") == "LIVE_OPERATOR":
+        return {
+            "ok": False,
+            "status": "FIELD_SESSION_ID_REQUIRED",
+            "error_code": "FIELD_SESSION_ID_REQUIRED",
+            "http_status": 400,
+            "csv_appended": False,
+            "duplicate_ignored": False,
+            "map_enabled": False,
+            "result_enabled": False,
+            "no_fake_detection": True,
+            "no_fake_gps": True,
+        }
     session = _resolve_session_for_shutter(payload, runtime_root=runtime_root)
     payload = dict(payload)
     _apply_visibility_payload(session, payload)
     _apply_payload_gps_to_session(session, payload)
-    payload.setdefault("image_jpeg_base64", payload.get("image_base64"))
-    payload.setdefault("frame_jpeg_base64", payload.get("image_base64"))
+    payload.setdefault("image_jpeg_base64", payload.get("image_base64") or payload.get("frame_image_base64"))
+    payload.setdefault("frame_jpeg_base64", payload.get("image_base64") or payload.get("frame_image_base64"))
     payload.setdefault("point_id", session.point_id)
     payload.setdefault("operator_name", session.operator_name)
     payload.setdefault("model_status", session.model_status)
@@ -282,9 +380,15 @@ def shutter_field_session(payload: dict[str, Any], *, runtime_root: Path) -> dic
         "map_path": map_result.get("path"),
         "map_url": f"/field-map/session/{session.session_id}",
         "map_html_url": map_result.get("map_url"),
+        "spreadsheet_url": f"/field-spreadsheet/session/{session.session_id}",
+        "result_status": "SPREADSHEET_READY",
+        "shutter_done": True,
+        "map_enabled": True,
+        "result_enabled": True,
+        "ok": True,
         **_session_row_fields(session, page_source="field_session_shutter"),
+        "result_page_url": f"/field-spreadsheet/session/{session.session_id}",
         "report_page_url": f"/field-report?session_id={session.session_id}",
-        "result_page_url": f"/field-result?session_id={session.session_id}",
         "row": row,
         "no_fake_detection": True,
         "no_fake_gps": True,
@@ -404,6 +508,8 @@ def build_latest_result(session_id: Any | None = None, *, frame_result: dict[str
 
 
 def latest_field_session_report(session_id: Any | None = None) -> dict[str, Any]:
+    if session_id:
+        _load_session_from_disk(str(session_id))
     session = _get_or_latest(session_id, create_if_missing=True)
     if session.latest_report:
         return session.latest_report
@@ -416,6 +522,100 @@ def latest_field_session_report(session_id: Any | None = None) -> dict[str, Any]
         "report_page_url": f"/field-report?session_id={session.session_id}",
         "map_url": f"/field-map/session/{session.session_id}",
     }
+
+
+def field_session_spreadsheet(session_id: Any | None, *, runtime_root: Path | None = None) -> dict[str, Any]:
+    key = str(session_id or "").strip()
+    if not key:
+        return {
+            "status": "RESULT_SESSION_ID_REQUIRED",
+            "session_id": "",
+            "spreadsheet_status": "RESULT_REQUIRES_SHUTTER",
+            "google_sheets_status": "GOOGLE_SHEETS_NOT_CONFIGURED_LOCAL_SPREADSHEET_READY",
+            "rows": [],
+        }
+    session = _resolve_existing_session(key, runtime_root=runtime_root)
+    if session is None:
+        return {
+            "status": "RESULT_SESSION_NOT_FOUND",
+            "session_id": key,
+            "spreadsheet_status": "RESULT_SESSION_NOT_FOUND",
+            "google_sheets_status": "GOOGLE_SHEETS_NOT_CONFIGURED_LOCAL_SPREADSHEET_READY",
+            "rows": [],
+        }
+    if not session.latest_report:
+        return {
+            "status": "RESULT_REQUIRES_SHUTTER",
+            "session_id": session.session_id,
+            "spreadsheet_status": "RESULT_REQUIRES_SHUTTER",
+            "google_sheets_status": "GOOGLE_SHEETS_NOT_CONFIGURED_LOCAL_SPREADSHEET_READY",
+            "rows": [],
+            "message": "Jepret dulu untuk membuat spreadsheet evidence.",
+        }
+    row = dict(session.latest_report.get("row") or {})
+    growth = predict_growth_prior({"point_id": session.point_id, "species": "pohon_sono", "clearance_m": row.get("clearance_m")})
+    row.update(
+        {
+            "session_id": session.session_id,
+            "tree_confidence": row.get("tree_confidence") or session.latest_frame_status.get("tree_confidence", ""),
+            "tree_bbox": row.get("tree_bbox") or json.dumps(session.latest_frame_status.get("tree_bbox_xyxy") or "", ensure_ascii=False),
+            "pole_detected": False,
+            "conductor_detected": False,
+            "growth_prior_status": growth.get("growth_prior_status"),
+            "growth_year_m": growth.get("estimated_height_growth_m_per_year"),
+            "eta_3m_status": growth.get("eta_3m_status") or growth.get("eta_to_3m_clearance_days"),
+            "source_status": "PROXY_NOT_FIELD_OBSERVED",
+            "map_url": f"/field-map/session/{session.session_id}",
+            "frame_status": session.latest_frame_status.get("status", "FRAME_NOT_AVAILABLE"),
+        }
+    )
+    ordered = _spreadsheet_row(row)
+    return {
+        "status": "RESULT_SPREADSHEET_READY",
+        "spreadsheet_status": "RESULT_SPREADSHEET_READY",
+        "session_id": session.session_id,
+        "google_sheets_status": "GOOGLE_SHEETS_NOT_CONFIGURED_LOCAL_SPREADSHEET_READY",
+        "csv_url": session.latest_report.get("report_csv_url") or f"/field-reports/{_session_report_csv(session).name}",
+        "map_url": f"/field-map/session/{session.session_id}",
+        "rows": [ordered],
+        "columns": list(ordered.keys()),
+        "no_fake_detection": True,
+        "no_fake_gps": True,
+    }
+
+
+def render_field_session_spreadsheet_html(session_id: Any | None, *, runtime_root: Path | None = None) -> str:
+    result = field_session_spreadsheet(session_id, runtime_root=runtime_root)
+    session_id_text = html.escape(str(result.get("session_id") or session_id or ""))
+    rows = result.get("rows") or []
+    if not rows:
+        table = f"<p>{html.escape(str(result.get('message') or result.get('status')))}</p>"
+    else:
+        header = "".join(f"<th>{html.escape(str(column))}</th>" for column in result["columns"])
+        body = "".join(f"<td>{html.escape(str(rows[0].get(column, '')))}</td>" for column in result["columns"])
+        table = f"<div class=\"sheet-wrap\"><table><thead><tr>{header}</tr></thead><tbody><tr>{body}</tr></tbody></table></div>"
+    return f"""<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Field Spreadsheet Evidence</title>
+<style>
+body{{margin:0;min-height:100dvh;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#eefdf3;background:linear-gradient(135deg,#06140e,#123927);overflow-wrap:anywhere;word-break:break-word}}
+main{{max-width:1100px;margin:0 auto;padding:18px}}
+.card{{border:1px solid rgba(220,255,232,.22);border-radius:28px;background:rgba(9,42,30,.62);backdrop-filter:blur(18px);box-shadow:0 24px 70px rgba(0,0,0,.28);padding:16px;overflow:hidden}}
+.pill{{display:inline-flex;margin:4px 4px 8px 0;padding:7px 10px;border-radius:999px;background:rgba(215,255,226,.13);border:1px solid rgba(230,255,236,.18);font-size:12px}}
+.sheet-wrap{{overflow:auto;border-radius:18px;border:1px solid rgba(255,255,255,.16)}}
+table{{border-collapse:collapse;min-width:920px;width:100%;background:rgba(255,255,255,.04)}}
+th,td{{border:1px solid rgba(255,255,255,.12);padding:9px;text-align:left;font-size:12px;max-width:260px;overflow-wrap:anywhere;word-break:break-word;vertical-align:top}}
+th{{position:sticky;top:0;background:rgba(30,94,64,.85)}}
+a,button{{color:#e7ffed}}
+.actions{{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}}
+.actions a{{padding:10px 12px;border-radius:16px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);text-decoration:none}}
+</style></head><body><main><section class="card">
+<span class="pill">{html.escape(str(result.get('status')))}</span><span class="pill">{html.escape(str(result.get('google_sheets_status')))}</span>
+<h1>Spreadsheet Evidence</h1><p>Session: {session_id_text}</p>{table}
+<div class="actions"><a href="{html.escape(str(result.get('csv_url') or '/field-reports/field_capture_autosave.csv'))}">Download CSV</a>
+<a href="{html.escape(str(result.get('csv_url') or '/field-reports/field_capture_autosave.csv'))}">Open CSV</a>
+<a href="/field-camera?session_id={session_id_text}">Back to Camera</a><a href="/field-capture">Back to Home</a><a href="{html.escape(str(result.get('map_url') or '#'))}">Open Map</a></div>
+</section></main></body></html>"""
 
 
 def latest_field_session_map(session_id: Any | None = None, *, runtime_root: Path | None = None) -> dict[str, Any]:
@@ -527,8 +727,9 @@ def _session_row_fields(session: FieldSession, *, page_source: str) -> dict[str,
         "browser_throttle_warning": session.browser_throttle_warning,
         "manual_input_status": _LATEST_MANUAL_INPUT.get("manual_input_status", ""),
         "page_source": page_source,
-        "result_page_url": f"/field-result?session_id={session.session_id}",
+        "result_page_url": f"/field-spreadsheet/session/{session.session_id}",
         "report_page_url": f"/field-report?session_id={session.session_id}",
+        "spreadsheet_url": f"/field-spreadsheet/session/{session.session_id}",
         "source_mode": session.source_mode,
         "capture_sequence": session.capture_sequence,
         "gps_lat_raw": current_truth["latitude_raw"],
@@ -553,6 +754,7 @@ def _build_session_report_row(
     measurement = measurement if isinstance(measurement, dict) else {}
     derived = distance_reliability(session.base_gps, session.current_gps)
     current_truth = validate_gps_evidence(session.current_gps)
+    growth = predict_growth_prior({"point_id": session.point_id, "species": "pohon_sono", "clearance_m": measurement.get("clearance_m")})
     return {
         "report_id": report_id,
         "timestamp": payload.get("timestamp") or datetime.now().isoformat(),
@@ -571,6 +773,11 @@ def _build_session_report_row(
         "pole_detected": measurement.get("pole_detected", False),
         "conductor_detected": measurement.get("conductor_detected", False),
         "tree_detected": measurement.get("tree_detected", False),
+        "tree_model_status": session.latest_frame_status.get("tree_model_status") or tree_model_status().get("tree_model_status"),
+        "tree_confidence": measurement.get("tree_confidence", session.latest_frame_status.get("tree_confidence", "")),
+        "tree_bbox": json.dumps(measurement.get("tree_bbox") or session.latest_frame_status.get("tree_bbox_xyxy") or "", ensure_ascii=False),
+        "pole_model_status": "POLE_MODEL_NOT_READY",
+        "conductor_model_status": "CONDUCTOR_MODEL_NOT_READY",
         "pole_reference_height_m": measurement.get("pole_reference_height_m", ""),
         "pole_pixel_height": measurement.get("pole_pixel_height", ""),
         "meter_per_px": measurement.get("meter_per_px", ""),
@@ -581,6 +788,9 @@ def _build_session_report_row(
         "clearance_m": measurement.get("clearance_m", ""),
         "zone_status": measurement.get("zone_status", "INSUFFICIENT_DATA"),
         "eta_days": measurement.get("eta_days", ""),
+        "growth_prior_status": growth.get("growth_prior_status"),
+        "growth_year_m": growth.get("estimated_height_growth_m_per_year"),
+        "eta_3m_status": growth.get("eta_3m_status") or growth.get("eta_to_3m_clearance_days"),
         "risk_level": measurement.get("risk_level", "NOT_AVAILABLE"),
         "action_recommendation": measurement.get("action_recommendation", "NOT_AVAILABLE"),
         "latency_ms": payload.get("latency_ms", ""),
@@ -679,6 +889,130 @@ def _resolve_session_for_shutter(payload: dict[str, Any], *, runtime_root: Path)
     return session
 
 
+def _resolve_existing_session(session_id: Any | None, *, runtime_root: Path | None = None) -> FieldSession | None:
+    key = str(session_id or "").strip()
+    if not key:
+        return None
+    if key in _SESSIONS:
+        return _SESSIONS[key]
+    return _load_session_from_disk(key, runtime_root=runtime_root)
+
+
+def _safe_frame_result(session: FieldSession, *, status: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    tree_status = tree_model_status()
+    # Safe skips have no decodable image, so keep the legacy no-model contract
+    # for older gates while real image frames can still use the tree candidate.
+    model_status = "MODEL_NOT_READY"
+    safe_extra = {key: value for key, value in dict(extra or {}).items() if key != "image_bytes"}
+    measurement = _frame_measurement(
+        {
+            "status": status,
+            "tree_detected": False,
+            "detected_classes": [],
+            "tree_confidence": 0.0,
+            "tree_bbox_xyxy": None,
+            **tree_status,
+        }
+    )
+    return {
+        "status": status,
+        "http_status": 202,
+        "session_id": session.session_id,
+        "session_status": session.session_status,
+        "model_status": model_status,
+        "tree_model_status": tree_status.get("tree_model_status"),
+        "pole_model_status": "POLE_MODEL_NOT_READY",
+        "conductor_model_status": "CONDUCTOR_MODEL_NOT_READY",
+        "detections": [],
+        "detected_classes": [],
+        "tree_detected": False,
+        "pole_detected": False,
+        "conductor_detected": False,
+        "no_fake_pole_conductor_detection": True,
+        "no_fake_detection": True,
+        "no_autosave_on_realtime_frame": True,
+        "measurement_result": measurement,
+        "overlay_json": {
+            "status": "FIELD_SESSION_OVERLAY_READY",
+            "message": status if model_status != "MODEL_NOT_READY" else "MODEL_NOT_READY_NO_FAKE_DETECTION",
+            "boxes": [],
+            "draw_client_side": True,
+        },
+        **safe_extra,
+    }
+
+
+def _session_frame_result_from_tree(session: FieldSession, tree: dict[str, Any]) -> dict[str, Any]:
+    measurement = _frame_measurement(tree)
+    model_status = tree.get("model_status") or "MODEL_NOT_READY"
+    return {
+        "status": tree.get("status", "FIELD_SESSION_FRAME_PROCESSED"),
+        "http_status": 200 if tree.get("status") == "TREE_MODEL_FRAME_PROCESSED_CANDIDATE" else 202,
+        "session_id": session.session_id,
+        "session_status": session.session_status,
+        "model_status": model_status,
+        "tree_model_status": tree.get("tree_model_status"),
+        "model_source": tree.get("model_source"),
+        "production_status": tree.get("production_status", "NOT_FINAL_CANDIDATE_DETECTION"),
+        "pole_model_status": "POLE_MODEL_NOT_READY",
+        "conductor_model_status": "CONDUCTOR_MODEL_NOT_READY",
+        "detections": tree.get("detections", []),
+        "detected_classes": tree.get("detected_classes", []),
+        "tree_detected": bool(tree.get("tree_detected")),
+        "tree_confidence": tree.get("tree_confidence", 0.0),
+        "tree_bbox_xyxy": tree.get("tree_bbox_xyxy"),
+        "pole_detected": False,
+        "conductor_detected": False,
+        "object_detected": {"tree": bool(tree.get("tree_detected")), "pole": False, "conductor": False},
+        "measurement_result": measurement,
+        "overlay_json": {
+            "status": "FIELD_SESSION_OVERLAY_READY",
+            "message": "TREE_MODEL_READY_CANDIDATE" if tree.get("tree_model_status") == "TREE_MODEL_READY_CANDIDATE" else "MODEL_NOT_READY_NO_FAKE_DETECTION",
+            "boxes": tree.get("detections", []),
+            "draw_client_side": True,
+        },
+        "no_autosave_on_realtime_frame": True,
+        "no_fake_pole_conductor_detection": True,
+        "no_fake_detection": True,
+    }
+
+
+def _frame_measurement(tree: dict[str, Any]) -> dict[str, Any]:
+    reason = [
+        "POLE_MODEL_NOT_READY",
+        "CONDUCTOR_MODEL_NOT_READY",
+        "NO_FAKE_POLE_CONDUCTOR_DETECTION",
+        "INSUFFICIENT_GEOMETRY_DATA",
+        "CALIBRATION_NOT_READY",
+    ]
+    if tree.get("tree_detected"):
+        reason.append("TREE_MODEL_READY_CANDIDATE_NOT_FINAL")
+    elif tree.get("tree_model_status") == "TREE_MODEL_READY_CANDIDATE":
+        reason.append("TREE_NOT_DETECTED_BY_CANDIDATE_MODEL")
+    else:
+        reason.append("TREE_MODEL_NOT_READY")
+    return {
+        "status": "INSUFFICIENT_GEOMETRY_DATA",
+        "detected_classes": tree.get("detected_classes", []),
+        "tree_detected": bool(tree.get("tree_detected")),
+        "tree_confidence": tree.get("tree_confidence", 0.0),
+        "tree_bbox": tree.get("tree_bbox_xyxy"),
+        "pole_detected": False,
+        "conductor_detected": False,
+        "clearance_m": None,
+        "tree_height_m": None,
+        "cable_height_m": None,
+        "conductor_height_m": None,
+        "zone_status": "INSUFFICIENT_DATA",
+        "risk_level": "INSUFFICIENT_DATA",
+        "action_recommendation": "Model pohon kandidat tersedia, tetapi tiang/kabel/kalibrasi belum siap untuk clearance final.",
+        "calibration_status": "CALIBRATION_NOT_READY",
+        "confidence_status": "NOT_FINAL_CANDIDATE_DETECTION",
+        "measurement_quality_label": "INSUFFICIENT_GEOMETRY_DATA",
+        "reason_codes": _dedupe(reason),
+    }
+
+
 def _duplicate_shutter_result(session: FieldSession, payload: dict[str, Any]) -> dict[str, Any] | None:
     now = time.time()
     idempotency_key = str(payload.get("idempotency_key") or "").strip()
@@ -743,6 +1077,55 @@ def _write_session_shutter_image(payload: dict[str, Any], *, runtime_root: Path,
 
 def _session_report_csv(session: FieldSession) -> Path:
     return PROGRESS5_4_REPORT_CSV if session.source_mode == "LIVE_OPERATOR" else SESSION_SMOKE_REPORT_CSV
+
+
+def _session_start_contract(session_id: str) -> dict[str, Any]:
+    return {
+        "ok": True,
+        "camera_url": f"/field-camera?session_id={session_id}",
+        "map_enabled": False,
+        "result_enabled": False,
+        "shutter_required": True,
+    }
+
+
+def _spreadsheet_row(row: dict[str, Any]) -> dict[str, Any]:
+    columns = [
+        "session_id",
+        "timestamp",
+        "point_id",
+        "operator_name",
+        "gps_lat",
+        "gps_lon",
+        "gps_accuracy_m",
+        "horizontal_distance_from_tree_m",
+        "distance_reliability_status",
+        "tree_detected",
+        "tree_confidence",
+        "tree_bbox",
+        "pole_detected",
+        "conductor_detected",
+        "model_status",
+        "growth_prior_status",
+        "growth_year_m",
+        "eta_3m_status",
+        "clearance_m",
+        "zone_status",
+        "map_url",
+        "frame_status",
+        "source_status",
+        "notes",
+    ]
+    return {column: _spreadsheet_value(row.get(column)) for column in columns}
+
+
+def _spreadsheet_value(value: Any) -> str:
+    if value is None:
+        return "NOT_AVAILABLE"
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    text = str(value)
+    return text if text else ""
 
 
 def _ensure_report_schema(path: Path) -> None:

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/static/field_capture.css?v=progress6_6">
-  <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_6">
+  <link rel="stylesheet" href="/static/field_capture.css?v=progress6_7">
+  <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_7">
   <title>Field Result</title>
 </head>
 <body>
@@ -75,13 +75,13 @@
       <nav class="bottom-nav">
         <a href="/field-capture">Capture</a>
         <button id="session-report" type="button">Report</button>
-        <a id="result-map-link" href="/api/field/latest-map">Map</a>
+        <a id="result-map-link" href="#">Map</a>
         <button id="session-manual-input" type="button">Manual Input</button>
         <button id="session-acceptance" type="button">Acceptance</button>
       </nav>
     </section>
   </main>
-  <script src="/static/field_navigation.js?v=progress6_6"></script>
+  <script src="/static/field_navigation.js?v=progress6_7"></script>
   <script>
     function renderChips(node, value) {
       const values = Array.isArray(value) ? value : String(value || '-').split(/[;,]/).filter(Boolean);

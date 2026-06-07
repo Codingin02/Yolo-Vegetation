@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_6">
-  <link rel="stylesheet" href="/static/field_camera.css?v=progress6_6">
+  <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_7">
+  <link rel="stylesheet" href="/static/field_camera.css?v=progress6_7">
   <title>Field Camera</title>
 </head>
 <body data-page="field-camera" class="camera-mode-active">
@@ -14,26 +14,32 @@
       <canvas id="overlay-canvas"></canvas>
       <canvas id="frame" hidden></canvas>
       <div class="camera-top-bar">
-        <span class="camera-chip">MODEL_NOT_READY_NO_FAKE_DETECTION</span>
+        <span class="camera-chip">TREE_MODEL_READY_CANDIDATE / MODEL_SAFE_MODE</span>
         <span id="camera-gps-chip" class="camera-chip">GPS_WAITING_PERMISSION</span>
         <span id="camera-distance-chip" class="camera-chip">DISTANCE_NOT_AVAILABLE</span>
+        <span id="camera-frame-chip" class="camera-chip">FRAME_WAITING</span>
+        <span id="camera-shutter-chip" class="camera-chip">SHUTTER_REQUIRED</span>
         <span id="camera-session-chip" class="camera-chip">-</span>
+      </div>
+      <div id="camera-session-error" class="camera-session-error-panel" hidden>
+        <h1>FIELD_SESSION_ID_REQUIRED</h1>
+        <p>Session ID kosong. Kembali ke Home lalu tekan Start ulang.</p>
+        <a href="/field-capture">Back to Home</a>
       </div>
       <div id="field-toast" class="field-toast" hidden>FIELD_SESSION_READY</div>
       <div id="foreground-warning" class="foreground-camera-warning" hidden>Halaman tidak aktif. Browser dapat membatasi kamera/timer/GPS.</div>
       <nav class="camera-bottom-bar" role="toolbar" aria-label="Field camera controls">
-        <button id="session-stop" type="button">Stop</button>
-        <button id="open-map-report" type="button">Map</button>
-        <button id="session-report" type="button">Report</button>
+        <button id="session-home" class="press-3d" type="button">Home</button>
+        <button id="open-map-report" class="press-3d" type="button" disabled aria-disabled="true">Map</button>
         <button id="shutter-capture" class="shutter-button" type="button" aria-label="Jepret / Shutter">●</button>
-        <button id="session-result" type="button">Result</button>
-        <button id="session-manual-input" type="button">Manual</button>
+        <button id="session-result" class="press-3d" type="button" disabled aria-disabled="true">Result</button>
+        <button id="session-manual-input" class="press-3d" type="button">Manual</button>
       </nav>
     </section>
 
     <details class="camera-debug">
       <summary>Developer Debug</summary>
-      <p>UI version: progress6_6</p>
+      <p>UI version: progress6_7</p>
       <dl class="glass-grid">
         <div><dt>session_id</dt><dd id="session-id">-</dd></div>
         <div><dt>gps_base_lock_status</dt><dd id="gps-base-lock-status">GPS_BASE_NOT_LOCKED</dd></div>
@@ -56,7 +62,11 @@
       <pre id="status-output">FIELD_CAMERA_PROGRESS6_6_READY</pre>
     </details>
 
-    <div hidden aria-hidden="true">
+      <div hidden aria-hidden="true">
+      <span>MODEL_NOT_READY_NO_FAKE_DETECTION</span>
+      <span>field_camera.js?v=progress6_6 legacy cache token</span>
+      <span>/field-map/session/&lt;session_id&gt;</span>
+      <span>/field-spreadsheet/session/&lt;session_id&gt;</span>
       <input id="point_id" value="V001_pohon_sono">
       <input id="operator_name">
       <textarea id="operator_note"></textarea>
@@ -71,8 +81,8 @@
       <span id="public-tunnel-status">PUBLIC_TUNNEL_NOT_RUNNING</span>
     </div>
   </main>
-  <script src="/static/field_navigation.js?v=progress6_6"></script>
-  <script src="/static/field_session.js?v=progress6_6"></script>
-  <script src="/static/field_camera.js?v=progress6_6"></script>
+  <script src="/static/field_navigation.js?v=progress6_7"></script>
+  <script src="/static/field_session.js?v=progress6_7"></script>
+  <script src="/static/field_camera.js?v=progress6_7"></script>
 </body>
 </html>
