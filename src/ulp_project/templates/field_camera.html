@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_7">
-  <link rel="stylesheet" href="/static/field_camera.css?v=progress6_7">
+  <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_8">
+  <link rel="stylesheet" href="/static/field_camera.css?v=progress6_8">
   <title>Field Camera</title>
 </head>
 <body data-page="field-camera" class="camera-mode-active">
@@ -20,11 +20,24 @@
         <span id="camera-frame-chip" class="camera-chip">FRAME_WAITING</span>
         <span id="camera-shutter-chip" class="camera-chip">SHUTTER_REQUIRED</span>
         <span id="camera-session-chip" class="camera-chip">-</span>
+        <button id="camera-lens-open" class="camera-chip camera-lens-button" type="button">Camera Lens</button>
       </div>
       <div id="camera-session-error" class="camera-session-error-panel" hidden>
         <h1>FIELD_SESSION_ID_REQUIRED</h1>
         <p>Session ID kosong. Kembali ke Home lalu tekan Start ulang.</p>
         <a href="/field-capture">Back to Home</a>
+      </div>
+      <div id="camera-lens-sheet" class="camera-lens-sheet" hidden>
+        <h2>Camera Lens</h2>
+        <p>Default memilih kamera belakang normal/wide bila tersedia. Ultra-wide hanya dipakai bila operator memilihnya.</p>
+        <select id="camera-lens-select" aria-label="Pilih kamera">
+          <option value="">Default Back Camera</option>
+        </select>
+        <div class="camera-lens-actions">
+          <button id="camera-lens-apply" class="press-3d" type="button">Apply</button>
+          <button id="camera-lens-close" class="press-3d" type="button">Close</button>
+        </div>
+        <p id="camera-lens-status">CAMERA_LENS_DEFAULT_BACK_NORMAL_WIDE</p>
       </div>
       <div id="field-toast" class="field-toast" hidden>FIELD_SESSION_READY</div>
       <div id="foreground-warning" class="foreground-camera-warning" hidden>Halaman tidak aktif. Browser dapat membatasi kamera/timer/GPS.</div>
@@ -39,7 +52,7 @@
 
     <details class="camera-debug">
       <summary>Developer Debug</summary>
-      <p>UI version: progress6_7</p>
+      <p>UI version: progress6_8</p>
       <dl class="glass-grid">
         <div><dt>session_id</dt><dd id="session-id">-</dd></div>
         <div><dt>gps_base_lock_status</dt><dd id="gps-base-lock-status">GPS_BASE_NOT_LOCKED</dd></div>
@@ -64,6 +77,7 @@
 
       <div hidden aria-hidden="true">
       <span>MODEL_NOT_READY_NO_FAKE_DETECTION</span>
+      <span>progress6_7 legacy cache token</span>
       <span>field_camera.js?v=progress6_6 legacy cache token</span>
       <span>/field-map/session/&lt;session_id&gt;</span>
       <span>/field-spreadsheet/session/&lt;session_id&gt;</span>
@@ -81,8 +95,8 @@
       <span id="public-tunnel-status">PUBLIC_TUNNEL_NOT_RUNNING</span>
     </div>
   </main>
-  <script src="/static/field_navigation.js?v=progress6_7"></script>
-  <script src="/static/field_session.js?v=progress6_7"></script>
-  <script src="/static/field_camera.js?v=progress6_7"></script>
+  <script src="/static/field_navigation.js?v=progress6_8"></script>
+  <script src="/static/field_session.js?v=progress6_8"></script>
+  <script src="/static/field_camera.js?v=progress6_8"></script>
 </body>
 </html>

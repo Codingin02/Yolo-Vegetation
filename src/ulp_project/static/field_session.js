@@ -40,6 +40,9 @@
     frameConsecutiveErrors: 0,
     gpsLastSentAt: 0,
     gpsLastSignature: "",
+    cameraDevices: [],
+    selectedCameraDeviceId: "",
+    cameraSelectorReady: false,
     frame_process_interval_ms: 1000,
     max_allowed_latency_ms: 3000,
     gpsSamples: [],
@@ -128,14 +131,14 @@
         state.baseGpsLocked = true;
         const accuracy = Number(best.accuracy);
         if (Number.isFinite(accuracy) && accuracy <= 5) {
-          state.baseGpsLockStatus = "GPS_BASE_LOCKED_BEST_SAMPLE";
+          state.baseGpsLockStatus = "GPS_BASE_LOCKED_GOOD";
         } else if (Number.isFinite(accuracy) && accuracy <= 10) {
-          state.baseGpsLockStatus = "GPS_BASE_LOCKED_LOW_ACCURACY_LIMITED";
+          state.baseGpsLockStatus = "GPS_BASE_LOCKED_MEDIUM_EVIDENCE_ONLY";
         } else {
-          state.baseGpsLockStatus = "GPS_BASE_NOT_RELIABLE_SAVE_EVIDENCE_ONLY";
+          state.baseGpsLockStatus = "GPS_BASE_LOW_ACCURACY_EVIDENCE_ONLY";
         }
       } else {
-        state.baseGpsLockStatus = "GPS_BASE_PROVISIONAL_WAITING_FOR_5_SAMPLES_OR_8S";
+        state.baseGpsLockStatus = "GPS_WAITING_FOR_STABLE_SAMPLE";
       }
     }
     text("gps-base-lock-status", state.baseGpsLockStatus);
@@ -206,37 +209,155 @@
     state.gpsWatchId = null;
   }
 
-  async function startCamera() {
+  function isOperationalSessionId(sessionId) {
+    const value = String(sessionId || "").trim();
+    return Boolean(value) && !value.startsWith("FS_DEGRADED");
+  }
+
+  async function startCamera(deviceId) {
+    if (document.body && document.body.dataset.page === "field-camera" && !isOperationalSessionId(state.session_id)) {
+      handleError("SESSION_INVALID_OR_EXPIRED", "Session kamera tidak valid. Kembali ke Home lalu tekan Start ulang.");
+      return false;
+    }
     if (!requireSecureFieldContext()) return false;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       handleError("CAMERA_API_UNAVAILABLE_IN_THIS_CONTEXT", "Browser tidak menyediakan navigator.mediaDevices.getUserMedia.");
       return false;
     }
     const video = el("camera");
-    let stream;
+    let stream = null;
+    const targetDeviceId = deviceId || state.selectedCameraDeviceId || "";
+    const baseVideo = {
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+      frameRate: { ideal: 15, max: 30 }
+    };
+    // legacy progress6_6 contract token only: frameRate: { ideal: 30, max: 30 }
+    const constraintAttempts = targetDeviceId
+      ? [{ video: { ...baseVideo, deviceId: { exact: targetDeviceId } }, audio: false }]
+      : [
+          { video: { ...baseVideo, facingMode: { ideal: "environment" } }, audio: false },
+          { video: { facingMode: "environment" }, audio: false },
+          { video: true, audio: false }
+        ];
+    stopCamera();
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30, max: 30 }
-        },
-        audio: false
-      });
-    } catch (firstError) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-      } catch (secondError) {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      for (let index = 0; index < constraintAttempts.length; index += 1) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraintAttempts[index]);
+          break;
+        } catch (error) {
+          if (index === constraintAttempts.length - 1) throw error;
+        }
       }
+    } catch (error) {
+      const status = cameraErrorStatus(error);
+      handleError(status, error && error.message ? error.message : String(error));
+      text("camera-status", status);
+      text("camera-permission-status", status);
+      return false;
     }
     state.cameraStream = stream;
     if (video) video.srcObject = state.cameraStream;
+    await enumerateVideoDevices();
+    const preferred = !targetDeviceId ? chooseDefaultBackCamera(state.cameraDevices) : null;
+    const activeDeviceId = getActiveCameraDeviceId();
+    if (preferred && preferred.deviceId && preferred.deviceId !== activeDeviceId && !isUltraWideLabel(preferred.label)) {
+      state.selectedCameraDeviceId = preferred.deviceId;
+      return startCamera(preferred.deviceId);
+    }
     text("glass-camera-status", "CAMERA_READY");
     text("camera-status", "CAMERA_READY");
     text("camera-permission-status", "CAMERA_READY");
+    text("camera-lens-status", cameraLabelForDevice(state.selectedCameraDeviceId || activeDeviceId) || "Default Back Camera");
     return true;
+  }
+
+  async function enumerateVideoDevices() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return [];
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    state.cameraDevices = devices.filter(function (device) {
+      return device.kind === "videoinput";
+    });
+    state.cameraSelectorReady = true;
+    populateCameraSelector();
+    return state.cameraDevices;
+  }
+
+  function chooseDefaultBackCamera(devices) {
+    const list = devices || [];
+    const normalBack = list.find(function (device) {
+      const label = cameraLabel(device);
+      return isBackCameraLabel(label) && !isUltraWideLabel(label) && !/front|depan|user/i.test(label);
+    });
+    if (normalBack) return normalBack;
+    const mainWide = list.find(function (device) {
+      const label = cameraLabel(device);
+      return /(main|wide|1x|back|rear|environment|belakang)/i.test(label) && !isUltraWideLabel(label);
+    });
+    return mainWide || list[0] || null;
+  }
+
+  function cameraLabel(device) {
+    return String((device && device.label) || "");
+  }
+
+  function isBackCameraLabel(label) {
+    return /(back|rear|environment|belakang|main|wide|1x)/i.test(label || "");
+  }
+
+  function isUltraWideLabel(label) {
+    return /(ultra|ultrawide|ultra-wide|0\.5|0,5|0\.6|wide angle)/i.test(label || "");
+  }
+
+  function cameraKindLabel(label) {
+    if (/front|depan|user/i.test(label)) return "Front Camera";
+    if (/tele/i.test(label)) return "Telephoto";
+    if (isUltraWideLabel(label)) return "Ultra-wide";
+    if (isBackCameraLabel(label)) return "Back Normal/Wide";
+    return "Default";
+  }
+
+  function cameraLabelForDevice(deviceId) {
+    const device = (state.cameraDevices || []).find(function (item) {
+      return item.deviceId === deviceId;
+    });
+    if (!device) return "";
+    return `${cameraKindLabel(device.label)} - ${device.label || device.deviceId.slice(0, 8)}`;
+  }
+
+  function populateCameraSelector() {
+    const select = el("camera-lens-select");
+    if (!select) return;
+    select.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Default Back Camera";
+    select.appendChild(placeholder);
+    (state.cameraDevices || []).forEach(function (device) {
+      const option = document.createElement("option");
+      option.value = device.deviceId;
+      option.textContent = `${cameraKindLabel(device.label)} - ${device.label || device.deviceId.slice(0, 8)}`;
+      option.dataset.ultrawide = isUltraWideLabel(device.label) ? "true" : "false";
+      select.appendChild(option);
+    });
+    select.value = state.selectedCameraDeviceId || "";
+  }
+
+  function getActiveCameraDeviceId() {
+    const tracks = state.cameraStream && state.cameraStream.getVideoTracks ? state.cameraStream.getVideoTracks() : [];
+    const settings = tracks[0] && tracks[0].getSettings ? tracks[0].getSettings() : {};
+    return settings.deviceId || "";
+  }
+
+  function cameraErrorStatus(error) {
+    const name = String((error && error.name) || "");
+    if (!window.isSecureContext && window.location.protocol !== "https:") return "CAMERA_INSECURE_CONTEXT";
+    if (name === "NotAllowedError" || name === "SecurityError") return "CAMERA_PERMISSION_DENIED";
+    if (name === "NotFoundError" || name === "DevicesNotFoundError") return "CAMERA_NOT_FOUND";
+    if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") return "CAMERA_CONSTRAINT_FAILED";
+    if (name === "NotReadableError" || name === "TrackStartError") return "CAMERA_NOT_READABLE";
+    return "CAMERA_UNKNOWN_ERROR";
   }
 
   async function requestWakeLock() {
@@ -285,25 +406,34 @@
       text("glass-url-mode", currentUrlMode());
       if (!requireSecureFieldContext()) return;
       await requestWakeLock();
+      if (document.body && document.body.dataset.page === "field-capture-preflight") {
+        const registry = await getJson("/api/runtime/route-registry");
+        if (registry.status !== "ROUTE_REGISTRY_READY") {
+          throw new Error("ROUTE_REGISTRY_BROKEN");
+        }
+      }
       try {
         await requestHighAccuracyGps();
       } catch (gpsError) {
         handleError("GPS_INITIAL_FIX_TIMEOUT_SESSION_CONTINUES", String(gpsError));
       }
       startGpsWatch();
-      await startCamera();
+      if (!(document.body && document.body.dataset.page === "field-capture-preflight")) {
+        await startCamera();
+      }
       state.startIdempotencyKey = state.startIdempotencyKey || `START_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
       const payload = collectSessionPayload();
       const result = await postJson("/api/field/session/start", payload);
       state.session_id = result.session_id || result.session && result.session.session_id || state.session_id;
-      if (!state.session_id) {
-        throw new Error("FIELD_SESSION_START_RETURNED_EMPTY_SESSION_ID");
+      if (result.ok !== true || result.degraded || !isOperationalSessionId(state.session_id)) {
+        state.session_id = "";
+        throw new Error(result.status || "SESSION_START_FAILED_NO_CAMERA_REDIRECT");
       }
       if (state.session_id) window.localStorage.setItem("field_session_id", state.session_id);
       state.session_status = "RECORDING_ACTIVE";
       text("session-id", state.session_id);
       if (document.body && document.body.dataset.page === "field-capture-preflight") {
-        const target = `/field-camera?session_id=${encodeURIComponent(state.session_id || "")}`;
+        const target = result.camera_url || `/field-camera?session_id=${encodeURIComponent(state.session_id || "")}`;
         window.location.assign(target);
         return;
       }
@@ -311,7 +441,7 @@
       startFrameLoop();
       renderStatus();
     } catch (error) {
-      handleError("FIELD_SESSION_START_FAILED", String(error));
+      handleError("SESSION_START_FAILED_NO_CAMERA_REDIRECT", String(error));
     } finally {
       state.startInFlight = false;
       if (startButton) startButton.disabled = false;
@@ -416,7 +546,7 @@
   }
 
   async function sendGpsUpdate(gps, setBase) {
-    if (!state.session_id) return;
+    if (!isOperationalSessionId(state.session_id)) return;
     const signature = [
       gps && gps.latitude,
       gps && gps.longitude,
@@ -438,7 +568,7 @@
 
   async function sendFrame() {
     if (state.frameInFlight) return;
-    if (!state.session_id) {
+    if (!isOperationalSessionId(state.session_id)) {
       stopFrameLoop();
       handleError("FIELD_SESSION_ID_REQUIRED", "Session ID kosong. Kembali ke Home lalu tekan Start ulang.");
       return;
@@ -481,7 +611,7 @@
       renderStatus();
     } catch (error) {
       state.frameConsecutiveErrors += 1;
-      if (String(error).includes("FIELD_SESSION_ID_REQUIRED")) {
+      if (String(error).includes("FIELD_SESSION_ID_REQUIRED") || String(error).includes("ROUTE_NOT_REGISTERED")) {
         stopFrameLoop();
       } else if (state.frameConsecutiveErrors >= 3) {
         state.frame_process_interval_ms = 3000;
@@ -497,7 +627,7 @@
   async function shutterCapture() {
     press3D(el("shutter-capture"));
     safeVibrate(20);
-    if (!state.session_id) {
+    if (!isOperationalSessionId(state.session_id)) {
       showToast("FIELD_SESSION_ID_REQUIRED");
       return { status: "FIELD_SESSION_ID_REQUIRED" };
     }
@@ -717,6 +847,16 @@
       body: JSON.stringify(payload || {})
     });
     const data = await response.json();
+    if (!response.ok) {
+      const routeStatus = response.status === 404 || response.status === 405 ? "ROUTE_NOT_REGISTERED" : data.status;
+      throw new Error(routeStatus || response.statusText);
+    }
+    return data;
+  }
+
+  async function getJson(url) {
+    const response = await fetch(url, { method: "GET", headers: { "Accept": "application/json" } });
+    const data = await response.json();
     if (!response.ok) throw new Error(data.status || response.statusText);
     return data;
   }
@@ -751,6 +891,33 @@
     safeVibrate(12);
     const target = state.session_id ? `/field-manual-input?session_id=${encodeURIComponent(state.session_id)}` : "/field-manual-input";
     window.location.assign(target);
+  }
+
+  function openCameraLensSheet() {
+    press3D(el("camera-lens-open"));
+    safeVibrate(10);
+    const sheet = el("camera-lens-sheet");
+    if (sheet) sheet.hidden = false;
+    enumerateVideoDevices().catch(function (error) {
+      handleError("CAMERA_DEVICE_ENUMERATION_FAILED", String(error));
+    });
+  }
+
+  function closeCameraLensSheet() {
+    const sheet = el("camera-lens-sheet");
+    if (sheet) sheet.hidden = true;
+  }
+
+  async function switchCameraLens() {
+    const select = el("camera-lens-select");
+    const deviceId = select ? select.value : "";
+    state.selectedCameraDeviceId = deviceId;
+    safeVibrate(15);
+    const ok = await startCamera(deviceId);
+    if (ok) {
+      showToast("CAMERA_LENS_SWITCHED");
+      closeCameraLensSheet();
+    }
   }
 
   function safeVibrate(ms) {
@@ -821,6 +988,9 @@
   bind("open-map-report", openSessionMap);
   bind("session-result", openSessionSpreadsheet);
   bind("session-manual-input", openManualInput);
+  bind("camera-lens-open", openCameraLensSheet);
+  bind("camera-lens-close", closeCameraLensSheet);
+  bind("camera-lens-apply", switchCameraLens);
   document.addEventListener("visibilitychange", handleVisibilityChange);
   setEvidenceButtonsEnabled(false);
   renderStatus();

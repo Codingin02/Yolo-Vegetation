@@ -29,6 +29,8 @@ from .progress5_4_field_runtime import (
     latest_progress5_4_measurement,
     process_progress5_4_realtime_frame,
 )
+from .realtime_stability_filter import apply_stability_filter
+from .realtime_yolo_detection_pipeline import model_readiness_status, process_realtime_yolo_frame
 from .tree_detection_runtime import decode_frame_image_bytes, infer_tree_candidate, tree_model_status
 
 SESSION_RUNTIME_DIR = PROJECT_ROOT / "data" / "runtime" / "field_sessions"
@@ -316,8 +318,9 @@ def process_field_session_frame(payload: dict[str, Any], *, runtime_root: Path) 
         session.latest_result = build_latest_result(session.session_id, frame_result=result)
         _save_session(session, runtime_root=runtime_root)
         return result
-    tree = infer_tree_candidate(payload)
-    result = _session_frame_result_from_tree(session, tree)
+    pipeline = process_realtime_yolo_frame(payload)
+    result = _session_frame_result_from_tree(session, pipeline)
+    result = apply_stability_filter(session.session_id, result)
     session.latest_frame_status = result
     session.latest_measurement = result.get("measurement_result", {})
     session.model_status = result.get("model_status", session.model_status)
@@ -945,29 +948,40 @@ def _safe_frame_result(session: FieldSession, *, status: str, extra: dict[str, A
 def _session_frame_result_from_tree(session: FieldSession, tree: dict[str, Any]) -> dict[str, Any]:
     measurement = _frame_measurement(tree)
     model_status = tree.get("model_status") or "MODEL_NOT_READY"
+    readiness = tree.get("model_readiness") or model_readiness_status()
+    geometry = tree.get("geometry") or {}
+    geometry_status = tree.get("geometry_readiness") or geometry.get("geometry_status") or measurement.get("geometry_status")
     return {
         "status": tree.get("status", "FIELD_SESSION_FRAME_PROCESSED"),
-        "http_status": 200 if tree.get("status") == "TREE_MODEL_FRAME_PROCESSED_CANDIDATE" else 202,
+        "http_status": 200 if tree.get("status") in {"TREE_MODEL_FRAME_PROCESSED_CANDIDATE", "REALTIME_YOLO_PIPELINE_OK"} else 202,
         "session_id": session.session_id,
         "session_status": session.session_status,
         "model_status": model_status,
-        "tree_model_status": tree.get("tree_model_status"),
+        "model_readiness": readiness,
+        "tree_model_status": tree.get("tree_model_status") or readiness.get("tree_model_status"),
         "model_source": tree.get("model_source"),
         "production_status": tree.get("production_status", "NOT_FINAL_CANDIDATE_DETECTION"),
-        "pole_model_status": "POLE_MODEL_NOT_READY",
-        "conductor_model_status": "CONDUCTOR_MODEL_NOT_READY",
+        "pole_model_status": tree.get("pole_model_status") or readiness.get("pole_model_status", "POLE_MODEL_NOT_READY"),
+        "conductor_model_status": tree.get("conductor_model_status") or readiness.get("conductor_model_status", "CONDUCTOR_MODEL_NOT_READY"),
         "detections": tree.get("detections", []),
         "detected_classes": tree.get("detected_classes", []),
         "tree_detected": bool(tree.get("tree_detected")),
         "tree_confidence": tree.get("tree_confidence", 0.0),
         "tree_bbox_xyxy": tree.get("tree_bbox_xyxy"),
-        "pole_detected": False,
-        "conductor_detected": False,
-        "object_detected": {"tree": bool(tree.get("tree_detected")), "pole": False, "conductor": False},
+        "pole_detected": bool(tree.get("pole_detected")),
+        "conductor_detected": bool(tree.get("conductor_detected")),
+        "object_detected": {
+            "tree": bool(tree.get("tree_detected")),
+            "pole": bool(tree.get("pole_detected")),
+            "conductor": bool(tree.get("conductor_detected")),
+        },
+        "geometry_status": geometry_status,
+        "geometry_readiness": tree.get("geometry_readiness") or geometry_status,
+        "geometry": geometry,
         "measurement_result": measurement,
         "overlay_json": {
             "status": "FIELD_SESSION_OVERLAY_READY",
-            "message": "TREE_MODEL_READY_CANDIDATE" if tree.get("tree_model_status") == "TREE_MODEL_READY_CANDIDATE" else "MODEL_NOT_READY_NO_FAKE_DETECTION",
+            "message": "TREE_MODEL_READY_CANDIDATE" if (tree.get("tree_model_status") or readiness.get("tree_model_status")) == "TREE_MODEL_READY_CANDIDATE" else "MODEL_NOT_READY_NO_FAKE_DETECTION",
             "boxes": tree.get("detections", []),
             "draw_client_side": True,
         },
@@ -978,11 +992,13 @@ def _session_frame_result_from_tree(session: FieldSession, tree: dict[str, Any])
 
 
 def _frame_measurement(tree: dict[str, Any]) -> dict[str, Any]:
+    geometry = tree.get("geometry") or {}
+    geometry_status = tree.get("geometry_readiness") or geometry.get("geometry_status") or "INSUFFICIENT_GEOMETRY_DATA"
     reason = [
         "POLE_MODEL_NOT_READY",
         "CONDUCTOR_MODEL_NOT_READY",
         "NO_FAKE_POLE_CONDUCTOR_DETECTION",
-        "INSUFFICIENT_GEOMETRY_DATA",
+        geometry_status,
         "CALIBRATION_NOT_READY",
     ]
     if tree.get("tree_detected"):
@@ -992,17 +1008,18 @@ def _frame_measurement(tree: dict[str, Any]) -> dict[str, Any]:
     else:
         reason.append("TREE_MODEL_NOT_READY")
     return {
-        "status": "INSUFFICIENT_GEOMETRY_DATA",
+        "status": geometry_status if "BLOCKED" in str(geometry_status) else "INSUFFICIENT_GEOMETRY_DATA",
+        "geometry_status": geometry_status,
         "detected_classes": tree.get("detected_classes", []),
         "tree_detected": bool(tree.get("tree_detected")),
         "tree_confidence": tree.get("tree_confidence", 0.0),
         "tree_bbox": tree.get("tree_bbox_xyxy"),
-        "pole_detected": False,
-        "conductor_detected": False,
-        "clearance_m": None,
-        "tree_height_m": None,
-        "cable_height_m": None,
-        "conductor_height_m": None,
+        "pole_detected": bool(tree.get("pole_detected")),
+        "conductor_detected": bool(tree.get("conductor_detected")),
+        "clearance_m": geometry.get("estimated_clearance_m"),
+        "tree_height_m": geometry.get("estimated_tree_height_m"),
+        "cable_height_m": geometry.get("estimated_conductor_height_m"),
+        "conductor_height_m": geometry.get("estimated_conductor_height_m"),
         "zone_status": "INSUFFICIENT_DATA",
         "risk_level": "INSUFFICIENT_DATA",
         "action_recommendation": "Model pohon kandidat tersedia, tetapi tiang/kabel/kalibrasi belum siap untuk clearance final.",
@@ -1080,12 +1097,19 @@ def _session_report_csv(session: FieldSession) -> Path:
 
 
 def _session_start_contract(session_id: str) -> dict[str, Any]:
+    readiness = model_readiness_status()
     return {
         "ok": True,
         "camera_url": f"/field-camera?session_id={session_id}",
         "map_enabled": False,
         "result_enabled": False,
         "shutter_required": True,
+        "degraded": False,
+        "model_readiness": readiness,
+        "tree_model_status": readiness.get("tree_model_status"),
+        "pole_model_status": readiness.get("pole_model_status", "POLE_MODEL_NOT_READY"),
+        "conductor_model_status": readiness.get("conductor_model_status", "CONDUCTOR_MODEL_NOT_READY"),
+        "auto_geometry_status": readiness.get("geometry_readiness", "AUTO_GEOMETRY_BLOCKED_WAITING_FOR_POLE_CONDUCTOR_MODEL"),
     }
 
 

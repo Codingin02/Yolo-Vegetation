@@ -62,16 +62,28 @@ from .realtime_streaming import (
     write_realtime_snapshot_report,
 )
 from .runtime_links import build_public_links, build_secure_context_diagnostic
+from .realtime_yolo_detection_pipeline import model_readiness_status
 from .yolo_model_resolver import resolve_yolo_model
+
+REQUIRED_PROGRESS6_8_ROUTES = {
+    "/api/field/session/start": "POST",
+    "/api/field/session/frame": "POST",
+    "/api/field/session/gps-update": "POST",
+    "/api/field/session/shutter": "POST",
+    "/field-camera": "GET",
+    "/field-capture": "GET",
+    "/field-map/session/<session_id>": "GET",
+    "/field-spreadsheet/session/<session_id>": "GET",
+}
 
 
 def register_field_capture_routes(app) -> None:
     from flask import jsonify, redirect, render_template, request, send_from_directory
 
     @app.after_request
-    def progress6_6_static_cache_control(response):
+    def progress6_8_static_cache_control(response):
         if request.path.startswith("/static/"):
-            response.headers["Cache-Control"] = "no-cache, max-age=0, must-revalidate"
+            response.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
         return response
 
     @app.get("/field-capture")
@@ -185,7 +197,35 @@ def register_field_capture_routes(app) -> None:
 
     @app.get("/api/runtime/ui-version")
     def runtime_ui_version():
-        return jsonify({"status": "UI_VERSION_READY", "ui_version": "progress6_7", "camera_first_ui": True})
+        return jsonify({"status": "UI_VERSION_READY", "ui_version": "progress6_8", "camera_first_ui": True})
+
+    @app.get("/api/runtime/route-registry")
+    def runtime_route_registry():
+        routes = _route_registry_payload(app)
+        return jsonify(routes)
+
+    @app.get("/api/runtime/camera-diagnostic-contract")
+    def runtime_camera_diagnostic_contract():
+        return jsonify(
+            {
+                "status": "CAMERA_DIAGNOSTIC_CONTRACT_READY",
+                "frontend_permission_source": "BROWSER_DOMEXCEPTION",
+                "error_codes": [
+                    "CAMERA_PERMISSION_DENIED",
+                    "CAMERA_NOT_FOUND",
+                    "CAMERA_CONSTRAINT_FAILED",
+                    "CAMERA_NOT_READABLE",
+                    "CAMERA_INSECURE_CONTEXT",
+                    "CAMERA_UNKNOWN_ERROR",
+                ],
+                "lens_selection": "BROWSER_ENUMERATE_DEVICES_AFTER_PERMISSION",
+                "no_forced_ultrawide_default": True,
+            }
+        )
+
+    @app.get("/api/runtime/yolo-readiness")
+    def runtime_yolo_readiness():
+        return jsonify(model_readiness_status())
 
     @app.get("/api/model/status")
     def model_status():
@@ -235,16 +275,16 @@ def register_field_capture_routes(app) -> None:
             return jsonify(start_field_session(dict(payload or request.form), runtime_root=runtime)), 201
         except Exception as exc:  # pragma: no cover - defensive live route guard
             logged = log_session_exception(exc, route="/api/field/session/start", runtime_root=runtime)
-            fallback_session_id = f"FS_DEGRADED_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             return jsonify(
                 {
                     **logged,
                     "ok": False,
-                    "status": "FIELD_SESSION_START_DEGRADED_INPUT_ACCEPTED",
+                    "status": "FIELD_SESSION_START_FAILED",
                     "error_code": "FIELD_SESSION_START_EXCEPTION_CAUGHT",
-                    "message": "Session start diterima dalam mode aman; tidak ada deteksi palsu.",
-                    "session_id": fallback_session_id,
-                    "camera_url": f"/field-camera?session_id={fallback_session_id}",
+                    "degraded": True,
+                    "message": "Session start gagal dalam guard aman. Kamera tidak dibuka dari session degraded.",
+                    "session_id": "",
+                    "camera_url": None,
                     "map_enabled": False,
                     "result_enabled": False,
                     "shutter_required": True,
@@ -585,6 +625,26 @@ def _secure_context_payload(request) -> dict[str, object]:
         port=_request_port(request),
         public_url=request.args.get("public_url"),
     )
+
+
+def _route_registry_payload(app) -> dict[str, object]:
+    route_methods: dict[str, set[str]] = {}
+    routes: list[dict[str, object]] = []
+    for rule in app.url_map.iter_rules():
+        methods = sorted(method for method in rule.methods if method not in {"HEAD", "OPTIONS"})
+        route_methods.setdefault(rule.rule, set()).update(methods)
+        routes.append({"rule": rule.rule, "methods": methods, "endpoint": rule.endpoint})
+    required = {
+        route: method in route_methods.get(route, set())
+        for route, method in REQUIRED_PROGRESS6_8_ROUTES.items()
+    }
+    return {
+        "status": "ROUTE_REGISTRY_READY" if all(required.values()) else "ROUTE_REGISTRY_BROKEN",
+        "routes": sorted(routes, key=lambda item: str(item["rule"])),
+        "required_routes": required,
+        "required_methods": REQUIRED_PROGRESS6_8_ROUTES,
+        "missing_routes": [route for route, ok in required.items() if not ok],
+    }
 
 
 def _register_realtime_websocket(app) -> None:

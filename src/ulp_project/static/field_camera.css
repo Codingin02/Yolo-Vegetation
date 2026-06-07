@@ -67,6 +67,11 @@ body {
   word-break: break-word;
 }
 
+.camera-lens-button {
+  border: 1px solid rgba(218, 255, 231, 0.34);
+  cursor: pointer;
+}
+
 .camera-bottom-bar {
   position: fixed;
   left: 0;
@@ -182,6 +187,59 @@ body {
   text-decoration: none;
   background: rgba(24, 110, 74, 0.72);
   border: 1px solid rgba(230, 255, 236, 0.24);
+}
+
+.camera-lens-sheet {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  z-index: 11;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(222, 255, 232, 0.22);
+  border-radius: 28px;
+  background: rgba(4, 34, 24, 0.82);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.32);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.camera-lens-sheet[hidden] {
+  display: none;
+}
+
+.camera-lens-sheet h2,
+.camera-lens-sheet p {
+  margin: 0;
+}
+
+.camera-lens-sheet select {
+  min-width: 0;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid rgba(222, 255, 232, 0.25);
+  border-radius: 18px;
+  background: rgba(7, 48, 32, 0.86);
+  color: #f6fff8;
+}
+
+.camera-lens-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.camera-lens-actions button {
+  min-height: 40px;
+  border: 1px solid rgba(222, 255, 232, 0.25);
+  border-radius: 18px;
+  background: rgba(16, 86, 58, 0.62);
+  color: #f7fff8;
+  font-weight: 700;
 }
 
 @keyframes shutterPulse3d {

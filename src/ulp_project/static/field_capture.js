@@ -114,11 +114,17 @@
     const realtime = await safeFetchJson("/api/field/realtime-status");
     const calibration = await safeFetchJson("/api/field/calibration-status");
     const secureDiagnostic = await safeFetchJson("/api/runtime/secure-context-diagnostic");
+    const routeRegistry = await safeFetchJson("/api/runtime/route-registry");
+    const yoloReadiness = await safeFetchJson("/api/runtime/yolo-readiness");
+    const modelStatus = yoloReadiness.model_status || realtime.model_status || runtime.model_status || "MODEL_NOT_READY";
     setFieldStatus("server-status", runtime.status || "RUNTIME_STATUS_READY");
-    setFieldStatus("model-status", realtime.model_status || runtime.model_status || "MODEL_NOT_READY");
-    setFieldStatus("output-model-status", realtime.model_status || runtime.model_status || "MODEL_NOT_READY");
-    setFieldStatus("model-runtime-status", realtime.model_status || runtime.model_status || "MODEL_NOT_READY");
-    setFieldStatus("custom-model-status", realtime.model_status || runtime.model_status || "MODEL_NOT_READY");
+    setFieldStatus("model-status", modelStatus);
+    setFieldStatus("output-model-status", modelStatus);
+    setFieldStatus("model-runtime-status", modelStatus);
+    setFieldStatus("custom-model-status", modelStatus);
+    setFieldStatus("glass-model-status", modelStatus);
+    setFieldStatus("route-registry-status", routeRegistry.status || "ROUTE_REGISTRY_NOT_CHECKED");
+    setFieldStatus("multiclass-model-status", yoloReadiness.status === "MULTICLASS_MODEL_READY_CANDIDATE" ? "MULTICLASS_MODEL_READY_CANDIDATE" : "MULTICLASS_MODEL_NOT_READY");
     setFieldStatus("tunnel-status", runtime.tunnel_status || (runtime.public_links || {}).tunnel_status || (runtime.public_links || {}).status || "PUBLIC_TUNNEL_NOT_RUNNING");
     setFieldStatus("public-tunnel-status", runtime.tunnel_status || (runtime.public_links || {}).tunnel_status || "PUBLIC_TUNNEL_NOT_RUNNING");
     setFieldStatus("current-url-mode", secureDiagnostic.current_url_mode || currentUrlMode());
@@ -130,7 +136,7 @@
     lastLanUrl = ((runtime.public_links || {}).lan_field_capture_url || "");
     setFieldStatus("public-url-display", lastPublicUrl || "PUBLIC_TUNNEL_NOT_RUNNING");
     updateLanWarning(secureDiagnostic.current_url_mode || currentUrlMode());
-    setDebug({ runtime, realtime, calibration, secureDiagnostic });
+    setDebug({ runtime, realtime, calibration, secureDiagnostic, routeRegistry, yoloReadiness });
   }
 
   async function refreshTunnelStatus() {

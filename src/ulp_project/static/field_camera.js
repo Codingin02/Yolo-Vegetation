@@ -3,12 +3,12 @@
     const params = new URLSearchParams(window.location.search);
     const urlHasSessionParam = params.has("session_id");
     const sessionId = urlHasSessionParam ? (params.get("session_id") || "") : (window.localStorage.getItem("field_session_id") || "");
-    if (!sessionId) {
+    if (!sessionId || String(sessionId).startsWith("FS_DEGRADED")) {
       document.body.classList.add("camera-session-error");
       const error = document.getElementById("camera-session-error");
       if (error) error.hidden = false;
       if (window.FieldSession) {
-        window.FieldSession.handleError("FIELD_SESSION_ID_REQUIRED", "Session ID kosong. Kembali ke Home lalu tekan Start ulang.");
+        window.FieldSession.handleError("SESSION_INVALID_OR_EXPIRED", "Session ID kosong/degraded. Kembali ke Home lalu tekan Start ulang.");
       }
       return;
     }
