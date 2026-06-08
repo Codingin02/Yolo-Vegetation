@@ -1,161 +1,48 @@
 <!doctype html>
 <html lang="id">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/static/field_capture.css?v=progress6_9">
-  <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_9">
-  <title>Monitoring Vegetasi 20 kV</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Monitoring Vegetasi 20 kV</title>
+<link rel="stylesheet" href="/static/field_capture_glass.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='progress6_13_operator_result_fix.css') }}?v=progress6_13_operator_map_spreadsheet_readability_fix" data-progress6-13="css">
 </head>
-<body data-page="field-capture-preflight">
-  <main class="shell capture-preflight-shell">
-    <header class="page-head glass-hero compact-hero">
-      <p class="eyebrow">Monitoring Vegetasi 20 kV</p>
-      <h1>Field Capture</h1>
-      <p>Tekan Start saat berdiri di bawah pohon. Setelah izin kamera dan GPS diberikan, layar berpindah ke mode kamera penuh.</p>
-      <div class="pill-row">
-        <span id="glass-url-mode" class="status-pill">HTTPS_PUBLIC_READY / LAN_HTTP_DEBUG_ONLY</span>
-        <span id="glass-gps-status" class="status-pill">GPS_WAITING_PERMISSION</span>
-        <span id="glass-camera-status" class="status-pill">CAMERA_WAITING_PERMISSION</span>
-        <span id="glass-model-status" class="status-pill">MODEL_NOT_READY</span>
-        <span id="route-registry-status" class="status-pill">ROUTE_REGISTRY_NOT_CHECKED</span>
-        <span id="multiclass-model-status" class="status-pill">MULTICLASS_MODEL_NOT_READY</span>
-        <span id="glass-recording-status" class="status-pill">RECORDING_STOPPED</span>
-      </div>
-    </header>
-
-    <section class="glass-card preflight-card">
-      <div class="form-grid preflight-form">
-        <label>Point ID
-          <input id="point_id" value="V001_pohon_sono" autocomplete="off">
-        </label>
-        <label>Operator
-          <input id="operator_name" placeholder="opsional" autocomplete="off">
-        </label>
-      </div>
-      <input id="species" type="hidden" value="pohon_sono">
-      <input id="asset_type" type="hidden" value="span">
-      <input id="lat" type="hidden">
-      <input id="lon" type="hidden">
-      <input id="gps_accuracy_m" type="hidden">
-      <input id="gps_source" type="hidden" value="GPS_NOT_PROVIDED">
-      <label>Notes
-        <textarea id="operator_note" rows="2" placeholder="keterangan singkat operator"></textarea>
-      </label>
-      <button id="session-start" class="primary-action start-camera-first" type="button">Start</button>
-      <nav class="mini-nav">
-        <a class="button-link" href="/field-report">Report</a>
-        <a class="button-link is-disabled" href="#" aria-disabled="true">Result</a>
-        <a class="button-link" href="/field-manual-input">Manual</a>
-        <a class="button-link is-disabled" href="#" aria-disabled="true">Map</a>
-        <a id="session-acceptance" class="button-link" href="/field-acceptance">Acceptance</a>
-      </nav>
-    </section>
-
-    <details class="glass-card developer-debug">
-      <summary>Developer Debug</summary>
-      <p>UI version: <span id="ui-version">progress6_9</span></p>
-      <p hidden aria-hidden="true">Legacy cache marker: progress6_8 progress6_7 progress6_6 v=progress6_6</p>
-      <p>Hard Reload Help: Android Chrome menu tiga titik, buka tab incognito, atau bersihkan cache bila file lama masih 304.</p>
-      <dl class="glass-grid compact-debug-grid">
-        <div><dt>Current URL mode</dt><dd id="current-url-mode">NOT_TESTED</dd></div>
-        <div><dt>Secure context</dt><dd id="secure-context-top">NOT_TESTED</dd></div>
-        <div><dt>Public Tunnel</dt><dd id="public-tunnel-status">PUBLIC_TUNNEL_NOT_RUNNING</dd></div>
-        <div><dt>Public URL</dt><dd id="public-url-display">-</dd></div>
-        <div><dt>camera_permission</dt><dd id="camera-permission-status">NOT_TESTED</dd></div>
-        <div><dt>gps_permission</dt><dd id="gps-permission-status">NOT_TESTED</dd></div>
-        <div><dt>model_runtime</dt><dd id="model-runtime-status">MODEL_NOT_READY</dd></div>
-        <div><dt>frame_interval</dt><dd id="frame-interval-status">1000 ms</dd></div>
-        <div><dt>last_error</dt><dd id="last-error-status">-</dd></div>
-      </dl>
-      <p id="lan-http-warning" class="warning-banner" hidden>Anda sedang membuka LAN HTTP. Ini hanya debug. Field trial beda jaringan wajib memakai Public HTTPS URL.</p>
-      <div class="actions">
-        <button id="copy-public-url" type="button">Copy Public HTTPS URL</button>
-        <button id="open-public-url" type="button">Open Public HTTPS URL</button>
-        <button id="copy-lan-url" type="button">Copy LAN URL hanya untuk debug</button>
-        <button id="ping-btn" type="button">Test koneksi laptop/server</button>
-        <button id="camera-permission" type="button">Izinkan Kamera</button>
-        <button id="gps-btn" type="button">Izinkan GPS</button>
-        <button id="start-camera" type="button">Start kamera</button>
-        <button id="start-realtime" type="button">Mulai Deteksi</button>
-        <button id="stop-realtime" type="button">Stop Deteksi</button>
-        <button id="snapshot-report" type="button">Simpan Laporan</button>
-        <button id="copy-report-link" type="button">Buka Spreadsheet/CSV</button>
-      </div>
-      <p class="hint">Diagnostic labels: HTTPS_PUBLIC_READY, LAN_HTTP_DEBUG_ONLY, LOCALHOST_DEBUG_ONLY, LOCAL_DEV_CONTEXT, INSECURE_CONTEXT_CAMERA_GPS_BLOCKED, INSECURE_CONTEXT_CAMERA_GPS_BLOCKED_OPEN_HTTPS_TUNNEL, SECURE_CONTEXT_OK, HTTP_LAN, HTTPS_SECURE, INSECURE_CONTEXT_CAMERA_GPS_MAY_FAIL, SECURE_CONTEXT_EXPECTED, FOREGROUND_RECORDING_REQUIRED. Kamera/GPS otomatis membutuhkan HTTPS. Mulai deteksi/prediksi berjalan di mode kamera.</p>
-      <pre id="network-debug">NETWORK_DEBUG_EMPTY</pre>
-    </details>
-
-    <div hidden aria-hidden="true">
-      <span id="session-stop">session-stop</span>
-      <span id="open-map-report">open-map-report</span>
-      <span id="session-report">session-report</span>
-      <span id="shutter-capture">Jepret / Shutter</span>
-      <span id="session-result">session-result</span>
-      <span id="session-manual-input">session-manual-input</span>
-      <span id="session-id">-</span>
-      <span id="gps-base-lock-status">GPS_BASE_NOT_LOCKED</span>
-      <span id="wake-lock-status">WAKE_LOCK_NOT_REQUESTED</span>
-      <span id="foreground-recording-status">FOREGROUND_RECORDING_REQUIRED</span>
-      <span id="visibility-state">visible</span>
-      <span id="hidden-duration-ms">0</span>
-      <span id="browser-throttle-warning">-</span>
-      <span id="horizontal-distance-from-tree">-</span>
-      <span id="distance-reliability-status">DISTANCE_NOT_AVAILABLE</span>
-      <span id="gps-quality-reason">GPS_WAITING_PERMISSION</span>
-      <span id="movement-status">GPS_NOT_READY</span>
-      <span id="server-status">NOT_TESTED</span>
-      <span id="model-status">MODEL_NOT_READY</span>
-      <span id="calibration-status">CALIBRATION_NOT_READY</span>
-      <span id="realtime-transport-status">HTTP_FALLBACK_READY</span>
-      <span id="secure-context-status">NOT_TESTED</span>
-      <span id="gps-status">NOT_TESTED</span>
-      <span id="gps-source-status">GPS_NOT_PROVIDED</span>
-      <span id="gps-accuracy-status">-</span>
-      <span id="camera-status">NOT_TESTED</span>
-      <span id="custom-model-status">MODEL_NOT_READY</span>
-      <span id="tunnel-status">NO_PUBLIC_TUNNEL_CONFIGURED</span>
-      <span id="latency-display">-</span>
-      <span id="refresh-interval-display">1s stable update</span>
-      <span id="confidence-status">-</span>
-      <span id="mode-label">CAMERA_SHUTTER_READY</span>
-      <span id="camera-gps-chip">GPS_WAITING_PERMISSION</span>
-      <span id="camera-distance-chip">DISTANCE_NOT_AVAILABLE</span>
-      <span id="camera-session-chip">-</span>
-      <span id="object-detected">-</span>
-      <span id="output-model-status">MODEL_NOT_READY</span>
-      <span id="inference-source">-</span>
-      <span id="measurement-quality-label">-</span>
-      <span id="tree-height-m">-</span>
-      <span id="pole-height-reference-m">-</span>
-      <span id="cable-height-m">-</span>
-      <span id="clearance-raw">-</span>
-      <span id="clearance-display-floor">clearance_display_m_integer_floor</span>
-      <span id="risk-status">zone_status</span>
-      <span id="eta-days">-</span>
-      <span id="eta-months">-</span>
-      <span id="action-priority">-</span>
-      <span id="reason-codes">-</span>
-      <span id="report-id">-</span>
-      <span id="report-path">-</span>
-      <span id="map-path">-</span>
-      <span>Debug COCO Overlay</span>
-      <span>Advanced Debug Only / Manual Provisional</span>
-      <span>Jangan digunakan sebagai klaim hasil final.</span>
-      <span>manual-prediction growth_rate_m_per_day measurement_source environment_source</span>
-      <span>overlay-canvas camera-stage camera-bottom-bar field-toast field_session.js</span>
-      <canvas id="overlay-canvas"></canvas>
-      <canvas id="frame"></canvas>
-      <video id="camera" playsinline autoplay muted></video>
-      <pre id="status-output">FIELD_CAPTURE_CAMERA_GEOMETRY_READY_MODEL_NOT_READY</pre>
-      <input id="image" type="file" accept="image/*" capture="environment">
-      <input id="clearance_m"><input id="tree_height_m"><input id="asset_height_m"><input id="span_lowest_point_height_m"><input id="growth_rate_m_per_day">
-      <select id="measurement_source"><option>manual</option></select>
-      <select id="environment_source"><option>not_available</option></select>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Field Capture</h1>
+    <p>Tekan Start saat berdiri di bawah pohon. Setelah izin kamera/GPS diberikan, sistem berpindah ke mode kamera penuh.</p>
+    <div class="chips">
+      <span class="chip">HTTPS_PUBLIC_READY</span>
+      <span class="chip" id="gpsChip">GPS_WAITING_PERMISSION</span>
+      <span class="chip" id="cameraChip">CAMERA_WAITING_PERMISSION</span>
+      <span class="chip">{{ tree_model_status|default('TREE_MODEL_READY_CANDIDATE') }}</span>
+      <span class="chip">ROUTE_REPAIR_READY</span>
     </div>
-  </main>
-  <script src="/static/field_capture.js?v=progress6_9"></script>
-  <script src="/static/field_navigation.js?v=progress6_9"></script>
-  <script src="/static/field_session.js?v=progress6_9"></script>
+  </div>
+
+  <div class="card">
+    <div class="grid">
+      <div><label>Point ID</label><input id="pointId" value="V001_pohon_sono"></div>
+      <div><label>Operator</label><input id="operatorName" placeholder="opsional"></div>
+    </div>
+    <p><label>Notes</label><textarea id="notes" placeholder="keterangan singkat operator"></textarea></p>
+    <button class="start" id="startBtn">Start</button>
+    <div class="nav">
+      <button onclick="openLast('/field-map/session/')">Map</button>
+      <button onclick="openLast('/field-spreadsheet/session/')">Result</button>
+      <button onclick="alert('Manual input nanti dipakai setelah kamera stabil.')">Manual</button>
+    </div>
+    <p id="statusText"></p>
+  </div>
+
+  <details class="card">
+    <summary>Developer Debug</summary>
+    <p>UI version: progress6_10_repair_inline_no_cache</p>
+    <pre id="debugBox">{}</pre>
+  </details>
+</div>
+<script src="/static/field_session.js"></script>
+<script defer src="{{ url_for('static', filename='progress6_13_operator_result_fix.js') }}?v=progress6_13_operator_map_spreadsheet_readability_fix" data-progress6-13="js"></script>
 </body>
 </html>

@@ -165,24 +165,40 @@ def normalize_gps(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _coerce_gps_payload(payload: dict[str, Any]) -> dict[str, Any]:
     payload = dict(payload or {})
+    merged = dict(payload)
+
     coords = payload.get("coords")
     if isinstance(coords, dict):
-        payload = {**coords, **payload}
+        for k, v in coords.items():
+            if v is not None and merged.get(k) is None:
+                merged[k] = v
+
     gps = payload.get("gps")
     if isinstance(gps, dict):
-        nested: dict[str, Any] = {}
-        if isinstance(gps.get("current"), dict):
-            nested = dict(gps.get("current") or {})
-        elif isinstance(gps.get("base"), dict):
-            nested = dict(gps.get("base") or {})
-        payload = {**nested, **gps, **payload}
-    if "current_latitude" in payload and "latitude" not in payload:
-        payload["latitude"] = payload.get("current_latitude")
-    if "current_longitude" in payload and "longitude" not in payload:
-        payload["longitude"] = payload.get("current_longitude")
-    if "current_accuracy_m" in payload and "accuracy" not in payload:
-        payload["accuracy"] = payload.get("current_accuracy_m")
-    return payload
+        nested_curr = gps.get("current")
+        if isinstance(nested_curr, dict):
+            for k, v in nested_curr.items():
+                if v is not None and merged.get(k) is None:
+                    merged[k] = v
+        nested_base = gps.get("base")
+        if isinstance(nested_base, dict):
+            for k, v in nested_base.items():
+                if v is not None and merged.get(f"base_{k}") is None:
+                    merged[f"base_{k}"] = v
+        for k, v in gps.items():
+            if v is not None and merged.get(k) is None:
+                merged[k] = v
+
+    if "current_latitude" in merged and merged.get("latitude") is None:
+        merged["latitude"] = merged.get("current_latitude")
+    if "current_longitude" in merged and merged.get("longitude") is None:
+        merged["longitude"] = merged.get("current_longitude")
+    if "current_accuracy_m" in merged and merged.get("accuracy") is None:
+        merged["accuracy"] = merged.get("current_accuracy_m")
+    if "current_accuracy" in merged and merged.get("accuracy") is None:
+        merged["accuracy"] = merged.get("current_accuracy")
+
+    return merged
 
 
 def start_field_session(payload: dict[str, Any], *, runtime_root: Path | None = None) -> dict[str, Any]:
@@ -609,34 +625,80 @@ def render_field_session_spreadsheet_html(session_id: Any | None, *, runtime_roo
     result = field_session_spreadsheet(session_id, runtime_root=runtime_root)
     session_id_text = html.escape(str(result.get("session_id") or session_id or ""))
     rows = result.get("rows") or []
+
     if not rows:
-        table = f"<p>{html.escape(str(result.get('message') or result.get('status')))}</p>"
+        content = f"""
+        <div class="card">
+          <p>{html.escape(str(result.get('message') or result.get('status')))}</p>
+          <a class="btn" href="/field-camera?session_id={session_id_text}">Back to Camera</a>
+        </div>
+        """
     else:
+        # Build cards first
+        r = rows[0]
+        content = f"""
+        <div class="cards-grid">
+            <div class="evidence-card"><b>Session ID:</b><br>{html.escape(str(r.get('session_id', '')))}</div>
+            <div class="evidence-card"><b>Point ID:</b><br>{html.escape(str(r.get('point_id', '')))}</div>
+            <div class="evidence-card"><b>Operator:</b><br>{html.escape(str(r.get('operator_name', '')))}</div>
+            <div class="evidence-card"><b>Timestamp:</b><br>{html.escape(str(r.get('timestamp', '')))}</div>
+            <div class="evidence-card"><b>Frame Status:</b><br>{html.escape(str(r.get('frame_status', '')))}</div>
+            <div class="evidence-card"><b>GPS Coordinate:</b><br>{html.escape(str(r.get('gps_lat', '')))}, {html.escape(str(r.get('gps_lon', '')))}</div>
+            <div class="evidence-card"><b>GPS Accuracy:</b><br>{html.escape(str(r.get('gps_accuracy_m', '')))} m</div>
+            <div class="evidence-card"><b>Tree Model Status:</b><br>{html.escape(str(result.get('tree_model_status', 'TREE_MODEL_READY_CANDIDATE')))}</div>
+            <div class="evidence-card"><b>Pole Model Status:</b><br>{html.escape(str(r.get('pole_model_status', 'POLE_MODEL_NOT_READY')))}</div>
+            <div class="evidence-card"><b>Conductor Model:</b><br>{html.escape(str(r.get('conductor_model_status', 'CONDUCTOR_MODEL_NOT_READY')))}</div>
+            <div class="evidence-card"><b>Clearance Status:</b><br>CLEARANCE_NOT_FINAL_NO_POLE_CONDUCTOR</div>
+            <div class="evidence-card"><b>ETA Status:</b><br>{html.escape(str(r.get('eta_3m_status', 'ETA_3M_NOT_AVAILABLE_INSUFFICIENT_GEOMETRY')))}</div>
+            <div class="evidence-card"><b>Growth Selected Model:</b><br>{html.escape(str(r.get('growth_selected_model', '')))}</div>
+            <div class="evidence-card"><b>CSV Mode:</b><br>{html.escape(str(result.get('google_sheets_status')))}</div>
+        </div>
+        """
+
         header = "".join(f"<th>{html.escape(str(column))}</th>" for column in result["columns"])
-        body = "".join(f"<td>{html.escape(str(rows[0].get(column, '')))}</td>" for column in result["columns"])
+        body = "".join(f"<td>{html.escape(str(r.get(column, '')))}</td>" for column in result["columns"])
         table = f"<div class=\"sheet-wrap\"><table><thead><tr>{header}</tr></thead><tbody><tr>{body}</tr></tbody></table></div>"
+
+        content += f"""
+        <div class="card table-container">
+            <h3>Tabel Detail</h3>
+            {table}
+        </div>
+        <p>
+            <a class="btn" href="/field-camera?session_id={session_id_text}">Kembali ke Camera</a>
+            <a class="btn" href="/field-map/session/{session_id_text}">Map</a>
+        </p>
+        <p>
+            <a class="btn" href="{html.escape(str(result.get('csv_url') or ''))}">Download CSV</a>
+        </p>
+        """
+
     return f"""<!doctype html>
-<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Field Spreadsheet Evidence</title>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Spreadsheet Evidence</title>
 <style>
-body{{margin:0;min-height:100dvh;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#eefdf3;background:linear-gradient(135deg,#06140e,#123927);overflow-wrap:anywhere;word-break:break-word}}
-main{{max-width:1100px;margin:0 auto;padding:18px}}
-.card{{border:1px solid rgba(220,255,232,.22);border-radius:28px;background:rgba(9,42,30,.62);backdrop-filter:blur(18px);box-shadow:0 24px 70px rgba(0,0,0,.28);padding:16px;overflow:hidden}}
-.pill{{display:inline-flex;margin:4px 4px 8px 0;padding:7px 10px;border-radius:999px;background:rgba(215,255,226,.13);border:1px solid rgba(230,255,236,.18);font-size:12px}}
-.sheet-wrap{{overflow:auto;border-radius:18px;border:1px solid rgba(255,255,255,.16)}}
-table{{border-collapse:collapse;min-width:920px;width:100%;background:rgba(255,255,255,.04)}}
-th,td{{border:1px solid rgba(255,255,255,.12);padding:9px;text-align:left;font-size:12px;max-width:260px;overflow-wrap:anywhere;word-break:break-word;vertical-align:top}}
-th{{position:sticky;top:0;background:rgba(30,94,64,.85)}}
-a,button{{color:#e7ffed}}
-.actions{{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}}
-.actions a{{padding:10px 12px;border-radius:16px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);text-decoration:none}}
-</style></head><body><main><section class="card">
-<span class="pill">{html.escape(str(result.get('status')))}</span><span class="pill">{html.escape(str(result.get('google_sheets_status')))}</span>
-<h1>Spreadsheet Evidence</h1><p>Session: {session_id_text}</p>{table}
-<div class="actions"><a href="{html.escape(str(result.get('csv_url') or '/field-reports/field_capture_autosave.csv'))}">Download CSV</a>
-<a href="{html.escape(str(result.get('csv_url') or '/field-reports/field_capture_autosave.csv'))}">Open CSV</a>
-<a href="/field-camera?session_id={session_id_text}">Back to Camera</a><a href="/field-capture">Back to Home</a><a href="{html.escape(str(result.get('map_url') or '#'))}">Open Map</a></div>
-</section></main></body></html>"""
+body{{margin:0;font-family:system-ui;background:#eef6f4;color:#102024}}
+.wrap{{max-width:1100px;margin:0 auto;padding:22px}}
+.card{{background:white;border-radius:24px;padding:18px;box-shadow:0 14px 40px rgba(0,0,0,.08);overflow:auto;margin-bottom:20px;}}
+.cards-grid{{display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:12px;margin-bottom:20px;}}
+.evidence-card{{background:white;border:1px solid #d6e2df;border-radius:16px;padding:12px;box-shadow:0 4px 12px rgba(0,0,0,.04);font-size:13px;}}
+table{{border-collapse:collapse;width:100%;font-size:14px;min-width:900px;}}
+td,th{{border:1px solid #d6e2df;padding:8px;text-align:left;vertical-align:top;overflow-wrap:anywhere}}
+th{{background:#166b5a;color:white;position:sticky;top:0;}}
+.btn{{display:inline-block;margin:10px 8px 10px 0;padding:12px 16px;border-radius:14px;background:#166b5a;color:white;text-decoration:none;font-weight:800}}
+.table-container{{max-height: 50vh;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+    <h1>Spreadsheet Evidence</h1>
+    {content}
+</div>
+</body>
+</html>"""
 
 
 def latest_field_session_map(session_id: Any | None = None, *, runtime_root: Path | None = None, require_shutter: bool = False) -> dict[str, Any]:
@@ -726,24 +788,56 @@ def render_field_session_map_html(session_id: Any | None, *, runtime_root: Path 
     path = Path(path_text) if path_text else Path("__missing_field_map__")
     if path_text and path.is_file():
         return path.read_text(encoding="utf-8")
+
     session_id_text = html.escape(str(result.get("session_id") or session_id or ""))
     status = html.escape(str(result.get("status") or "FIELD_SESSION_MAP_STATUS"))
     message = html.escape(str(result.get("message") or "Map belum tersedia."))
+
+    if status == "MAP_LOCKED_SHUTTER_REQUIRED":
+        content = f"""
+        <div class="card warn">
+          <h2>MAP_LOCKED_SHUTTER_REQUIRED</h2>
+          <p>{message}</p>
+          <a class="btn" href="/field-camera?session_id={session_id_text}">Back to Camera</a>
+        </div>
+        """
+    else:
+        content = f"""
+        <div class="card warn">
+          <h2>NO_GPS_NO_MARKER</h2>
+          <p>GPS belum valid, marker tidak dibuat. Data tetap disimpan sebagai evidence non-spasial.</p>
+          <p><b>Reasons:</b> {html.escape(str(result.get('gps_quality_reasons', [])))}</p>
+          <p>
+            <a class="btn" href="/field-camera?session_id={session_id_text}">Back to Camera</a>
+            <a class="btn" href="/field-spreadsheet/session/{session_id_text}">Result</a>
+          </p>
+        </div>
+        """
+
     return f"""<!doctype html>
-<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Field Session Map</title>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Field Map {session_id_text}</title>
 <style>
-body{{margin:0;min-height:100dvh;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#eefdf3;background:linear-gradient(135deg,#071c14,#123827 54%,#06120d);overflow-wrap:anywhere;word-break:break-word}}
-main{{max-width:760px;margin:0 auto;padding:22px}}
-.card{{border:1px solid rgba(220,255,232,.22);border-radius:28px;background:rgba(9,42,30,.62);backdrop-filter:blur(18px);box-shadow:0 24px 70px rgba(0,0,0,.28);padding:18px;overflow:hidden}}
-.pill{{display:inline-flex;margin:4px 4px 4px 0;padding:7px 10px;border-radius:999px;background:rgba(215,255,226,.13);border:1px solid rgba(230,255,236,.18);font-size:12px}}
-a{{color:#d9ffe6}}
-</style></head><body><main><section class="card">
-<p class="pill">{status}</p><h1>Field Session Map</h1>
-<p>Session: {session_id_text}</p><p>{message}</p>
-<p>GPS belum valid atau shutter belum dibuat, marker tidak dibuat. Data tetap disimpan sebagai evidence non-spasial bila session tersedia.</p>
-<p><a href="/field-camera?session_id={session_id_text}">Back to Camera</a> · <a href="/field-capture">Back to Home</a></p>
-</section></main></body></html>"""
+body{{margin:0;font-family:system-ui;background:linear-gradient(135deg,#e8f4ef,#f8fbff);color:#102024}}
+.wrap{{max-width:900px;margin:0 auto;padding:24px}}
+.card{{background:rgba(255,255,255,.84);border:1px solid rgba(0,0,0,.08);border-radius:28px;padding:22px;box-shadow:0 18px 50px rgba(0,0,0,.08)}}
+.ok{{border-left:8px solid #166b5a}}
+.warn{{border-left:8px solid #b7791f}}
+.btn{{display:inline-block;margin-top:14px;margin-right:8px;padding:14px 18px;border-radius:16px;background:#166b5a;color:white;text-decoration:none;font-weight:800}}
+small{{overflow-wrap:anywhere}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Map Evidence</h1>
+<p><small>Session: {session_id_text}</small></p>
+{content}
+</div>
+</body>
+</html>"""
 
 
 def validate_conductor_height(conductor_height_m: Any) -> dict[str, Any]:

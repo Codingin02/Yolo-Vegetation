@@ -15,7 +15,7 @@ from .growth_prior_loader import DEFAULT_POHON_SONO_XLSX, load_proxy_rows, map_g
 from .paths import PROJECT_ROOT
 
 GROWTH_FOLDER = PROJECT_ROOT / "data" / "growth_model" / "pohon_sono"
-DERIVED_DIR = PROJECT_ROOT / "data" / "runtime" / "growth_prior"
+DERIVED_DIR = PROJECT_ROOT / "data" / "runtime" / "growth_model"
 MODEL_SELECTION_SEED = 74166
 _MODEL_CACHE: dict[tuple[str, float], dict[str, Any]] = {}
 

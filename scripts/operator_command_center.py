@@ -98,6 +98,7 @@ COMMAND_GROUPS = {
         ".\\venv\\Scripts\\python.exe scripts\\progress6_6_growth_prior_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\progress6_6_report_result_compact_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\progress6_6_gate.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_10_gate.py",
     ],
     "WAIT UNTIL MAKESENSE EXPORT": [
         ".\\venv\\Scripts\\python.exe scripts\\phase3_readiness_gate.py",
@@ -303,6 +304,18 @@ MODE_GROUPS = {
         "After Shutter map: https://<ngrok-public-url>/field-map/session/<session_id>",
         "After Shutter spreadsheet/result: https://<ngrok-public-url>/field-spreadsheet/session/<session_id>",
     ],
+    "progress6-10-camera-session-map-spreadsheet-repair": [
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_10_session_camera_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_10_map_spreadsheet_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_10_growth_model_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_10_gate.py",
+        ".\\venv\\Scripts\\python.exe scripts\\run_remote_realtime_server.py --host 0.0.0.0 --port 5000",
+        "Tunnel: ngrok http 5000",
+        "HP preflight: https://<ngrok-public-url>/field-capture",
+        "After Start: https://<ngrok-public-url>/field-camera?session_id=<session_id>",
+        "After Shutter map: https://<ngrok-public-url>/field-map/session/<session_id>",
+        "After Shutter spreadsheet/result: https://<ngrok-public-url>/field-spreadsheet/session/<session_id>",
+    ],
 }
 
 
@@ -423,6 +436,10 @@ def main() -> int:
     parser.add_argument("--progress6-9-session-camera-smoke", action="store_true")
     parser.add_argument("--progress6-9-map-spreadsheet-smoke", action="store_true")
     parser.add_argument("--progress6-9-growth-model-smoke", action="store_true")
+    parser.add_argument("--progress6-10-gate", action="store_true")
+    parser.add_argument("--progress6-10-session-camera-smoke", action="store_true")
+    parser.add_argument("--progress6-10-map-spreadsheet-smoke", action="store_true")
+    parser.add_argument("--progress6-10-growth-model-smoke", action="store_true")
     parser.add_argument("--all-gates", action="store_true")
     parser.add_argument("--mode", choices=["all", *MODE_GROUPS.keys()], default="all")
     args = parser.parse_args()
@@ -526,6 +543,10 @@ def main() -> int:
         (args.progress6_9_session_camera_smoke, ["scripts\\progress6_9_session_camera_smoke.py"]),
         (args.progress6_9_map_spreadsheet_smoke, ["scripts\\progress6_9_map_spreadsheet_smoke.py"]),
         (args.progress6_9_growth_model_smoke, ["scripts\\progress6_9_growth_model_smoke.py"]),
+        (args.progress6_10_gate, ["scripts\\progress6_10_gate.py"]),
+        (args.progress6_10_session_camera_smoke, ["scripts\\progress6_10_session_camera_smoke.py"]),
+        (args.progress6_10_map_spreadsheet_smoke, ["scripts\\progress6_10_map_spreadsheet_smoke.py"]),
+        (args.progress6_10_growth_model_smoke, ["scripts\\progress6_10_growth_model_smoke.py"]),
         (args.all_gates, ["scripts\\phase17_20_final_system_completion_gate.py"]),
     ]
     selected = [cmd for enabled, cmd in actions if enabled]

@@ -1,109 +1,62 @@
 <!doctype html>
 <html lang="id">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <link rel="stylesheet" href="/static/field_capture_glass.css?v={{ cache_bust|default('progress6_9') }}">
-  <link rel="stylesheet" href="/static/field_camera.css?v={{ cache_bust|default('progress6_9') }}">
-  <title>Field Camera</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Field Camera</title>
+<link rel="stylesheet" href="/static/field_camera.css?v=progress6_11_manual_runtime_unblocker">
 </head>
-<body data-page="field-camera" data-session-id="{{ session_id|default('', true) }}" data-ui-version="{{ ui_version|default('progress6_9') }}" class="camera-mode-active{% if not session_id %} camera-session-error{% endif %}">
-  <main class="field-camera-root" data-session-id="{{ session_id|default('', true) }}" data-session-lookup-status="{{ session_lookup_status|default('FIELD_SESSION_LOOKUP_PENDING') }}">
-    <span id="camera-session-id" data-session-id="{{ session_id|default('', true) }}" hidden>{{ session_id|default('', true) }}</span>
-    <section class="camera-stage field-camera-stage" aria-label="Kamera lapangan">
-      <video id="camera" playsinline autoplay muted></video>
-      <canvas id="overlay-canvas"></canvas>
-      <canvas id="frame" hidden></canvas>
-      <div class="camera-top-bar">
-        <span class="camera-chip">TREE_MODEL_READY_CANDIDATE / MODEL_SAFE_MODE</span>
-        <span id="camera-gps-chip" class="camera-chip">GPS_WAITING_PERMISSION</span>
-        <span id="camera-distance-chip" class="camera-chip">DISTANCE_NOT_AVAILABLE</span>
-        <span id="camera-frame-chip" class="camera-chip">FRAME_WAITING</span>
-        <span id="camera-shutter-chip" class="camera-chip">SHUTTER_REQUIRED</span>
-        <span id="camera-session-chip" class="camera-chip">-</span>
-        <button id="camera-lens-open" class="camera-chip camera-lens-button" type="button">Camera Lens</button>
-      </div>
-      <div id="camera-session-error" class="camera-session-error-panel" {% if session_id %}hidden{% endif %}>
-        {% if not session_id %}
-        <h1>FIELD_SESSION_ID_REQUIRED</h1>
-        <p>Session ID kosong. Kembali ke Home lalu tekan Start ulang.</p>
-        {% else %}
-        <h1>FIELD_SESSION_LOOKUP_PENDING</h1>
-        <p>Session ID terbaca. Kamera menunggu inisialisasi browser.</p>
-        {% endif %}
-        <a href="/field-capture">Back to Home</a>
-      </div>
-      <div id="camera-lens-sheet" class="camera-lens-sheet" hidden>
-        <h2>Camera Lens</h2>
-        <p>Default memilih kamera belakang normal/wide bila tersedia. Ultra-wide hanya dipakai bila operator memilihnya.</p>
-        <select id="camera-lens-select" aria-label="Pilih kamera">
-          <option value="">Default Back Camera</option>
-        </select>
-        <div class="camera-lens-actions">
-          <button id="camera-lens-apply" class="press-3d" type="button">Apply</button>
-          <button id="camera-lens-close" class="press-3d" type="button">Close</button>
-        </div>
-        <p id="camera-lens-status">CAMERA_LENS_DEFAULT_BACK_NORMAL_WIDE</p>
-      </div>
-      <div id="field-toast" class="field-toast" hidden>FIELD_SESSION_READY</div>
-      <div id="foreground-warning" class="foreground-camera-warning" hidden>Halaman tidak aktif. Browser dapat membatasi kamera/timer/GPS.</div>
-      <nav class="camera-bottom-bar" role="toolbar" aria-label="Field camera controls">
-        <button id="session-home" class="press-3d" type="button">Home</button>
-        <button id="open-map-report" class="press-3d" type="button" disabled aria-disabled="true">Map</button>
-        <button id="shutter-capture" class="shutter-button" type="button" aria-label="Jepret / Shutter">●</button>
-        <button id="session-result" class="press-3d" type="button" disabled aria-disabled="true">Result</button>
-        <button id="session-manual-input" class="press-3d" type="button">Manual</button>
-      </nav>
-    </section>
+{% set sid = session_id|default('', true) %}
+{% set ui_ver = ui_version|default('progress6_11_manual_runtime_unblocker', true) %}
+{% set missing_status = session_lookup_status|default('FIELD_SESSION_ID_REQUIRED', true) %}
+<body data-session-id="{{ sid }}" data-ui-version="{{ ui_ver }}">
+<span id="camera-session-id" data-session-id="{{ sid }}" hidden>{{ sid }}</span>
 
-    <details class="camera-debug">
-      <summary>Developer Debug</summary>
-      <p>UI version active: {{ ui_version|default('progress6_9') }}</p>
-      <dl class="glass-grid">
-        <div><dt>session_id</dt><dd id="session-id">{{ session_id|default('-', true) }}</dd></div>
-        <div><dt>gps_base_lock_status</dt><dd id="gps-base-lock-status">GPS_BASE_NOT_LOCKED</dd></div>
-        <div><dt>wake_lock</dt><dd id="wake-lock-status">WAKE_LOCK_NOT_REQUESTED</dd></div>
-        <div><dt>foreground_recording_status</dt><dd id="foreground-recording-status">FOREGROUND_RECORDING_REQUIRED</dd></div>
-        <div><dt>visibility_state</dt><dd id="visibility-state">visible</dd></div>
-        <div><dt>hidden_duration_ms</dt><dd id="hidden-duration-ms">0</dd></div>
-        <div><dt>browser_throttle_warning</dt><dd id="browser-throttle-warning">-</dd></div>
-        <div><dt>horizontal_distance_from_tree_m</dt><dd id="horizontal-distance-from-tree">-</dd></div>
-        <div><dt>distance_reliability_status</dt><dd id="distance-reliability-status">DISTANCE_NOT_AVAILABLE</dd></div>
-        <div><dt>gps_quality_reason</dt><dd id="gps-quality-reason">GPS_WAITING_PERMISSION</dd></div>
-        <div><dt>movement_status</dt><dd id="movement-status">GPS_NOT_READY</dd></div>
-        <div><dt>gps_status</dt><dd id="gps-status">GPS_WAITING_PERMISSION</dd></div>
-        <div><dt>gps_source</dt><dd id="gps-source-status">GPS_NOT_PROVIDED</dd></div>
-        <div><dt>gps_accuracy</dt><dd id="gps-accuracy-status">-</dd></div>
-        <div><dt>camera_status</dt><dd id="camera-status">CAMERA_WAITING_PERMISSION</dd></div>
-        <div><dt>frame_interval</dt><dd id="frame-interval-status">1000 ms</dd></div>
-        <div><dt>last_error</dt><dd id="last-error-status">-</dd></div>
-      </dl>
-      <pre id="status-output">FIELD_CAMERA_PROGRESS6_6_READY</pre>
-    </details>
+<div id="missing" class="err" style="display: {{ 'none' if sid else 'grid' }};">
+  <div class="panel">
+    <h2>{{ missing_status if not sid else '' }}</h2>
+    <p>Session ID kosong atau tidak valid. Kembali ke Field Capture dan tekan Start.</p>
+    <button class="btn" onclick="location.href='/field-capture'">Home</button>
+  </div>
+</div>
 
-      <div hidden aria-hidden="true">
-      <span>MODEL_NOT_READY_NO_FAKE_DETECTION</span>
-      <span>progress6_8 legacy cache token</span>
-      <span>progress6_7 legacy cache token</span>
-      <span>field_camera.js?v=progress6_6 legacy cache token</span>
-      <span>/field-map/session/&lt;session_id&gt;</span>
-      <span>/field-spreadsheet/session/&lt;session_id&gt;</span>
-      <input id="point_id" value="V001_pohon_sono">
-      <input id="operator_name">
-      <textarea id="operator_note"></textarea>
-      <span id="glass-url-mode">HTTPS_PUBLIC_READY</span>
-      <span id="glass-gps-status">GPS_WAITING_PERMISSION</span>
-      <span id="glass-camera-status">CAMERA_WAITING_PERMISSION</span>
-      <span id="glass-model-status">MODEL_NOT_READY</span>
-      <span id="glass-recording-status">RECORDING_ACTIVE</span>
-      <span id="report-path">-</span>
-      <span id="map-path">-</span>
-      <span id="report-id">-</span>
-      <span id="public-tunnel-status">PUBLIC_TUNNEL_NOT_RUNNING</span>
-    </div>
-  </main>
-  <script src="/static/field_navigation.js?v={{ cache_bust|default('progress6_9') }}"></script>
-  <script src="/static/field_session.js?v={{ cache_bust|default('progress6_9') }}"></script>
-  <script src="/static/field_camera.js?v={{ cache_bust|default('progress6_9') }}"></script>
+<main id="cameraRoot" class="camera-root" data-session-id="{{ sid }}">
+  <video id="cameraPreview" autoplay playsinline muted></video>
+  <canvas id="overlayCanvas" class="overlay-canvas"></canvas>
+  <canvas id="frameCanvas" hidden></canvas>
+
+  <section class="hud-top" aria-label="runtime status">
+    <span id="treeBadge" class="chip">TREE_MODEL_READY_CANDIDATE</span>
+    <span id="gpsBadge" class="chip">GPS_WAITING</span>
+    <span id="cameraBadge" class="chip">CAMERA_WAITING</span>
+    <span id="frameBadge" class="chip">FRAME_WAITING</span>
+    <span id="shutterBadge" class="chip">SHUTTER_WAITING</span>
+    <span id="sessionBadge" class="chip">{{ sid[:18] if sid else 'FIELD_SESSION_ID_REQUIRED' }}</span>
+  </section>
+
+  <section id="messageBar" class="message-bar">CAMERA_BOOTING</section>
+
+  <section id="lensSheet" class="lens-sheet" data-lens-sheet-ui="true" hidden>
+    <label for="cameraLensSelect">Lens</label>
+    <select id="cameraLensSelect" name="cameraLensSelect" aria-label="Camera lens selector">
+      <option value="">Lens: Auto</option>
+    </select>
+  </section>
+
+  <details id="debugPanel" class="debug-panel">
+    <summary>Developer Debug</summary>
+    <pre id="debugBox">{}</pre>
+  </details>
+
+  <nav class="bottom-bar" aria-label="operator controls">
+    <button id="homeBtn" class="nav-btn" type="button">Home</button>
+    <button id="mapBtn" class="nav-btn" type="button">Map</button>
+    <button id="shutterBtn" class="shutter" type="button" aria-label="Shutter"></button>
+    <button id="resultBtn" class="nav-btn" type="button">Result</button>
+    <button id="manualBtn" class="nav-btn" type="button">Manual</button>
+  </nav>
+</main>
+
+<script src="/static/field_camera.js?v=progress6_11_manual_runtime_unblocker"></script>
 </body>
 </html>

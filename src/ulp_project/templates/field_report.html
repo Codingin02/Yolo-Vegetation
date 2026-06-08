@@ -6,6 +6,7 @@
   <link rel="stylesheet" href="/static/field_capture.css?v=progress6_9">
   <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_9">
   <title>Field Report</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='progress6_13_operator_result_fix.css') }}?v=progress6_13_operator_map_spreadsheet_readability_fix" data-progress6-13="css">
 </head>
 <body>
   <!-- progress6_8 legacy cache token; visible UI uses progress6_9. -->
@@ -140,5 +141,190 @@
       document.getElementById('growth-source-status').textContent = growth.source_status || 'PROXY_NOT_FIELD_OBSERVED';
     });
   </script>
+
+
+<!-- PROGRESS_6_12B_SPREADSHEET_MOBILE_FIX -->
+<style>
+.progress612b-table-shell {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.70);
+    padding: 10px;
+    box-sizing: border-box;
+}
+.progress612b-table-shell table {
+    width: max-content !important;
+    min-width: 100% !important;
+    table-layout: auto !important;
+    border-collapse: collapse !important;
+}
+.progress612b-table-shell th,
+.progress612b-table-shell td,
+table th,
+table td {
+    writing-mode: horizontal-tb !important;
+    text-orientation: mixed !important;
+    transform: none !important;
+    white-space: nowrap !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    min-width: 130px !important;
+    max-width: 360px !important;
+    padding: 10px 12px !important;
+    vertical-align: top !important;
+    font-size: 13px !important;
+}
+.progress612b-table-shell th,
+table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    font-weight: 900 !important;
+}
+.progress612b-compact {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 12px;
+    margin: 18px 0;
+}
+.progress612b-card {
+    border-radius: 18px;
+    background: #ffffff;
+    border: 1px solid rgba(0,0,0,0.08);
+    padding: 14px 16px;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.07);
+}
+.progress612b-card b {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+}
+.progress612b-card span {
+    display: block;
+    font-size: 15px;
+    overflow-wrap: anywhere;
+}
+.progress612b-note {
+    margin: 14px 0;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(20, 118, 91, 0.10);
+    border: 1px solid rgba(20, 118, 91, 0.20);
+    font-weight: 750;
+}
+@media (max-width: 720px) {
+    body {
+        overflow-x: hidden;
+    }
+    .progress612b-table-shell th,
+    .progress612b-table-shell td,
+    table th,
+    table td {
+        min-width: 150px !important;
+        font-size: 12px !important;
+    }
+}
+</style>
+<script>
+(function () {
+    "use strict";
+    const MARKER = "PROGRESS_6_12B_SPREADSHEET_MOBILE_FIX";
+    if (window[MARKER]) return;
+    window[MARKER] = true;
+
+    function normalize(s) {
+        return String(s || "").trim().replace(/\s+/g, " ");
+    }
+
+    function wrapTables() {
+        document.querySelectorAll("table").forEach((table) => {
+            if (table.closest(".progress612b-table-shell")) return;
+            const shell = document.createElement("div");
+            shell.className = "progress612b-table-shell";
+            table.parentNode.insertBefore(shell, table);
+            shell.appendChild(table);
+        });
+    }
+
+    function buildCompactCards() {
+        if (document.getElementById("progress612bCompactEvidence")) return;
+
+        const table = document.querySelector("table");
+        if (!table) return;
+
+        const rows = Array.from(table.querySelectorAll("tr"));
+        if (rows.length < 2) return;
+
+        const headers = Array.from(rows[0].children).map(cell => normalize(cell.innerText));
+        const values = Array.from(rows[1].children).map(cell => normalize(cell.innerText));
+
+        const wanted = [
+            "session_id",
+            "timestamp",
+            "point_id",
+            "operator_name",
+            "gps_lat",
+            "gps_lon",
+            "gps_accuracy_m",
+            "frame_status",
+            "tree_model_status",
+            "tree_detected",
+            "tree_confidence",
+            "pole_model_status",
+            "conductor_model_status",
+            "clearance_m",
+            "clearance_status",
+            "eta_status",
+            "map_url",
+            "source_status",
+            "notes"
+        ];
+
+        const compact = document.createElement("section");
+        compact.id = "progress612bCompactEvidence";
+        compact.className = "progress612b-compact";
+
+        wanted.forEach((key) => {
+            const idx = headers.findIndex(h => h.toLowerCase() === key.toLowerCase());
+            if (idx < 0) return;
+            const card = document.createElement("div");
+            card.className = "progress612b-card";
+            card.innerHTML = `<b>${headers[idx]}</b><span>${values[idx] || "—"}</span>`;
+            compact.appendChild(card);
+        });
+
+        if (!compact.children.length) return;
+
+        const note = document.createElement("div");
+        note.className = "progress612b-note";
+        note.textContent = "Tampilan ringkas ini dibuat dari tabel evidence yang sama. Tabel detail tetap tersedia di bawah dan bisa digeser horizontal.";
+
+        const title = Array.from(document.querySelectorAll("h1,h2")).find(h => /spreadsheet|evidence/i.test(h.textContent || ""));
+        if (title && title.parentElement) {
+            title.parentElement.insertBefore(note, title.nextSibling);
+            title.parentElement.insertBefore(compact, note.nextSibling);
+        } else {
+            document.body.insertBefore(note, document.body.firstChild);
+            document.body.insertBefore(compact, note.nextSibling);
+        }
+    }
+
+    function run() {
+        wrapTables();
+        buildCompactCards();
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", run);
+    } else {
+        run();
+    }
+})();
+</script>
+<script defer src="{{ url_for('static', filename='progress6_13_operator_result_fix.js') }}?v=progress6_13_operator_map_spreadsheet_readability_fix" data-progress6-13="js"></script>
 </body>
 </html>

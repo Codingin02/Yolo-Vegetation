@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/static/field_capture.css">
   <title>ULP Field Trial Checklist</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='progress6_13_operator_result_fix.css') }}?v=progress6_13_operator_map_spreadsheet_readability_fix" data-progress6-13="css">
 </head>
 <body>
   <main class="shell">
@@ -110,5 +111,146 @@
       document.getElementById("load-tunnel-status").addEventListener("click", loadTunnelStatus);
     })();
   </script>
+
+
+<!-- PROGRESS_6_12B_INTERACTIVE_MAP_FIX -->
+<style>
+.progress612b-map-shell {
+    margin: 22px 0;
+    padding: 18px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.progress612b-map-title {
+    margin: 0 0 12px;
+    font-size: clamp(22px, 4vw, 34px);
+    font-weight: 900;
+}
+.progress612b-map-iframe {
+    width: 100%;
+    min-height: min(64vh, 560px);
+    border: 0;
+    border-radius: 20px;
+    background: #10281f;
+}
+.progress612b-map-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+}
+.progress612b-map-actions a {
+    display: inline-block;
+    padding: 12px 16px;
+    border-radius: 14px;
+    background: #14765b;
+    color: #fff !important;
+    font-weight: 850;
+    text-decoration: none;
+}
+.progress612b-map-note {
+    margin-top: 10px;
+    font-size: 14px;
+    opacity: 0.92;
+}
+</style>
+<script>
+(function () {
+    "use strict";
+    const MARKER = "PROGRESS_6_12B_INTERACTIVE_MAP_FIX";
+    if (window[MARKER]) return;
+    window[MARKER] = true;
+
+    function parseCoordinatesFromPage() {
+        const text = document.body.innerText || "";
+        const pairs = [];
+        const rx = /(-?\d{1,2}\.\d{4,})\s*,\s*(-?\d{2,3}\.\d{4,})/g;
+        let m;
+        while ((m = rx.exec(text)) !== null) {
+            const lat = Number(m[1]);
+            const lon = Number(m[2]);
+            if (
+                Number.isFinite(lat) &&
+                Number.isFinite(lon) &&
+                lat >= -11 && lat <= 7 &&
+                lon >= 94 && lon <= 142
+            ) {
+                pairs.push({ lat, lon });
+            }
+        }
+        return pairs;
+    }
+
+    function insertMap() {
+        if (document.getElementById("progress612bInteractiveMap")) return;
+
+        const coords = parseCoordinatesFromPage();
+        if (!coords.length) return;
+
+        const current = coords[coords.length - 1];
+        const base = coords[0];
+        const d = 0.004;
+        const bbox = [
+            current.lon - d,
+            current.lat - d,
+            current.lon + d,
+            current.lat + d
+        ].join(",");
+
+        const osmEmbed =
+            "https://www.openstreetmap.org/export/embed.html?bbox=" +
+            encodeURIComponent(bbox) +
+            "&layer=mapnik&marker=" +
+            encodeURIComponent(current.lat + "," + current.lon);
+
+        const googleUrl =
+            "https://www.google.com/maps?q=" +
+            encodeURIComponent(current.lat + "," + current.lon);
+
+        const osmUrl =
+            "https://www.openstreetmap.org/?mlat=" +
+            encodeURIComponent(current.lat) +
+            "&mlon=" +
+            encodeURIComponent(current.lon) +
+            "#map=18/" +
+            encodeURIComponent(current.lat) +
+            "/" +
+            encodeURIComponent(current.lon);
+
+        const shell = document.createElement("section");
+        shell.id = "progress612bInteractiveMap";
+        shell.className = "progress612b-map-shell";
+        shell.innerHTML = `
+            <h2 class="progress612b-map-title">Peta Interaktif Evidence</h2>
+            <iframe class="progress612b-map-iframe" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="${osmEmbed}"></iframe>
+            <div class="progress612b-map-actions">
+                <a href="${googleUrl}" target="_blank" rel="noopener">Buka di Google Maps</a>
+                <a href="${osmUrl}" target="_blank" rel="noopener">Buka di OpenStreetMap</a>
+            </div>
+            <p class="progress612b-map-note">
+                Koordinat marker diambil dari GPS browser session aktif. Ini evidence lokasi, bukan kalibrasi pixel-to-meter.
+                Base: ${base.lat.toFixed(7)}, ${base.lon.toFixed(7)}.
+                Current: ${current.lat.toFixed(7)}, ${current.lon.toFixed(7)}.
+            </p>
+        `;
+
+        const h1 = document.querySelector("h1");
+        const card = h1 ? h1.closest("section,main,div") : null;
+        if (card && card.parentElement) {
+            card.parentElement.insertBefore(shell, card.nextSibling);
+        } else {
+            document.body.insertBefore(shell, document.body.firstChild);
+        }
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", insertMap);
+    } else {
+        insertMap();
+    }
+})();
+</script>
+<script defer src="{{ url_for('static', filename='progress6_13_operator_result_fix.js') }}?v=progress6_13_operator_map_spreadsheet_readability_fix" data-progress6-13="js"></script>
 </body>
 </html>

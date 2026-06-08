@@ -77,7 +77,7 @@ REQUIRED_PROGRESS6_8_ROUTES = {
     "/field-spreadsheet/session/<session_id>": "GET",
 }
 
-UI_VERSION = "progress6_9"
+UI_VERSION = "progress6_10"
 # Legacy cache-bust token for Progress 6.8 compatibility tests: "ui_version": "progress6_8"
 
 
@@ -85,7 +85,7 @@ def register_field_capture_routes(app) -> None:
     from flask import jsonify, redirect, render_template, request, send_from_directory
 
     @app.after_request
-    def progress6_9_static_cache_control(response):
+    def progress6_10_static_cache_control(response):
         if request.path.startswith("/static/"):
             response.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
         return response
@@ -109,7 +109,7 @@ def register_field_capture_routes(app) -> None:
             session_id=session_id,
             session_lookup_status=session_lookup_status,
             ui_version=UI_VERSION,
-            cache_bust=UI_VERSION,
+            cache_bust=f"{UI_VERSION}_{int(datetime.now().timestamp())}",
         )
 
     @app.get("/field-trial-checklist")
