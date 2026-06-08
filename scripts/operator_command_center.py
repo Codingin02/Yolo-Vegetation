@@ -291,6 +291,18 @@ MODE_GROUPS = {
         "After Shutter map: https://<ngrok-public-url>/field-map/session/<session_id>",
         "After Shutter spreadsheet/result: https://<ngrok-public-url>/field-spreadsheet/session/<session_id>",
     ],
+    "progress6-9-camera-session-map-spreadsheet-model-recovery": [
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_9_session_camera_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_9_map_spreadsheet_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_9_growth_model_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\progress6_9_gate.py",
+        ".\\venv\\Scripts\\python.exe scripts\\run_remote_realtime_server.py --host 0.0.0.0 --port 5000",
+        "Tunnel: ngrok http 5000",
+        "HP preflight: https://<ngrok-public-url>/field-capture",
+        "After Start: https://<ngrok-public-url>/field-camera?session_id=<session_id>&nocache=<timestamp>",
+        "After Shutter map: https://<ngrok-public-url>/field-map/session/<session_id>",
+        "After Shutter spreadsheet/result: https://<ngrok-public-url>/field-spreadsheet/session/<session_id>",
+    ],
 }
 
 
@@ -407,6 +419,10 @@ def main() -> int:
     parser.add_argument("--progress6-8-session-flow-smoke", action="store_true")
     parser.add_argument("--progress6-8-auto-yolo-geometry-smoke", action="store_true")
     parser.add_argument("--progress6-8-stability-smoke", action="store_true")
+    parser.add_argument("--progress6-9-gate", action="store_true")
+    parser.add_argument("--progress6-9-session-camera-smoke", action="store_true")
+    parser.add_argument("--progress6-9-map-spreadsheet-smoke", action="store_true")
+    parser.add_argument("--progress6-9-growth-model-smoke", action="store_true")
     parser.add_argument("--all-gates", action="store_true")
     parser.add_argument("--mode", choices=["all", *MODE_GROUPS.keys()], default="all")
     args = parser.parse_args()
@@ -506,6 +522,10 @@ def main() -> int:
         (args.progress6_8_session_flow_smoke, ["scripts\\progress6_8_session_flow_hp_contract_smoke.py"]),
         (args.progress6_8_auto_yolo_geometry_smoke, ["scripts\\progress6_8_auto_yolo_geometry_contract_smoke.py"]),
         (args.progress6_8_stability_smoke, ["scripts\\progress6_8_stability_filter_smoke.py"]),
+        (args.progress6_9_gate, ["scripts\\progress6_9_gate.py"]),
+        (args.progress6_9_session_camera_smoke, ["scripts\\progress6_9_session_camera_smoke.py"]),
+        (args.progress6_9_map_spreadsheet_smoke, ["scripts\\progress6_9_map_spreadsheet_smoke.py"]),
+        (args.progress6_9_growth_model_smoke, ["scripts\\progress6_9_growth_model_smoke.py"]),
         (args.all_gates, ["scripts\\phase17_20_final_system_completion_gate.py"]),
     ]
     selected = [cmd for enabled, cmd in actions if enabled]

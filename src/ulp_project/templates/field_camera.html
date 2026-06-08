@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <link rel="stylesheet" href="/static/field_capture_glass.css?v=progress6_8">
-  <link rel="stylesheet" href="/static/field_camera.css?v=progress6_8">
+  <link rel="stylesheet" href="/static/field_capture_glass.css?v={{ cache_bust|default('progress6_9') }}">
+  <link rel="stylesheet" href="/static/field_camera.css?v={{ cache_bust|default('progress6_9') }}">
   <title>Field Camera</title>
 </head>
-<body data-page="field-camera" class="camera-mode-active">
-  <main class="field-camera-root">
+<body data-page="field-camera" data-session-id="{{ session_id|default('', true) }}" data-ui-version="{{ ui_version|default('progress6_9') }}" class="camera-mode-active{% if not session_id %} camera-session-error{% endif %}">
+  <main class="field-camera-root" data-session-id="{{ session_id|default('', true) }}" data-session-lookup-status="{{ session_lookup_status|default('FIELD_SESSION_LOOKUP_PENDING') }}">
+    <span id="camera-session-id" data-session-id="{{ session_id|default('', true) }}" hidden>{{ session_id|default('', true) }}</span>
     <section class="camera-stage field-camera-stage" aria-label="Kamera lapangan">
       <video id="camera" playsinline autoplay muted></video>
       <canvas id="overlay-canvas"></canvas>
@@ -22,9 +23,14 @@
         <span id="camera-session-chip" class="camera-chip">-</span>
         <button id="camera-lens-open" class="camera-chip camera-lens-button" type="button">Camera Lens</button>
       </div>
-      <div id="camera-session-error" class="camera-session-error-panel" hidden>
+      <div id="camera-session-error" class="camera-session-error-panel" {% if session_id %}hidden{% endif %}>
+        {% if not session_id %}
         <h1>FIELD_SESSION_ID_REQUIRED</h1>
         <p>Session ID kosong. Kembali ke Home lalu tekan Start ulang.</p>
+        {% else %}
+        <h1>FIELD_SESSION_LOOKUP_PENDING</h1>
+        <p>Session ID terbaca. Kamera menunggu inisialisasi browser.</p>
+        {% endif %}
         <a href="/field-capture">Back to Home</a>
       </div>
       <div id="camera-lens-sheet" class="camera-lens-sheet" hidden>
@@ -52,9 +58,9 @@
 
     <details class="camera-debug">
       <summary>Developer Debug</summary>
-      <p>UI version: progress6_8</p>
+      <p>UI version active: {{ ui_version|default('progress6_9') }}</p>
       <dl class="glass-grid">
-        <div><dt>session_id</dt><dd id="session-id">-</dd></div>
+        <div><dt>session_id</dt><dd id="session-id">{{ session_id|default('-', true) }}</dd></div>
         <div><dt>gps_base_lock_status</dt><dd id="gps-base-lock-status">GPS_BASE_NOT_LOCKED</dd></div>
         <div><dt>wake_lock</dt><dd id="wake-lock-status">WAKE_LOCK_NOT_REQUESTED</dd></div>
         <div><dt>foreground_recording_status</dt><dd id="foreground-recording-status">FOREGROUND_RECORDING_REQUIRED</dd></div>
@@ -77,6 +83,7 @@
 
       <div hidden aria-hidden="true">
       <span>MODEL_NOT_READY_NO_FAKE_DETECTION</span>
+      <span>progress6_8 legacy cache token</span>
       <span>progress6_7 legacy cache token</span>
       <span>field_camera.js?v=progress6_6 legacy cache token</span>
       <span>/field-map/session/&lt;session_id&gt;</span>
@@ -95,8 +102,8 @@
       <span id="public-tunnel-status">PUBLIC_TUNNEL_NOT_RUNNING</span>
     </div>
   </main>
-  <script src="/static/field_navigation.js?v=progress6_8"></script>
-  <script src="/static/field_session.js?v=progress6_8"></script>
-  <script src="/static/field_camera.js?v=progress6_8"></script>
+  <script src="/static/field_navigation.js?v={{ cache_bust|default('progress6_9') }}"></script>
+  <script src="/static/field_session.js?v={{ cache_bust|default('progress6_9') }}"></script>
+  <script src="/static/field_camera.js?v={{ cache_bust|default('progress6_9') }}"></script>
 </body>
 </html>

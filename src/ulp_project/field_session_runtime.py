@@ -142,7 +142,7 @@ def normalize_gps(payload: dict[str, Any]) -> dict[str, Any]:
     gps = {
         "latitude": _to_float(_first_present(payload, "latitude", "gps_lat", "lat", "base_latitude", "current_latitude")),
         "longitude": _to_float(_first_present(payload, "longitude", "gps_lon", "lon", "base_longitude", "current_longitude")),
-        "accuracy": _to_float(_first_present(payload, "accuracy", "gps_accuracy_m", "base_accuracy_m", "current_accuracy_m")),
+        "accuracy": _to_float(_first_present(payload, "accuracy", "accuracy_m", "gps_accuracy_m", "base_accuracy_m", "current_accuracy_m")),
         "altitude": _to_float(payload.get("altitude")),
         "altitudeAccuracy": _to_float(_first_present(payload, "altitudeAccuracy", "altitude_accuracy")),
         "heading": _to_float(payload.get("heading")),
@@ -170,7 +170,12 @@ def _coerce_gps_payload(payload: dict[str, Any]) -> dict[str, Any]:
         payload = {**coords, **payload}
     gps = payload.get("gps")
     if isinstance(gps, dict):
-        payload = {**gps, **payload}
+        nested: dict[str, Any] = {}
+        if isinstance(gps.get("current"), dict):
+            nested = dict(gps.get("current") or {})
+        elif isinstance(gps.get("base"), dict):
+            nested = dict(gps.get("base") or {})
+        payload = {**nested, **gps, **payload}
     if "current_latitude" in payload and "latitude" not in payload:
         payload["latitude"] = payload.get("current_latitude")
     if "current_longitude" in payload and "longitude" not in payload:
@@ -198,6 +203,7 @@ def start_field_session(payload: dict[str, Any], *, runtime_root: Path | None = 
     if not _gps_has_coordinates(current):
         current = base
     model = check_model_handoff()
+    runtime_model_status = str(model.get("model_status") or "MODEL_NOT_READY")
     session = FieldSession(
         session_id=session_id,
         point_id=str(payload.get("point_id") or "V001_pohon_sono"),
@@ -210,8 +216,8 @@ def start_field_session(payload: dict[str, Any], *, runtime_root: Path | None = 
         current_gps=current,
         gps_history=[base] if base.get("latitude") is not None and base.get("longitude") is not None else [],
         camera_status=str(payload.get("camera_status") or "CAMERA_WAITING_PERMISSION"),
-        model_status=model.get("model_status", "MODEL_NOT_READY"),
-        latest_result=_base_result(model.get("model_status", "MODEL_NOT_READY")),
+        model_status=runtime_model_status,
+        latest_result=_base_result(runtime_model_status),
         start_idempotency_key=idempotency_key,
         source_mode=_source_mode(payload, session_id=session_id),
         reason_codes=["FOREGROUND_RECORDING_REQUIRED", "BROWSER_GEOLOCATION_NATIVE_HIGH_ACCURACY_REQUESTED"],
@@ -429,6 +435,7 @@ def session_status(session_id: Any | None = None) -> dict[str, Any]:
     session = _get_or_latest(session_id, create_if_missing=True)
     derived = distance_reliability(session.base_gps, session.current_gps)
     gps_truth = validate_gps_evidence(session.current_gps)
+    readiness = model_readiness_status()
     return {
         "status": "FIELD_SESSION_STATUS_READY",
         "session": asdict(session),
@@ -449,6 +456,12 @@ def session_status(session_id: Any | None = None) -> dict[str, Any]:
         "gps_quality_reasons": gps_truth["gps_quality_reasons"],
         "camera_status": session.camera_status,
         "model_status": session.model_status,
+        "tree_model_status": readiness.get("tree_model_status"),
+        "multiclass_model_status": "MULTICLASS_MODEL_READY_CANDIDATE" if readiness.get("status") == "MULTICLASS_MODEL_READY_CANDIDATE" else "MULTICLASS_MODEL_NOT_READY",
+        "pole_model_status": readiness.get("pole_model_status", "POLE_MODEL_NOT_READY"),
+        "conductor_model_status": readiness.get("conductor_model_status", "CONDUCTOR_MODEL_NOT_READY"),
+        "geometry_status": readiness.get("geometry_readiness", "AUTO_GEOMETRY_BLOCKED_WAITING_FOR_POLE_CONDUCTOR_MODEL"),
+        "clearance_status": "CLEARANCE_NOT_FINAL_NO_POLE_CONDUCTOR",
         "no_fake_gps": True,
         "no_fake_detection": True,
     }
@@ -565,6 +578,11 @@ def field_session_spreadsheet(session_id: Any | None, *, runtime_root: Path | No
             "pole_detected": False,
             "conductor_detected": False,
             "growth_prior_status": growth.get("growth_prior_status"),
+            "growth_model_status": growth.get("growth_model_status"),
+            "growth_selected_model": growth.get("selected_model_name"),
+            "growth_validation_mae": growth.get("validation_mae"),
+            "growth_validation_rmse": growth.get("validation_rmse"),
+            "growth_validation_r2": growth.get("validation_r2"),
             "growth_year_m": growth.get("estimated_height_growth_m_per_year"),
             "eta_3m_status": growth.get("eta_3m_status") or growth.get("eta_to_3m_clearance_days"),
             "source_status": "PROXY_NOT_FIELD_OBSERVED",
@@ -621,10 +639,48 @@ a,button{{color:#e7ffed}}
 </section></main></body></html>"""
 
 
-def latest_field_session_map(session_id: Any | None = None, *, runtime_root: Path | None = None) -> dict[str, Any]:
-    if session_id:
-        _load_session_from_disk(str(session_id), runtime_root=runtime_root)
-    session = _get_or_latest(session_id, create_if_missing=True)
+def latest_field_session_map(session_id: Any | None = None, *, runtime_root: Path | None = None, require_shutter: bool = False) -> dict[str, Any]:
+    key = str(session_id or "").strip()
+    if key:
+        session = _resolve_existing_session(key, runtime_root=runtime_root)
+        if session is None:
+            if key.startswith("P65_") and not require_shutter:
+                return {
+                    "status": "NO_GPS_NO_MARKER",
+                    "session_id": key,
+                    "map_status": "NO_GPS_NO_MARKER",
+                    "map_exists": False,
+                    "message": "GPS belum valid, marker tidak dibuat.",
+                    "gps_precision_status": "INVALID_COORDINATE_NULL",
+                    "gps_quality_reasons": ["INVALID_COORDINATE_NULL", "GPS_ACCURACY_NOT_PROVIDED"],
+                }
+            return {
+                "status": "FIELD_SESSION_NOT_FOUND",
+                "session_id": key,
+                "map_status": "FIELD_SESSION_NOT_FOUND",
+                "map_exists": False,
+                "message": "Session tidak ditemukan. Mulai ulang dari halaman Capture.",
+            }
+    elif not _LATEST_SESSION_ID:
+        return {
+            "status": "NO_GPS_NO_MARKER",
+            "session_id": "",
+            "map_status": "NO_FIELD_SESSION_YET",
+            "map_exists": False,
+            "message": "Belum ada session field aktif.",
+        }
+    else:
+        session = _get_or_latest(None, create_if_missing=False)
+    if require_shutter and session.source_mode == "LIVE_OPERATOR" and session.capture_sequence <= 0 and not session.latest_report:
+        return {
+            "status": "MAP_LOCKED_SHUTTER_REQUIRED",
+            "session_id": session.session_id,
+            "map_status": "MAP_LOCKED_SHUTTER_REQUIRED",
+            "map_exists": False,
+            "field_map_url": f"/field-map/session/{session.session_id}",
+            "message": "Jepret dulu untuk membuat evidence map.",
+            "no_fake_gps": True,
+        }
     current = session.current_gps
     derived = distance_reliability(session.base_gps, session.current_gps)
     base_truth = validate_gps_evidence(session.base_gps)
@@ -662,6 +718,32 @@ def latest_field_session_map(session_id: Any | None = None, *, runtime_root: Pat
         "gps_precision_status": current_truth["gps_precision_status"],
         "gps_quality_reasons": current_truth["gps_quality_reasons"],
     }
+
+
+def render_field_session_map_html(session_id: Any | None, *, runtime_root: Path | None = None) -> str:
+    result = latest_field_session_map(session_id, runtime_root=runtime_root, require_shutter=True)
+    path_text = str(result.get("path") or "").strip()
+    path = Path(path_text) if path_text else Path("__missing_field_map__")
+    if path_text and path.is_file():
+        return path.read_text(encoding="utf-8")
+    session_id_text = html.escape(str(result.get("session_id") or session_id or ""))
+    status = html.escape(str(result.get("status") or "FIELD_SESSION_MAP_STATUS"))
+    message = html.escape(str(result.get("message") or "Map belum tersedia."))
+    return f"""<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Field Session Map</title>
+<style>
+body{{margin:0;min-height:100dvh;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#eefdf3;background:linear-gradient(135deg,#071c14,#123827 54%,#06120d);overflow-wrap:anywhere;word-break:break-word}}
+main{{max-width:760px;margin:0 auto;padding:22px}}
+.card{{border:1px solid rgba(220,255,232,.22);border-radius:28px;background:rgba(9,42,30,.62);backdrop-filter:blur(18px);box-shadow:0 24px 70px rgba(0,0,0,.28);padding:18px;overflow:hidden}}
+.pill{{display:inline-flex;margin:4px 4px 4px 0;padding:7px 10px;border-radius:999px;background:rgba(215,255,226,.13);border:1px solid rgba(230,255,236,.18);font-size:12px}}
+a{{color:#d9ffe6}}
+</style></head><body><main><section class="card">
+<p class="pill">{status}</p><h1>Field Session Map</h1>
+<p>Session: {session_id_text}</p><p>{message}</p>
+<p>GPS belum valid atau shutter belum dibuat, marker tidak dibuat. Data tetap disimpan sebagai evidence non-spasial bila session tersedia.</p>
+<p><a href="/field-camera?session_id={session_id_text}">Back to Camera</a> · <a href="/field-capture">Back to Home</a></p>
+</section></main></body></html>"""
 
 
 def validate_conductor_height(conductor_height_m: Any) -> dict[str, Any]:
@@ -792,6 +874,11 @@ def _build_session_report_row(
         "zone_status": measurement.get("zone_status", "INSUFFICIENT_DATA"),
         "eta_days": measurement.get("eta_days", ""),
         "growth_prior_status": growth.get("growth_prior_status"),
+        "growth_model_status": growth.get("growth_model_status"),
+        "growth_selected_model": growth.get("selected_model_name"),
+        "growth_validation_mae": growth.get("validation_mae"),
+        "growth_validation_rmse": growth.get("validation_rmse"),
+        "growth_validation_r2": growth.get("validation_r2"),
         "growth_year_m": growth.get("estimated_height_growth_m_per_year"),
         "eta_3m_status": growth.get("eta_3m_status") or growth.get("eta_to_3m_clearance_days"),
         "risk_level": measurement.get("risk_level", "NOT_AVAILABLE"),
@@ -826,11 +913,23 @@ def _select_base_gps(payload: dict[str, Any]) -> dict[str, Any]:
         best = select_best_gps_sample(normalized)
         if best:
             return best
-    return normalize_gps(_gps_payload(payload, "base") or payload.get("base_gps") or payload.get("gps") or payload)
+    return _first_valid_gps_payload(
+        _gps_payload(payload, "base"),
+        payload.get("base_gps"),
+        _nested_gps_payload(payload, "base"),
+        payload.get("gps"),
+        payload,
+    )
 
 
 def _select_current_gps(payload: dict[str, Any]) -> dict[str, Any]:
-    return normalize_gps(_gps_payload(payload, "current") or payload.get("current_gps") or payload.get("gps") or payload)
+    return _first_valid_gps_payload(
+        _gps_payload(payload, "current"),
+        payload.get("current_gps"),
+        _nested_gps_payload(payload, "current"),
+        payload.get("gps"),
+        payload,
+    )
 
 
 def _gps_payload(payload: dict[str, Any], prefix: str) -> dict[str, Any]:
@@ -848,7 +947,29 @@ def _gps_payload(payload: dict[str, Any], prefix: str) -> dict[str, Any]:
         "timestamp": payload.get(f"{prefix}_timestamp") or payload.get("gps_timestamp") or payload.get("timestamp"),
         "source": payload.get("gps_source") or "GPS_SOURCE_BROWSER",
     }
-    return {key: value for key, value in fields.items() if value not in {None, ""}}
+    cleaned = {key: value for key, value in fields.items() if value not in {None, ""}}
+    has_coordinate_hint = any(key in cleaned for key in {"latitude", "longitude", "accuracy"})
+    return cleaned if has_coordinate_hint else {}
+
+
+def _nested_gps_payload(payload: dict[str, Any], prefix: str) -> dict[str, Any]:
+    gps = payload.get("gps")
+    if isinstance(gps, dict) and isinstance(gps.get(prefix), dict):
+        return dict(gps[prefix])
+    return {}
+
+
+def _first_valid_gps_payload(*candidates: Any) -> dict[str, Any]:
+    fallback: dict[str, Any] | None = None
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        gps = normalize_gps(candidate)
+        if _gps_has_coordinates(gps):
+            return gps
+        if fallback is None and gps.get("accuracy") is not None:
+            fallback = gps
+    return fallback or normalize_gps({})
 
 
 def _gps_has_coordinates(gps: dict[str, Any]) -> bool:
@@ -1131,6 +1252,11 @@ def _spreadsheet_row(row: dict[str, Any]) -> dict[str, Any]:
         "conductor_detected",
         "model_status",
         "growth_prior_status",
+        "growth_model_status",
+        "growth_selected_model",
+        "growth_validation_mae",
+        "growth_validation_rmse",
+        "growth_validation_r2",
         "growth_year_m",
         "eta_3m_status",
         "clearance_m",
@@ -1303,7 +1429,7 @@ main{{max-width:760px;margin:0 auto;padding:22px}}
 .pill{{display:inline-flex;margin:4px 4px 4px 0;padding:7px 10px;border-radius:999px;background:rgba(215,255,226,.13);border:1px solid rgba(230,255,236,.18);font-size:12px}}
 a{{color:#d9ffe6}}
 </style></head>
-<body><main><section class="card"><p class="pill">MAP_HTML_READY</p><p class="pill">{html.escape(str(gps_truth.get('gps_precision_status')))}</p>
+<body><main><section class="card"><p class="pill">{'MAP_HTML_READY' if lat is not None and lon is not None else 'NO_GPS_NO_MARKER'}</p><p class="pill">{html.escape(str(gps_truth.get('gps_precision_status')))}</p>
 <h1>Field Session Map</h1>
 <p>Session: {html.escape(session.session_id)}</p>
 <p>Point: {html.escape(point_id)}</p>{marker}

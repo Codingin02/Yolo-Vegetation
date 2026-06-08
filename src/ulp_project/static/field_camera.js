@@ -1,23 +1,47 @@
 (function () {
-  function initCameraPage() {
-    const params = new URLSearchParams(window.location.search);
+  function readCameraSessionId() {
+    const params = new URLSearchParams(location.search);
     const urlHasSessionParam = params.has("session_id");
-    const sessionId = urlHasSessionParam ? (params.get("session_id") || "") : (window.localStorage.getItem("field_session_id") || "");
-    if (!sessionId || String(sessionId).startsWith("FS_DEGRADED")) {
-      document.body.classList.add("camera-session-error");
-      const error = document.getElementById("camera-session-error");
-      if (error) error.hidden = false;
-      if (window.FieldSession) {
-        window.FieldSession.handleError("SESSION_INVALID_OR_EXPIRED", "Session ID kosong/degraded. Kembali ke Home lalu tekan Start ulang.");
-      }
+    const fromUrl = new URLSearchParams(location.search).get("session_id");
+    if (urlHasSessionParam && (!String(fromUrl || "").trim() || String(fromUrl || "").trim().startsWith("FS_DEGRADED"))) {
+      return "";
+    }
+    const fromBody = (document.body && document.body.dataset && document.body.dataset.sessionId) || "";
+    const root = document.querySelector("[data-session-id]");
+    const fromRoot = (root && root.dataset && root.dataset.sessionId) || "";
+    const hidden = document.getElementById("camera-session-id");
+    const fromHidden = (hidden && hidden.dataset && hidden.dataset.sessionId) || "";
+    const fromSessionStorage = window.sessionStorage.getItem("ulp_active_field_session_id") || "";
+    const fromLocalStorage = window.localStorage.getItem("field_session_id") || "";
+    const candidates = [fromUrl, fromBody, fromRoot, fromHidden, fromSessionStorage, fromLocalStorage].map(function (value) {
+      return String(value || "").trim();
+    });
+    return candidates.find(function (value) {
+      return value && !value.startsWith("FS_DEGRADED");
+    }) || "";
+  }
+
+  function setFatalSessionError(visible, status) {
+    const error = document.getElementById("camera-session-error");
+    if (error) error.hidden = !visible;
+    document.body.classList.toggle("camera-session-error", Boolean(visible));
+    if (visible && window.FieldSession) {
+      window.FieldSession.handleError(status || "FIELD_SESSION_ID_REQUIRED", "Session ID kosong. Kembali ke Home lalu tekan Start ulang.");
+    }
+  }
+
+  function initCameraPage() {
+    const sessionId = readCameraSessionId();
+    if (!sessionId) {
+      setFatalSessionError(true, "FIELD_SESSION_ID_REQUIRED");
       return;
     }
-    if (sessionId) {
-      window.localStorage.setItem("field_session_id", sessionId);
-      if (window.FieldSession && window.FieldSession.state) {
-        window.FieldSession.state.session_id = sessionId;
-        window.FieldSession.state.session_status = "RECORDING_ACTIVE";
-      }
+    setFatalSessionError(false, "");
+    window.localStorage.setItem("field_session_id", sessionId);
+    window.sessionStorage.setItem("ulp_active_field_session_id", sessionId);
+    if (window.FieldSession && window.FieldSession.state) {
+      window.FieldSession.state.session_id = sessionId;
+      window.FieldSession.state.session_status = "RECORDING_ACTIVE";
     }
     document.body.classList.add("camera-mode-active");
     if (!window.FieldSession) return;

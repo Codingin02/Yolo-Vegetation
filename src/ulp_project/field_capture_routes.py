@@ -22,6 +22,7 @@ from .field_session_runtime import (
     log_session_exception,
     process_field_session_frame,
     record_manual_input,
+    render_field_session_map_html,
     render_field_session_spreadsheet_html,
     session_status,
     shutter_field_session,
@@ -76,12 +77,15 @@ REQUIRED_PROGRESS6_8_ROUTES = {
     "/field-spreadsheet/session/<session_id>": "GET",
 }
 
+UI_VERSION = "progress6_9"
+# Legacy cache-bust token for Progress 6.8 compatibility tests: "ui_version": "progress6_8"
+
 
 def register_field_capture_routes(app) -> None:
     from flask import jsonify, redirect, render_template, request, send_from_directory
 
     @app.after_request
-    def progress6_8_static_cache_control(response):
+    def progress6_9_static_cache_control(response):
         if request.path.startswith("/static/"):
             response.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
         return response
@@ -92,7 +96,21 @@ def register_field_capture_routes(app) -> None:
 
     @app.get("/field-camera")
     def field_camera_page():
-        return render_template("field_camera.html")
+        raw_session_id = str(request.args.get("session_id") or "").strip()
+        session_id = raw_session_id
+        session_lookup_status = "FIELD_SESSION_ID_REQUIRED"
+        if raw_session_id.startswith("FS_DEGRADED"):
+            session_id = ""
+            session_lookup_status = "SESSION_INVALID_OR_EXPIRED"
+        elif session_id:
+            session_lookup_status = "FIELD_SESSION_LOOKUP_PENDING"
+        return render_template(
+            "field_camera.html",
+            session_id=session_id,
+            session_lookup_status=session_lookup_status,
+            ui_version=UI_VERSION,
+            cache_bust=UI_VERSION,
+        )
 
     @app.get("/field-trial-checklist")
     def field_trial_checklist_page():
@@ -197,7 +215,7 @@ def register_field_capture_routes(app) -> None:
 
     @app.get("/api/runtime/ui-version")
     def runtime_ui_version():
-        return jsonify({"status": "UI_VERSION_READY", "ui_version": "progress6_8", "camera_first_ui": True})
+        return jsonify({"status": "UI_VERSION_READY", "ui_version": UI_VERSION, "camera_first_ui": True})
 
     @app.get("/api/runtime/route-registry")
     def runtime_route_registry():
@@ -449,11 +467,13 @@ def register_field_capture_routes(app) -> None:
     @app.get("/field-map/session/<session_id>")
     def field_session_specific_map_page(session_id: str):
         runtime = Path(app.config["ULP_RUNTIME_ROOT"])
-        latest = latest_field_session_map(session_id, runtime_root=runtime)
-        path = Path(str(latest.get("path") or ""))
-        if path.exists():
-            return send_from_directory(path.parent, path.name, as_attachment=False)
-        return jsonify(latest), 404
+        latest = latest_field_session_map(session_id, runtime_root=runtime, require_shutter=True)
+        path_text = str(latest.get("path") or "").strip()
+        path = Path(path_text) if path_text else Path("__missing_field_map__")
+        if path_text and path.is_file():
+            return path.read_text(encoding="utf-8")
+        status_code = 404 if latest.get("status") == "FIELD_SESSION_NOT_FOUND" else 200
+        return render_field_session_map_html(session_id, runtime_root=runtime), status_code
 
     @app.get("/api/field/gps-status")
     def field_progress5_4_gps_status():

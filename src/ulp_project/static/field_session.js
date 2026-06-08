@@ -214,6 +214,21 @@
     return Boolean(value) && !value.startsWith("FS_DEGRADED");
   }
 
+  function getOperationalSessionIdFromStartResult(result) {
+    result = result || {};
+    return String(result.session_id || (result.session && result.session.session_id) || "").trim();
+  }
+
+  function rememberOperationalSession(sessionId, cameraUrl) {
+    if (!isOperationalSessionId(sessionId)) return;
+    state.session_id = sessionId;
+    window.localStorage.setItem("field_session_id", sessionId);
+    window.sessionStorage.setItem("ulp_active_field_session_id", sessionId);
+    if (cameraUrl) window.sessionStorage.setItem("ulp_active_camera_url", cameraUrl);
+    const point = value("point_id") || "V001_pohon_sono";
+    window.sessionStorage.setItem("ulp_active_point_id", point);
+  }
+
   async function startCamera(deviceId) {
     if (document.body && document.body.dataset.page === "field-camera" && !isOperationalSessionId(state.session_id)) {
       handleError("SESSION_INVALID_OR_EXPIRED", "Session kamera tidak valid. Kembali ke Home lalu tekan Start ulang.");
@@ -258,7 +273,19 @@
       return false;
     }
     state.cameraStream = stream;
-    if (video) video.srcObject = state.cameraStream;
+    if (video) {
+      video.srcObject = state.cameraStream;
+      try {
+        await video.play();
+      } catch (error) {
+        // Chrome may already autoplay muted playsinline video; failure remains a controlled preview status.
+      }
+    }
+    const sessionError = el("camera-session-error");
+    if (sessionError && isOperationalSessionId(state.session_id)) {
+      sessionError.hidden = true;
+      document.body.classList.remove("camera-session-error");
+    }
     await enumerateVideoDevices();
     const preferred = !targetDeviceId ? chooseDefaultBackCamera(state.cameraDevices) : null;
     const activeDeviceId = getActiveCameraDeviceId();
@@ -269,6 +296,7 @@
     text("glass-camera-status", "CAMERA_READY");
     text("camera-status", "CAMERA_READY");
     text("camera-permission-status", "CAMERA_READY");
+    text("camera-preview-status", "CAMERA_PREVIEW_CONFIRMED");
     text("camera-lens-status", cameraLabelForDevice(state.selectedCameraDeviceId || activeDeviceId) || "Default Back Camera");
     return true;
   }
@@ -424,16 +452,21 @@
       state.startIdempotencyKey = state.startIdempotencyKey || `START_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
       const payload = collectSessionPayload();
       const result = await postJson("/api/field/session/start", payload);
-      state.session_id = result.session_id || result.session && result.session.session_id || state.session_id;
-      if (result.ok !== true || result.degraded || !isOperationalSessionId(state.session_id)) {
+      const startedSessionId = getOperationalSessionIdFromStartResult(result);
+      let startedCameraUrl = result.camera_url || (startedSessionId ? `/field-camera?session_id=${encodeURIComponent(startedSessionId)}&nocache=${Date.now()}` : "");
+      if (startedCameraUrl && !startedCameraUrl.includes("nocache=")) {
+        startedCameraUrl += (startedCameraUrl.includes("?") ? "&" : "?") + `nocache=${Date.now()}`;
+      }
+      state.session_id = startedSessionId;
+      if (result.ok !== true || result.degraded || !isOperationalSessionId(startedSessionId)) {
         state.session_id = "";
         throw new Error(result.status || "SESSION_START_FAILED_NO_CAMERA_REDIRECT");
       }
-      if (state.session_id) window.localStorage.setItem("field_session_id", state.session_id);
+      rememberOperationalSession(startedSessionId, startedCameraUrl);
       state.session_status = "RECORDING_ACTIVE";
       text("session-id", state.session_id);
       if (document.body && document.body.dataset.page === "field-capture-preflight") {
-        const target = result.camera_url || `/field-camera?session_id=${encodeURIComponent(state.session_id || "")}`;
+        const target = startedCameraUrl;
         window.location.assign(target);
         return;
       }
@@ -562,6 +595,12 @@
       ...gps,
       ...visibilityPayload(),
       session_id: state.session_id,
+      gps: {
+        current: gps,
+        latitude: gps && gps.latitude,
+        longitude: gps && gps.longitude,
+        accuracy: gps && gps.accuracy
+      },
       set_base: Boolean(setBase)
     });
   }
@@ -725,7 +764,7 @@
     text("glass-url-mode", currentUrlMode());
     text("glass-recording-status", state.session_status);
     text("glass-gps-status", state.derivedGps.gps_accuracy_status);
-    text("glass-model-status", state.latestResult.model_status || "MODEL_NOT_READY");
+    text("glass-model-status", state.latestResult.tree_model_status || state.latestResult.model_status || "MODEL_NOT_READY");
     text("session-id", state.session_id);
     text("foreground-recording-status", state.foreground_recording_status);
     text("visibility-state", state.visibility_state);
