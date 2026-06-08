@@ -228,3 +228,23 @@ def main() -> int:
     app = create_app()
     app.run(host="127.0.0.1", port=5000, debug=False)
     return 0
+
+# --- PROGRESS 6.16B VISUAL MAP/SPREADSHEET HARD FIX START ---
+try:
+    from ulp_project.progress6_16_visual_result_middleware import install_progress6_16_visual_result_middleware as _p616b_install_visual_result_middleware
+
+    if "app" in globals() and hasattr(app, "wsgi_app"):
+        app = _p616b_install_visual_result_middleware(app)
+
+    if "create_app" in globals() and callable(create_app) and not globals().get("_progress6_16b_create_app_wrapped", False):
+        _progress6_16b_original_create_app = create_app
+
+        def create_app(*args, **kwargs):
+            _created_app = _progress6_16b_original_create_app(*args, **kwargs)
+            return _p616b_install_visual_result_middleware(_created_app)
+
+        _progress6_16b_create_app_wrapped = True
+
+except Exception as _progress6_16b_error:
+    print("PROGRESS_6_16B_VISUAL_MIDDLEWARE_INSTALL_SKIPPED", repr(_progress6_16b_error))
+# --- PROGRESS 6.16B VISUAL MAP/SPREADSHEET HARD FIX END ---
