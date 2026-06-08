@@ -1,0 +1,63 @@
+{
+  "status": "PROGRESS_6_14_HARD_OPERATOR_FIX_PASS",
+  "asset_ok": true,
+  "template_injection_count": 8,
+  "snippet_ok": true,
+  "no_label_touch": true,
+  "no_raw_touch": true,
+  "no_dataset_touch": true,
+  "no_runs_touch": true,
+  "no_weights_touch": true,
+  "notes": [
+    "Patch ini hanya UI/runtime browser hard-fix.",
+    "GPS dikirim ulang dari browser ke session via /api/field/session/gps-update.",
+    "Map memakai marker hanya bila koordinat valid; jika tidak valid hanya peta konteks tanpa marker palsu.",
+    "Spreadsheet dibuat operator-readable dengan DOM transform dan CSS important."
+  ],
+  "checks": [
+    {
+      "name": "PY_COMPILE_PATCH_AND_VALIDATOR",
+      "returncode": 0,
+      "status": "PASS",
+      "stdout_tail": [],
+      "stderr_tail": []
+    },
+    {
+      "name": "COMPILEALL_SRC_SCRIPTS_TESTS",
+      "returncode": 0,
+      "status": "PASS",
+      "stdout_tail": [
+        "Listing 'src'...",
+        "Listing 'src\\\\ulp_project'...",
+        "Listing 'src\\\\ulp_project\\\\dataset'...",
+        "Listing 'src\\\\ulp_project\\\\environment'...",
+        "Listing 'src\\\\ulp_project\\\\environmental_sources'...",
+        "Listing 'src\\\\ulp_project\\\\geo'...",
+        "Listing 'src\\\\ulp_project\\\\reporting'...",
+        "Listing 'src\\\\ulp_project\\\\risk'...",
+        "Listing 'src\\\\ulp_project\\\\static'...",
+        "Listing 'src\\\\ulp_project\\\\templates'...",
+        "Listing 'src\\\\ulp_project\\\\web'...",
+        "Listing 'scripts'...",
+        "Listing 'tests'..."
+      ],
+      "stderr_tail": []
+    },
+    {
+      "name": "GIT_DIFF_CHECK",
+      "returncode": 0,
+      "status": "PASS",
+      "stdout_tail": [],
+      "stderr_tail": [
+        "warning: in the working copy of 'src/ulp_project/templates/field_acceptance.html', LF will be replaced by CRLF the next time Git touches it",
+        "warning: in the working copy of 'src/ulp_project/templates/field_camera.html', LF will be replaced by CRLF the next time Git touches it",
+        "warning: in the working copy of 'src/ulp_project/templates/field_capture.html', LF will be replaced by CRLF the next time Git touches it",
+        "warning: in the working copy of 'src/ulp_project/templates/field_manual_input.html', LF will be replaced by CRLF the next time Git touches it",
+        "warning: in the working copy of 'src/ulp_project/templates/field_report.html', LF will be replaced by CRLF the next time Git touches it",
+        "warning: in the working copy of 'src/ulp_project/templates/field_result.html', LF will be replaced by CRLF the next time Git touches it",
+        "warning: in the working copy of 'src/ulp_project/templates/field_trial_checklist.html', LF will be replaced by CRLF the next time Git touches it",
+        "warning: in the working copy of 'src/ulp_project/templates/mobile.html', LF will be replaced by CRLF the next time Git touches it"
+      ]
+    }
+  ]
+}
