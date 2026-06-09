@@ -1,4 +1,4 @@
-"""Flask API/dashboard scaffold for system runtime phases."""
+﻿"""Flask API/dashboard scaffold for system runtime phases."""
 
 from __future__ import annotations
 
@@ -278,3 +278,12 @@ try:
 except Exception as _progress6_16b_error:
     print("PROGRESS_6_16B_VISUAL_MIDDLEWARE_INSTALL_SKIPPED", repr(_progress6_16b_error))
 # --- PROGRESS 6.16B VISUAL MAP/SPREADSHEET HARD FIX END ---
+
+# Progress 6.28 tracking + measurement diagnostic route.
+try:
+    from ulp_project.progress6_28_tracking_measurement_runtime import install_progress6_28_tracking_measurement
+    install_progress6_28_tracking_measurement(app)
+except Exception:
+    # Route diagnostic tidak boleh menjatuhkan aplikasi utama.
+    pass
+
