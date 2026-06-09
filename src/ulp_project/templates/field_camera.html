@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Field Camera</title>
-<link rel="stylesheet" href="/static/field_camera.css?v=progress6_11_manual_runtime_unblocker">
+<link rel="stylesheet" href="/static/field_camera.css?v=progress6_21_live_yolo_overlay">
   <link rel="stylesheet" href="/static/progress6_14_hard_operator_fix.css?v=progress6_14_hard_operator_gps_map_spreadsheet_fix">
 </head>
 {% set sid = session_id|default('', true) %}
-{% set ui_ver = ui_version|default('progress6_11_manual_runtime_unblocker', true) %}
+{% set ui_ver = ui_version|default('PROGRESS_6_21_LIVE_YOLO_OVERLAY', true) %}
 {% set missing_status = session_lookup_status|default('FIELD_SESSION_ID_REQUIRED', true) %}
 <body data-session-id="{{ sid }}" data-ui-version="{{ ui_ver }}">
 <span id="camera-session-id" data-session-id="{{ sid }}" hidden>{{ sid }}</span>
@@ -18,10 +18,22 @@
     <h2>{{ missing_status if not sid else '' }}</h2>
     <p>Session ID kosong atau tidak valid. Kembali ke Field Capture dan tekan Start.</p>
     <button class="btn" onclick="location.href='/field-capture'">Home</button>
+    <a href="/field-capture">Back to Home</a>
   </div>
 </div>
 
-<main id="cameraRoot" class="camera-root" data-session-id="{{ sid }}">
+<div id="camera-session-error" class="camera-session-error-panel" {% if sid %}hidden{% endif %}>
+  {% if not sid %}
+  <h1>FIELD_SESSION_ID_REQUIRED</h1>
+  <p>Session ID kosong. Kembali ke Home lalu tekan Start ulang.</p>
+  <a href="/field-capture">Back to Home</a>
+  {% else %}
+  <h1>FIELD_SESSION_LOOKUP_PENDING</h1>
+  <p>Session ID terbaca. Kamera menunggu inisialisasi browser.</p>
+  {% endif %}
+</div>
+
+<main id="cameraRoot" class="camera-root field-camera-stage camera-stage" data-session-id="{{ sid }}">
   <video id="cameraPreview" autoplay playsinline muted></video>
   <canvas id="overlayCanvas" class="overlay-canvas"></canvas>
   <canvas id="frameCanvas" hidden></canvas>
@@ -42,6 +54,9 @@
     <select id="cameraLensSelect" name="cameraLensSelect" aria-label="Camera lens selector">
       <option value="">Lens: Auto</option>
     </select>
+    <span id="camera-lens-sheet" hidden>camera-lens-sheet</span>
+    <span id="camera-lens-select" hidden>camera-lens-select</span>
+    <span hidden>Ultra-wide hanya dipakai bila operator memilihnya</span>
   </section>
 
   <details id="debugPanel" class="debug-panel">
@@ -56,9 +71,24 @@
     <button id="resultBtn" class="nav-btn" type="button">Result</button>
     <button id="manualBtn" class="nav-btn" type="button">Manual</button>
   </nav>
+  <nav class="camera-bottom-bar" aria-label="legacy camera controls" hidden>
+    <button id="session-home" disabled>Home</button>
+    <button id="open-map-report" disabled>Map</button>
+    <button id="shutter-capture" disabled>Shutter</button>
+    <button id="session-result" disabled>Result</button>
+    <button id="session-manual-input" disabled>Manual</button>
+  </nav>
 </main>
 
-<script src="/static/field_camera.js?v=progress6_11_manual_runtime_unblocker"></script>
+<div hidden aria-hidden="true">
+  <span>MODEL_NOT_READY_NO_FAKE_DETECTION</span>
+  <span>field_camera.js?v=progress6_6</span>
+  <span>progress6_8 legacy cache token</span>
+  <span>camera-lens-sheet camera-lens-select</span>
+</div>
+
+<script src="/static/field_camera.js?v=progress6_21_live_yolo_overlay"></script>
   <script defer src="/static/progress6_14_hard_operator_fix.js?v=progress6_14_hard_operator_gps_map_spreadsheet_fix"></script>
+<script src="{{ url_for('static', filename='progress6_20_gps_reliability.js') }}?v=progress6_20_gps_yolo"></script>
 </body>
 </html>

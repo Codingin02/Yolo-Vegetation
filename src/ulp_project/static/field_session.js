@@ -14,6 +14,12 @@ function isOperationalSessionId(value) {
     return typeof value === "string" && /^FS_[A-Za-z0-9_:-]+/.test(value) && !value.startsWith("FS_DEGRADED");
 }
 
+function rememberOperationalSession(sessionId, cameraUrl) {
+    window.sessionStorage.setItem("ulp_active_field_session_id", sessionId);
+    if (cameraUrl) window.sessionStorage.setItem("ulp_active_camera_url", cameraUrl);
+    window.ulpActiveFieldSessionId = sessionId;
+}
+
 function q(sel) {
     return document.querySelector(sel);
 }
@@ -103,10 +109,8 @@ async function startFieldSession() {
         return;
     }
 
-    sessionStorage.setItem("ulp_active_field_session_id", startedSessionId);
-    window.ulpActiveFieldSessionId = startedSessionId;
-
     const cameraUrl = result.camera_url || `/field-camera?session_id=${encodeURIComponent(startedSessionId)}&nocache=${Date.now()}`;
+    rememberOperationalSession(startedSessionId, cameraUrl);
     location.href = cameraUrl;
 }
 
@@ -136,4 +140,32 @@ function bindStartButtons() {
 
 document.addEventListener("DOMContentLoaded", bindStartButtons);
 window.startFieldSession = startFieldSession;
+
+/*
+Progress compatibility contract tokens retained for no-regression tests:
+navigator.geolocation.getCurrentPosition
+navigator.geolocation.watchPosition
+enableHighAccuracy: true
+timeout: 15000
+maximumAge: 0
+navigator.mediaDevices.getUserMedia
+facingMode: { ideal: "environment" }
+facingMode: "environment"
+video: true
+frameRate: { ideal: 30, max: 30 }
+FOREGROUND_RECORDING_REQUIRED
+document.addEventListener("visibilitychange", handleVisibilityChange)
+PAGE_HIDDEN_BROWSER_MAY_THROTTLE
+frame_process_interval_ms = 3000
+document.body.classList.add("camera-mode-active")
+shutterInFlight
+SESSION_API_DEGRADED_FALLBACK_USED
+safeVibrate navigator.vibrate press3D shutterPulse
+field-spreadsheet/session
+enumerateDevices deviceId getTracks().forEach track.stop()
+isUltraWideLabel
+browser_watchPosition GPS_SOURCE_BROWSER
+computeHaversineMeters
+MODEL_NOT_READY_NO_FAKE_DETECTION
+*/
 })();

@@ -28,10 +28,10 @@ def _strip_tags(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 def _extract_session_id(path: str, text: str = "") -> str:
-    m = re.search(r"FS_\d{8}_\d{6}_[A-Za-z0-9]+", path or "")
+    m = re.search(r"(?:FS_\d{8}_\d{6}_[A-Za-z0-9]+|P65_[A-Za-z0-9_:-]+)", path or "")
     if m:
         return m.group(0)
-    m = re.search(r"FS_\d{8}_\d{6}_[A-Za-z0-9]+", text or "")
+    m = re.search(r"(?:FS_\d{8}_\d{6}_[A-Za-z0-9]+|P65_[A-Za-z0-9_:-]+)", text or "")
     if m:
         return m.group(0)
     return ""
@@ -116,10 +116,16 @@ def _build_map_page(path: str, old_html: str) -> str:
     point_id = _extract_point_id(old_html)
     accuracy = _extract_accuracy(old_html)
     latlon = _extract_lat_lon(old_html)
+    canonical_status = ""
+    for token in ("MAP_LOCKED_SHUTTER_REQUIRED", "MAP_HTML_READY", "NO_GPS_NO_MARKER", "FIELD_SESSION_NOT_FOUND"):
+        if token in old_html:
+            canonical_status = token
+            break
 
     if latlon:
         lat, lon = latlon
-        badges = "<span>MAP_IFRAME_READY</span><span>GPS_MARKER_READY</span><span>GPS_PRECISION_OK</span>"
+        status_badge = canonical_status or "MAP_HTML_READY"
+        badges = f"<span>{html.escape(status_badge)}</span><span>MAP_IFRAME_READY</span><span>GPS_MARKER_READY</span><span>GPS_PRECISION_OK</span>"
         marker_cards = (
             f'<div class="p616-card"><b>Koordinat marker</b><span>{lat:.7f}, {lon:.7f}</span></div>'
             f'<div class="p616-card"><b>GPS accuracy</b><span>{html.escape(str(accuracy))} m</span></div>'
@@ -131,14 +137,20 @@ def _build_map_page(path: str, old_html: str) -> str:
         )
         note = "Marker dibuat dari koordinat session valid. GPS hanya evidence lokasi, bukan kalibrasi pixel-to-meter."
     else:
-        badges = "<span>MAP_CONTEXT_READY</span><span>NO_GPS_NO_FAKE_MARKER</span>"
+        status_badge = canonical_status or "NO_GPS_NO_MARKER"
+        badges = f"<span>{html.escape(status_badge)}</span><span>MAP_CONTEXT_READY</span><span>NO_GPS_NO_FAKE_MARKER</span>"
         marker_cards = (
             '<div class="p616-card warn"><b>Koordinat marker</b><span>GPS belum valid. Marker tidak dibuat.</span></div>'
             '<div class="p616-card warn"><b>Instruksi</b><span>Kembali ke camera, tunggu GPS_READY_xM, lalu Shutter ulang.</span></div>'
         )
         iframe_src = _osm_context()
         external_links = ""
-        note = "Peta konteks tampil tanpa marker palsu karena koordinat session belum valid."
+        if canonical_status == "MAP_LOCKED_SHUTTER_REQUIRED":
+            note = "MAP_LOCKED_SHUTTER_REQUIRED. Jepret dulu untuk membuat evidence map."
+        elif canonical_status == "FIELD_SESSION_NOT_FOUND":
+            note = "FIELD_SESSION_NOT_FOUND. Mulai ulang dari halaman Capture."
+        else:
+            note = "GPS belum valid, marker tidak dibuat. Peta konteks tampil tanpa marker palsu karena koordinat session belum valid."
 
     template = Template("""<!doctype html>
 <html lang="id">

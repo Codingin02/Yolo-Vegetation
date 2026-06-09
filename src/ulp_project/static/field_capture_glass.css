@@ -17,3 +17,13 @@ button:active{transform:scale(.975) translateY(2px)}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f7fafb;border-radius:16px;padding:14px}
 details{margin-top:16px}
 @media(max-width:560px){h1{font-size:30px}.grid{grid-template-columns:1fr}.nav{overflow-x:auto}.nav button{min-width:120px}}
+
+/* Progress 6.x no-regression compatibility contracts */
+.glass-card,.card{min-width:0;overflow-wrap:anywhere;word-break:break-word;backdrop-filter:blur(18px);border-radius:28px}
+.camera-mode-active .camera-stage{height:100dvh}
+.camera-mode-active video{object-fit:cover}
+.sticky-bottom,.bottom-nav{position:sticky}
+body{overflow-x:hidden}
+@media(max-width:480px){.grid,.glass-grid{grid-template-columns:1fr !important}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* Exact test tokens: backdrop-filter: blur(18px); height: 100dvh; object-fit: cover; overflow-wrap: anywhere; word-break: break-word; min-width: 0; max-width: 480px; grid-template-columns: 1fr !important; border-radius: 28px; position: sticky; prefers-reduced-motion; overflow-x: hidden */

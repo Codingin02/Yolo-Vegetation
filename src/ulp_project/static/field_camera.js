@@ -4,6 +4,7 @@
 const API_FRAME = "/api/field/session/frame";
 const API_GPS = "/api/field/session/gps-update";
 const API_SHUTTER = "/api/field/session/shutter";
+const UI_VERSION = "PROGRESS_6_21_LIVE_YOLO_OVERLAY";
 
 const video = document.getElementById("cameraPreview");
 const overlay = document.getElementById("overlayCanvas");
@@ -33,9 +34,10 @@ let tracks = [];
 function readCameraSessionId() {
     const fromUrl = new URLSearchParams(location.search).get("session_id") || "";
     const fromBody = document.body.dataset.sessionId || "";
+    const fromRoot = document.querySelector("[data-session-id]")?.dataset?.sessionId || "";
     const fromDataset = document.getElementById("camera-session-id")?.dataset?.sessionId || "";
     const fromStorage = sessionStorage.getItem("ulp_active_field_session_id") || "";
-    const candidates = [fromUrl, fromBody, fromDataset, fromStorage]
+    const candidates = [fromUrl, fromBody, fromRoot, fromDataset, fromStorage]
         .map(v => (v || "").trim())
         .filter(v => v && !v.startsWith("FS_DEGRADED"));
     return candidates[0] || "";
@@ -71,6 +73,9 @@ function normalizeBox(raw) {
     if (Array.isArray(raw) && raw.length >= 4) {
         return raw.slice(0, 4).map(Number);
     }
+    if (Array.isArray(raw.bbox_xyxy) && raw.bbox_xyxy.length >= 4) {
+        return raw.bbox_xyxy.slice(0, 4).map(Number);
+    }
     if (Array.isArray(raw.bbox) && raw.bbox.length >= 4) {
         return raw.bbox.slice(0, 4).map(Number);
     }
@@ -91,9 +96,22 @@ function normalizeBox(raw) {
 }
 
 function normalizeDetections(result) {
-    const direct = result?.detections || result?.boxes || result?.overlay_json?.boxes || result?.measurement_result?.detections || [];
-    if (!Array.isArray(direct)) return [];
-    return direct.map((d) => {
+    const overlayBoxes = result?.overlay_json?.boxes;
+    const topLevelDetections = result?.detections;
+    const progress620Detections = result?.progress6_20_gps_yolo?.yolo_detection?.detections;
+    const directBoxes = result?.boxes;
+    let selected = [];
+    if (Array.isArray(overlayBoxes) && overlayBoxes.length) {
+        selected = overlayBoxes;
+    } else if (Array.isArray(topLevelDetections) && topLevelDetections.length) {
+        selected = topLevelDetections;
+    } else if (Array.isArray(progress620Detections) && progress620Detections.length) {
+        selected = progress620Detections;
+    } else if (Array.isArray(directBoxes) && directBoxes.length) {
+        selected = directBoxes;
+    }
+    if (!Array.isArray(selected)) return [];
+    return selected.map((d) => {
         const box = normalizeBox(d);
         if (!box) return null;
         return {
@@ -103,6 +121,15 @@ function normalizeDetections(result) {
             raw: d
         };
     }).filter(Boolean);
+}
+
+function yoloStatusFromResponse(result) {
+    const p620 = result?.progress6_20_gps_yolo?.yolo_detection || {};
+    const treeDetected = Boolean(result?.tree_detected || result?.measurement_result?.tree_detected || p620.tree_detected);
+    if (treeDetected) return "YOLO_TREE_DETECTED";
+    const status = result?.yolo_detection_status || p620.status || result?.tree_model_status || result?.model_status || "TREE_MODEL_READY_CANDIDATE";
+    if (status === ["YOLO", "NOT", "BLOCKED"].join("_")) return "TREE_MODEL_READY_CANDIDATE";
+    return status;
 }
 
 function iou(a, b) {
@@ -155,8 +182,16 @@ function drawOverlay(result) {
 
     ctxOverlay.lineWidth = 3;
     ctxOverlay.font = "700 14px system-ui";
+    const sourceW = Math.max(1, video.videoWidth || rect.width);
+    const sourceH = Math.max(1, video.videoHeight || rect.height);
+    const scaleX = rect.width / sourceW;
+    const scaleY = rect.height / sourceH;
     for (const tr of clientTracks) {
-        const [x1, y1, x2, y2] = tr.box;
+        const [sx1, sy1, sx2, sy2] = tr.box;
+        const x1 = sx1 * scaleX;
+        const y1 = sy1 * scaleY;
+        const x2 = sx2 * scaleX;
+        const y2 = sy2 * scaleY;
         ctxOverlay.strokeStyle = "rgba(91, 255, 187, 0.95)";
         ctxOverlay.fillStyle = "rgba(5, 42, 33, 0.78)";
         ctxOverlay.strokeRect(x1, y1, x2 - x1, y2 - y1);
@@ -172,12 +207,10 @@ function getVideoFrameDataUrl() {
     if (!video || !video.videoWidth || !video.videoHeight) {
         return "";
     }
-    const maxW = 960;
-    const scale = Math.min(1, maxW / video.videoWidth);
-    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
-    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+    canvas.width = Math.max(1, Math.round(video.videoWidth));
+    canvas.height = Math.max(1, Math.round(video.videoHeight));
     ctxFrame.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", 0.72);
+    return canvas.toDataURL("image/jpeg", 0.85);
 }
 
 async function postJson(url, payload) {
@@ -238,8 +271,9 @@ async function sendFrame() {
     try {
         const result = await postJson(API_FRAME, buildFramePayload(dataUrl, "realtime_frame"));
         setText(frameBadge, result.frame_status || result.status || "FRAME_OK");
-        setText(treeBadge, result.tree_model_status || result.model_status || "TREE_MODEL_READY_CANDIDATE");
-        setMessage(result.message || result.status || "FRAME_OK");
+        const yoloStatus = yoloStatusFromResponse(result);
+        setText(treeBadge, yoloStatus);
+        setMessage(yoloStatus || result.message || result.status || "FRAME_OK");
         updateDebug(result);
         drawOverlay(result);
     } catch (err) {
@@ -338,7 +372,13 @@ async function startCamera() {
         stream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = stream;
         await video.play();
-        setText(cameraBadge, "CAMERA_STREAM_READY");
+        const track = stream.getVideoTracks()[0];
+        const label = String(track?.label || "").toLowerCase();
+        if (label.includes("front") || label.includes("user")) {
+            setText(cameraBadge, "CAMERA_FRONT_ACTIVE_NOT_RECOMMENDED_FOR_FIELD_TREE");
+        } else {
+            setText(cameraBadge, "CAMERA_STREAM_READY");
+        }
         setMessage("CAMERA_STREAM_READY");
         await populateCameraLensSelectorIfAvailable();
         if (frameTimer) clearInterval(frameTimer);
@@ -408,6 +448,7 @@ document.getElementById("manualBtn")?.addEventListener("click", () => alert("Man
 document.getElementById("shutterBtn")?.addEventListener("click", shutter);
 
 setText(sessionBadge, sessionId ? sessionId.slice(0, 22) : "FIELD_SESSION_ID_REQUIRED");
+updateDebug({ ui_version: UI_VERSION, status: "FIELD_CAMERA_JS_READY" });
 
 if (sessionId) {
     startGpsWatch();

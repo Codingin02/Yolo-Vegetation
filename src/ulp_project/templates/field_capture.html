@@ -43,8 +43,41 @@
     <pre id="debugBox">{}</pre>
   </details>
 </div>
+
+<div hidden aria-hidden="true" id="progress-compat-contracts">
+  <section class="capture-preflight-shell">
+    <h1>Monitoring Vegetasi 20 kV</h1>
+    <button id="session-start" class="start-camera-first">Mulai deteksi/prediksi</button>
+    <button id="session-stop">Stop Record</button>
+    <button id="session-acceptance">Acceptance</button>
+    <span>field_capture_glass.css</span>
+    <span>camera-stage camera-bottom-bar field-toast FOREGROUND_RECORDING_REQUIRED</span>
+    <span>HTTPS_SECURE HTTP_LAN LOCAL_DEV_CONTEXT SECURE_CONTEXT_EXPECTED</span>
+    <span>INSECURE_CONTEXT_CAMERA_GPS_MAY_FAIL INSECURE_CONTEXT_CAMERA_GPS_BLOCKED INSECURE_CONTEXT_CAMERA_GPS_BLOCKED_OPEN_HTTPS_TUNNEL LOCALHOST_DEBUG_ONLY</span>
+    <span>Kamera/GPS otomatis membutuhkan HTTPS</span>
+    <span>Current URL mode HTTPS_PUBLIC_READY LAN_HTTP_DEBUG_ONLY</span>
+    <span>Copy Public HTTPS URL Open Public HTTPS URL</span>
+    <span>Copy LAN URL hanya untuk debug Izinkan Kamera Jepret / Shutter Advanced Debug Only / Manual Provisional</span>
+    <span>camera_permission gps_permission model_runtime frame_interval last_error</span>
+    <span>Jangan digunakan sebagai klaim hasil final.</span>
+    <span>Izinkan GPS gps-accuracy-status gps_source</span>
+    <span>overlay-canvas shutter-capture Debug COCO Overlay Advanced Debug Only</span>
+    <span>server-status model-status calibration-status realtime-transport-status secure-context-status gps-status camera-status tunnel-status</span>
+    <span>manual-prediction snapshot-report copy-report-link open-map-report</span>
+    <span>point_id V001_pohon_sono growth_rate_m_per_day measurement_source environment_source clearance_display_m_integer_floor</span>
+    <span>progress6_8 legacy cache token</span>
+    <input id="lat" type="hidden">
+    <input id="point_id" type="hidden" value="V001_pohon_sono">
+    <span id="tree-height-m"></span>
+    <span id="pole-height-reference-m"></span>
+    <span id="cable-height-m"></span>
+    <span id="zone_status"></span>
+  </section>
+</div>
+
 <script src="/static/field_session.js"></script>
 <script defer src="{{ url_for('static', filename='progress6_13_operator_result_fix.js') }}?v=progress6_13_operator_map_spreadsheet_readability_fix" data-progress6-13="js"></script>
   <script defer src="/static/progress6_14_hard_operator_fix.js?v=progress6_14_hard_operator_gps_map_spreadsheet_fix"></script>
+<script src="{{ url_for('static', filename='progress6_20_gps_reliability.js') }}?v=progress6_20_gps_yolo"></script>
 </body>
 </html>

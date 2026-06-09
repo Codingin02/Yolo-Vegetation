@@ -224,9 +224,17 @@ def create_app(runtime_root: Path | None = None):
         except Exception:
             pass
     # PROGRESS 6.18G RUNTIME TRACKING BRIDGE FACTORY INSTALL END
+    # PROGRESS 6.20 GPS YOLO BRIDGE START
+    try:
+        from ulp_project.progress6_20_gps_yolo_bridge import install_progress6_20_gps_yolo_bridge
+        install_progress6_20_gps_yolo_bridge(app)
+    except Exception as _progress6_20_error:
+        try:
+            app.logger.exception("PROGRESS_6_20_GPS_YOLO_BRIDGE_INSTALL_FAILED: %s", _progress6_20_error)
+        except Exception:
+            pass
+    # PROGRESS 6.20 GPS YOLO BRIDGE END
     return app
-
-
 def _monitoring_row_count() -> int:
     if not MONITORING_CSV.exists():
         return 0
