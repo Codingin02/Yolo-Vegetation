@@ -1,0 +1,84 @@
+﻿/* final_live_compact_operator_ui_v1 */
+
+#final-live-mini-hud {
+  position: fixed;
+  z-index: 2200;
+  top: max(10px, env(safe-area-inset-top));
+  left: 10px;
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(0, 43, 31, 0.72);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.25);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+}
+
+#final-live-mini-hud span {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 18px;
+  line-height: 1;
+}
+
+#final-live-toast {
+  position: fixed;
+  z-index: 2200;
+  left: 18px;
+  right: 18px;
+  bottom: 132px;
+  padding: 14px 18px;
+  border-radius: 22px;
+  background: rgba(15, 45, 36, 0.88);
+  color: white;
+  font: 700 16px/1.3 system-ui, -apple-system, Segoe UI, sans-serif;
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.22);
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+#final-live-toast.danger {
+  background: rgba(112, 0, 32, 0.88);
+}
+
+.final-live-icon-chip {
+  min-width: 34px !important;
+  max-width: 42px !important;
+  width: 38px !important;
+  height: 34px !important;
+  padding: 0 !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  overflow: hidden !important;
+  font-size: 18px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.final-live-compact-ui details,
+.final-live-compact-ui summary,
+.final-live-compact-ui [class*="Developer"],
+.final-live-compact-ui [class*="developer"],
+.final-live-compact-ui [id*="debug"],
+.final-live-compact-ui [class*="debug"] {
+  max-height: 34px !important;
+  overflow: hidden !important;
+  opacity: 0.58 !important;
+}
+
+.final-live-compact-ui .developer-debug,
+.final-live-compact-ui .debug-panel,
+.final-live-compact-ui .debugBox,
+.final-live-compact-ui .debug-box {
+  display: none !important;
+}
+
+#final-live-yolo-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+}
