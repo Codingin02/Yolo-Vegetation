@@ -234,6 +234,16 @@ def create_app(runtime_root: Path | None = None):
         except Exception:
             pass
     # PROGRESS 6.20 GPS YOLO BRIDGE END
+    # PROGRESS 6.22 VISION API RUNTIME START
+    try:
+        from ulp_project.progress6_22_vision_api_runtime import install_progress6_22_vision_api_runtime
+        install_progress6_22_vision_api_runtime(app)
+    except Exception as _progress6_22_vision_error:
+        try:
+            app.logger.exception('PROGRESS_6_22_VISION_API_RUNTIME_INSTALL_FAILED: %s', _progress6_22_vision_error)
+        except Exception:
+            pass
+    # PROGRESS 6.22 VISION API RUNTIME END
     return app
 def _monitoring_row_count() -> int:
     if not MONITORING_CSV.exists():
