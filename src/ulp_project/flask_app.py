@@ -214,6 +214,16 @@ def create_app(runtime_root: Path | None = None):
     def operator_latest_measurement():
         return jsonify(latest_field_capture_measurement())
 
+    # PROGRESS 6.18G RUNTIME TRACKING BRIDGE FACTORY INSTALL START
+    try:
+        from ulp_project.progress6_18g_runtime_tracking_bridge import install_progress6_18g_runtime_tracking_bridge
+        install_progress6_18g_runtime_tracking_bridge(app)
+    except Exception as _progress6_18g_error:
+        try:
+            app.logger.exception("PROGRESS_6_18G_RUNTIME_TRACKING_BRIDGE_INSTALL_FAILED: %s", _progress6_18g_error)
+        except Exception:
+            pass
+    # PROGRESS 6.18G RUNTIME TRACKING BRIDGE FACTORY INSTALL END
     return app
 
 

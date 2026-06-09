@@ -1,0 +1,31 @@
+{
+  "version": "progress6_18g_factory_patch_and_validate",
+  "timestamp": "2026-06-09T08:26:25",
+  "status": "PROGRESS_6_18G_FACTORY_PATCH_VALIDATION_PASS",
+  "hard_failures": [],
+  "extra": {
+    "patch_info": {
+      "return_index": 216,
+      "app_var": "app"
+    },
+    "factory_name": "create_app",
+    "status_route_code_imported_app": 200,
+    "status_route_json_imported_app": {
+      "frame_endpoint": "field_session_frame_route",
+      "frame_route_wrapped": true,
+      "no_dataset_touch": true,
+      "no_label_touch": true,
+      "no_raw_touch": true,
+      "no_runs_touch": true,
+      "no_weights_touch": true,
+      "status": "PROGRESS_6_18G_RUNTIME_TRACKING_BRIDGE_INSTALLED",
+      "version": "progress6_18g_runtime_tracking_bridge"
+    },
+    "backup_dir": "E:\\Projects\\ULP_Project\\manual_backups\\progress6_18g_before_factory_patch_20260609_082624"
+  },
+  "no_label_touch": true,
+  "no_raw_touch": true,
+  "no_dataset_touch": true,
+  "no_runs_touch": true,
+  "no_weights_touch": true
+}
