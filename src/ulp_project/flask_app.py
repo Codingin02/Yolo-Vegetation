@@ -1,4 +1,4 @@
-﻿"""Flask API/dashboard scaffold for system runtime phases."""
+"""Flask API/dashboard scaffold for system runtime phases."""
 
 from __future__ import annotations
 
@@ -246,6 +246,13 @@ def create_app(runtime_root: Path | None = None):
     # PROGRESS 6.22 VISION API RUNTIME END
     from ulp_project.progress6_26_yolo_first_runtime import register_progress6_26_yolo_first
     register_progress6_26_yolo_first(app)
+    # PROGRESS_6_28B_REGISTER_TRACKING_MEASUREMENT_ROUTE
+    try:
+        from ulp_project.progress6_28_tracking_measurement_runtime import install_progress6_28_tracking_measurement
+        install_progress6_28_tracking_measurement(app)
+    except Exception:
+        pass
+
     return app
 def _monitoring_row_count() -> int:
     if not MONITORING_CSV.exists():
@@ -278,12 +285,3 @@ try:
 except Exception as _progress6_16b_error:
     print("PROGRESS_6_16B_VISUAL_MIDDLEWARE_INSTALL_SKIPPED", repr(_progress6_16b_error))
 # --- PROGRESS 6.16B VISUAL MAP/SPREADSHEET HARD FIX END ---
-
-# Progress 6.28 tracking + measurement diagnostic route.
-try:
-    from ulp_project.progress6_28_tracking_measurement_runtime import install_progress6_28_tracking_measurement
-    install_progress6_28_tracking_measurement(app)
-except Exception:
-    # Route diagnostic tidak boleh menjatuhkan aplikasi utama.
-    pass
-

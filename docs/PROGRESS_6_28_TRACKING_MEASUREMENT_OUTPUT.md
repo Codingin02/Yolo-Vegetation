@@ -1,4 +1,4 @@
-﻿# Progress 6.28 — Tracking + Measurement + Output Session
+# Progress 6.28 — Tracking + Measurement + Output Session
 
 Status:
 - Dibangun setelah Progress 6.27B commit 32f50eb.

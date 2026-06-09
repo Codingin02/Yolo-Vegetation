@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import base64
 import json
@@ -220,6 +220,8 @@ def _detect_green_synthetic_target(frame: np.ndarray) -> List[Dict[str, Any]]:
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, (35, 35, 20), (95, 255, 255))
     mask = cv2.medianBlur(mask, 5)
+    kernel = np.ones((5, 5), dtype=np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     detections: List[Dict[str, Any]] = []
@@ -507,14 +509,14 @@ def install_progress6_28_tracking_measurement(app: Any) -> Any:
 
 def make_synthetic_frame_base64(offset_x: int = 0) -> str:
     img = np.zeros((480, 640, 3), dtype=np.uint8)
-    img[:] = (25, 38, 34)
+    img[:] = (18, 18, 18)
 
     x1 = 220 + int(offset_x)
     y1 = 90
     x2 = 420 + int(offset_x)
     y2 = 390
 
-    cv2.rectangle(img, (x1, y1), (x2, y2), (45, 150, 70), -1)
+    cv2.rectangle(img, (x1, y1), (x2, y2), (20, 170, 70), -1)
     cv2.rectangle(img, (x1, y1), (x2, y2), (180, 255, 190), 3)
     cv2.putText(img, "pohon_sono synthetic", (150, 440), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (220, 255, 230), 2)
 
