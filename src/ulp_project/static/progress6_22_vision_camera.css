@@ -1,0 +1,160 @@
+﻿/* PROGRESS_6_22_FRONTEND_VISION_OVERLAY_CSS */
+/* Clean iOS-glass field camera UI with subtle leaf-fiber texture. */
+
+:root {
+  --p622-bg: rgba(2, 37, 27, 0.52);
+  --p622-bg-strong: rgba(1, 24, 18, 0.78);
+  --p622-line: rgba(187, 255, 222, 0.32);
+  --p622-text: rgba(245, 255, 250, 0.96);
+  --p622-muted: rgba(218, 244, 232, 0.72);
+  --p622-green: rgba(34, 245, 153, 0.96);
+  --p622-yellow: rgba(255, 214, 92, 0.96);
+  --p622-blue: rgba(92, 184, 255, 0.96);
+  --p622-gray: rgba(210, 218, 225, 0.88);
+}
+
+body.p622-clean-vision-mode {
+  background:
+    radial-gradient(circle at 20% 10%, rgba(67, 255, 176, 0.08), transparent 28%),
+    radial-gradient(circle at 80% 5%, rgba(255, 255, 255, 0.07), transparent 24%),
+    linear-gradient(135deg, #031910, #05291c 48%, #01120d);
+}
+
+body.p622-clean-vision-mode::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.12;
+  background-image:
+    repeating-linear-gradient(38deg, rgba(210, 255, 229, 0.12) 0 1px, transparent 1px 13px),
+    repeating-linear-gradient(122deg, rgba(50, 210, 130, 0.08) 0 1px, transparent 1px 21px);
+  mix-blend-mode: screen;
+}
+
+#p622VisionCanvas {
+  position: fixed;
+  pointer-events: none;
+  z-index: 80;
+  display: block;
+}
+
+.p622-hidden-legacy-canvas {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+#p622VisionHud {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  top: max(12px, env(safe-area-inset-top));
+  z-index: 95;
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  align-items: center;
+  pointer-events: none;
+}
+
+.p622-pill {
+  max-width: 46vw;
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: var(--p622-text);
+  font: 800 12px/1.15 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.14), rgba(255,255,255,.04)),
+    var(--p622-bg);
+  border: 1px solid var(--p622-line);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .25), inset 0 1px 0 rgba(255,255,255,.11);
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.p622-pill.ok { background-color: rgba(3, 94, 63, .58); }
+.p622-pill.busy { background-color: rgba(115, 86, 4, .68); }
+.p622-pill.err { background-color: rgba(110, 12, 24, .7); }
+.p622-pill.muted { background-color: rgba(22, 31, 32, .55); color: var(--p622-muted); }
+
+#p622VisionFab {
+  position: fixed;
+  right: 14px;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  z-index: 97;
+  min-width: 76px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--p622-line);
+  border-radius: 999px;
+  color: var(--p622-text);
+  font: 900 13px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.18), rgba(255,255,255,.05)),
+    var(--p622-bg-strong);
+  box-shadow: 0 12px 30px rgba(0,0,0,.38);
+  backdrop-filter: blur(18px) saturate(1.45);
+  -webkit-backdrop-filter: blur(18px) saturate(1.45);
+}
+
+#p622VisionFab:active {
+  transform: scale(.97);
+}
+
+#p622VisionSummary {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(156px + env(safe-area-inset-bottom));
+  z-index: 96;
+  max-height: 82px;
+  overflow: hidden;
+  padding: 10px 12px;
+  border-radius: 18px;
+  color: var(--p622-text);
+  font: 700 12px/1.32 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.13), rgba(255,255,255,.04)),
+    rgba(0, 19, 15, .56);
+  border: 1px solid rgba(220, 255, 235, .22);
+  box-shadow: 0 14px 32px rgba(0,0,0,.38);
+  backdrop-filter: blur(20px) saturate(1.32);
+  -webkit-backdrop-filter: blur(20px) saturate(1.32);
+  display: none;
+}
+
+body.p622-clean-vision-mode details[open] {
+  max-height: 46px;
+  overflow: hidden;
+}
+
+body.p622-clean-vision-mode details summary {
+  opacity: .78;
+}
+
+@media (max-width: 520px) {
+  #p622VisionHud {
+    top: max(10px, env(safe-area-inset-top));
+    left: 8px;
+    right: 8px;
+    gap: 5px;
+  }
+
+  .p622-pill {
+    max-width: 44vw;
+    padding: 6px 8px;
+    font-size: 10.5px;
+  }
+
+  #p622VisionSummary {
+    bottom: calc(138px + env(safe-area-inset-bottom));
+    font-size: 11px;
+  }
+}
