@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import importlib
 import json
@@ -43,7 +43,12 @@ def post_json(client, path: str, payload: Dict[str, Any]):
 
 def get_text(client, path: str):
     resp = client.get(path)
-    return resp.status_code, resp.get_data(as_text=True, errors="ignore")
+    raw = resp.get_data()
+    if isinstance(raw, bytes):
+        body = raw.decode("utf-8", errors="ignore")
+    else:
+        body = str(raw)
+    return resp.status_code, body
 
 
 def make_jpeg_data_url() -> str:
