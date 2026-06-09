@@ -1,0 +1,23 @@
+{
+  "version": "progress6_25_abort_fix_smoke",
+  "status": "PROGRESS_6_25_ABORT_FIX_SMOKE_PASS",
+  "checks": {
+    "field_camera_route_exists": true,
+    "vision_analyze_route_exists": true,
+    "shutter_route_exists": true,
+    "template_has_625_css": true,
+    "js_timeout_18s": true,
+    "js_cloud_min_interval_5s": true,
+    "js_uses_cloud_min_interval": true,
+    "js_abort_has_reason": true,
+    "js_normalizes_abort_error": true,
+    "js_caches_last_result": true,
+    "js_attaches_cache_to_shutter": true,
+    "js_exposes_patch_status": true,
+    "css_hides_legacy_summary": true,
+    "css_compacts_prediction_panel": true,
+    "no_api_key_in_js": true
+  },
+  "route_count": 104,
+  "note": "Fixes aggressive frontend abort and keeps cloud vision latest-only."
+}

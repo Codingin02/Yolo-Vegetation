@@ -8,7 +8,8 @@
   const VISION_ENDPOINT = "/api/field/session/vision-analyze";
   const FRAME_ENDPOINT = "/api/field/session/frame";
   const LOOP_INTERVAL_MS = 1000;
-  const REQUEST_TIMEOUT_MS = 4500;
+  const REQUEST_TIMEOUT_MS = 18000;
+  const CLOUD_MIN_INTERVAL_MS = 5000;
   const JPEG_QUALITY = 0.66;
   const MAX_FRAME_WIDTH = 720;
 
@@ -102,6 +103,20 @@
           no_fake_clearance: true,
           clearance_status: "CLEARANCE_NOT_FINAL_MONO_SCALING_NOT_STARTED"
         }, 200);
+      }
+
+      
+      if (url.includes("/api/field/session/shutter") && init && typeof init.body === "string") {
+        try {
+          const lastRaw = window.localStorage.getItem("P625_LAST_VISION_RESULT");
+          if (lastRaw) {
+            const bodyObj = JSON.parse(init.body);
+            bodyObj.vision_result_cache = JSON.parse(lastRaw);
+            bodyObj.vision_result_cache_status = "P625_ATTACHED_FRONTEND_CACHE";
+            const nextInit = Object.assign({}, init, { body: JSON.stringify(bodyObj) });
+            return state.nativeFetch(input, nextInit);
+          }
+        } catch (_) {}
       }
 
       return state.nativeFetch(input, init);
@@ -537,7 +552,7 @@
 
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timer = controller ? window.setTimeout(function () {
-      try { controller.abort(); } catch (_) {}
+      try { controller.abort("P625_VISION_CLOUD_TIMEOUT_AFTER_18S"); } catch (_) {}
     }, REQUEST_TIMEOUT_MS) : null;
 
     const payload = {
@@ -577,7 +592,7 @@
     if (state.pending) return;
 
     const elapsed = nowMs() - state.lastRequestAt;
-    if (elapsed < LOOP_INTERVAL_MS - 50) return;
+    if (elapsed < CLOUD_MIN_INTERVAL_MS - 50) return;
 
     const video = findVideo();
     if (!video || video.readyState < 2) {
@@ -598,7 +613,7 @@
     state.tickCount += 1;
 
     updateStatusDots();
-    setPrediction("busy", "◈", "AI membaca frame realtime... tick " + state.tickCount);
+    setPrediction("busy", "◈", "AI membaca frame realtime... tick " + state.tickCount + " | cloud latest-only");
 
     try {
       const imageBase64 = await captureFrameBase64(video);
@@ -613,9 +628,26 @@
       const model = result.selected_model || result.model || "api";
       setDot("p624AiDot", "ok", "Vision OK: " + provider + " " + model);
 
+      
       window.PROGRESS_6_24_LAST_REALTIME_VISION_RESULT = result;
+      try {
+        window.localStorage.setItem("P625_LAST_VISION_RESULT", JSON.stringify({
+          saved_at: new Date().toISOString(),
+          session_id: getSessionId(),
+          point_id: getPointId(),
+          result: result
+        }));
+      } catch (_) {}
     } catch (err) {
-      state.lastError = err && err.message ? err.message : String(err);
+      
+      const rawError = err && err.message ? err.message : String(err);
+      if (rawError === "signal is aborted without reason" || rawError.includes("aborted without reason")) {
+        state.lastError = "VISION_TIMEOUT_CLIENT_ABORT_PREVENTED_BY_P625_RELOAD_REQUIRED";
+      } else if (rawError.includes("P625_VISION_CLOUD_TIMEOUT_AFTER_18S")) {
+        state.lastError = "VISION_CLOUD_TIMEOUT_AFTER_18S";
+      } else {
+        state.lastError = rawError;
+      }
       setDot("p624AiDot", "err", state.lastError);
       setPrediction("err", "×", "Vision API error: " + state.lastError + ". Last result tetap dipertahankan jika ada.");
       if (state.lastResult) drawResult(state.lastResult);
@@ -667,6 +699,8 @@
       status: "READY",
       loop_interval_ms: LOOP_INTERVAL_MS,
       request_timeout_ms: REQUEST_TIMEOUT_MS,
+      cloud_min_interval_ms: CLOUD_MIN_INTERVAL_MS,
+      patch_6_25: "ABORT_FIX_CLOUD_SAFE",
       setRunning: setRunning,
       runVisionTick: runVisionTick,
       note: "Switch-controlled realtime Vision API. Shutter documentation only."
