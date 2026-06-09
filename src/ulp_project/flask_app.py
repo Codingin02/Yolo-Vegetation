@@ -1,4 +1,4 @@
-﻿"""Flask API/dashboard scaffold for system runtime phases."""
+"""Flask API/dashboard scaffold for system runtime phases."""
 
 from __future__ import annotations
 
@@ -244,15 +244,9 @@ def create_app(runtime_root: Path | None = None):
         except Exception:
             pass
     # PROGRESS 6.22 VISION API RUNTIME END
-        try:
-        from ulp_project.progress6_26_yolo_first_runtime import register_progress6_26_yolo_first
-        register_progress6_26_yolo_first(app)
-    except Exception as exc:
-        try:
-            app.logger.warning("PROGRESS_6_26_ROUTE_REGISTER_FAILED: %s", exc)
-        except Exception:
-            pass
-return app
+    from ulp_project.progress6_26_yolo_first_runtime import register_progress6_26_yolo_first
+    register_progress6_26_yolo_first(app)
+    return app
 def _monitoring_row_count() -> int:
     if not MONITORING_CSV.exists():
         return 0
@@ -284,4 +278,3 @@ try:
 except Exception as _progress6_16b_error:
     print("PROGRESS_6_16B_VISUAL_MIDDLEWARE_INSTALL_SKIPPED", repr(_progress6_16b_error))
 # --- PROGRESS 6.16B VISUAL MAP/SPREADSHEET HARD FIX END ---
-

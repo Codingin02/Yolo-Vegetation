@@ -1,10 +1,18 @@
-﻿import base64
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+import base64
 import importlib
 import json
 from pathlib import Path
 
 # 1x1 png transparent
-PNG_1X1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+PNG_1X1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgaAAAAAYAAYDS3iKVAAAAAElFTkSuQmCC"
 
 def load_app():
     mod = importlib.import_module("ulp_project.flask_app")
