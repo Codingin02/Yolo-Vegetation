@@ -253,6 +253,13 @@ def create_app(runtime_root: Path | None = None):
     except Exception:
         pass
 
+    # FINAL_STEP2_REGISTER_PREDICTION_RUNTIME
+    try:
+        from ulp_project.final_step2_prediction_runtime import install_final_step2_prediction_runtime
+        install_final_step2_prediction_runtime(app)
+    except Exception:
+        pass
+
     return app
 def _monitoring_row_count() -> int:
     if not MONITORING_CSV.exists():
