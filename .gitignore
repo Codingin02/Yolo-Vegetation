@@ -49,3 +49,5 @@ models/
 *.zip
 
 !data/metadata/.gitkeep
+data/external_candidate_sources/
+manual_backups/
