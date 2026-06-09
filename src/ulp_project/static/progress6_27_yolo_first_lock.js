@@ -118,9 +118,9 @@
     ctx.fillRect(12, 52, Math.min(520, c.width - 24), 66);
     ctx.fillStyle = "#ffffff";
 
-    var status = result && (result.tracking_status || result.frame_status || result.status) || "FRAME_SENT";
-    var model = result && (result.model_status || result.tree_model_status || "MODEL_STATUS_UNKNOWN");
-    var count = result && (result.detection_count || result.total_detections || 0);
+     var status = result && (result.tracking_status || result.frame_status || result.status) || "FRAME_SENT";
+     var model = result && (result.model_status || result.tree_model_status || result.yolo_model_status || "MODEL_NOT_READY");
+     var count = result && (result.detection_count || result.total_detections || 0);
 
     ctx.fillText("YOLO-FIRST: " + status, 24, 78);
     ctx.fillText("Model: " + model + " | Deteksi: " + count, 24, 101);

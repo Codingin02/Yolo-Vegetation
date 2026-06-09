@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   "use strict";
 
   var PATCH = "final_live_force_yolo_frame_v1";
@@ -358,31 +358,32 @@
   }
 
   function boot() {
-    if (loopStarted) return;
-    loopStarted = true;
+     if (loopStarted) return;
+     loopStarted = true;
 
-    ensureCanvas();
-    updateCompactHud(null);
-    compactLegacyText();
+     ensureCanvas();
+     updateCompactHud(null);
+     compactLegacyText();
 
-    window.setInterval(function () {
-      compactLegacyText();
-      sendFrame("final_live_interval_1s");
-    }, 1000);
+     // DISABLED IN PROGRESS7: Removed realtime sendFrame loop (1000ms interval)
+     // Rationale: final_live_force_yolo_frame.js is INTERCEPTOR ONLY, not realtime controller
+     // Realtime frame sending is handled by field_camera.js or progress6_27_yolo_first_lock.js
+     // This script only:
+     // 1. Intercepts /api/field/session/vision-analyze calls and redirects to /api/field/session/frame
+     // 2. Draws boxes from API responses (event-driven, not timer-driven)
 
-    window.addEventListener("resize", function () {
-      drawBoxes({ detections: lastBoxData || [] });
-    });
+     window.addEventListener("resize", function () {
+       drawBoxes({ detections: lastBoxData || [] });
+     });
 
-    document.addEventListener("click", function () {
-      window.setTimeout(function () {
-        compactLegacyText();
-        sendFrame("final_live_after_click");
-      }, 250);
-    }, true);
+     document.addEventListener("click", function () {
+       window.setTimeout(function () {
+         compactLegacyText();
+       }, 250);
+     }, true);
 
-    setToast("YOLO-first live patch aktif", false);
-    try { console.log("[FINAL LIVE] " + PATCH + " loaded"); } catch (e) {}
+     setToast("YOLO-first live interceptor aktif", false);
+     try { console.log("[FINAL LIVE] " + PATCH + " loaded"); } catch (e) {}
   }
 
   if (document.readyState === "loading") {

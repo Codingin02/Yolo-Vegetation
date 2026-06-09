@@ -254,11 +254,16 @@ function buildFramePayload(dataUrl, eventName) {
 }
 
 async function sendFrame() {
-    if (!isOperationalSessionId(sessionId)) return;
-    if (!stream || !video || !video.videoWidth) {
-        setText(frameBadge, "FRAME_SKIPPED_NO_VIDEO");
-        return;
-    }
+     // PROGRESS_7: Pause frame sending if YOLO-FIRST is active (progress6_27 takes over realtime loop)
+     if (window.ULP_PROGRESS_6_27_YOLO_FIRST && window.ULP_PROGRESS_6_27_YOLO_FIRST.state && window.ULP_PROGRESS_6_27_YOLO_FIRST.state.enabled === true) {
+         return;
+     }
+
+     if (!isOperationalSessionId(sessionId)) return;
+     if (!stream || !video || !video.videoWidth) {
+         setText(frameBadge, "FRAME_SKIPPED_NO_VIDEO");
+         return;
+     }
 
     frameCounter += 1;
     const dataUrl = getVideoFrameDataUrl();

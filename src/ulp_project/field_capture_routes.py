@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+import uuid
 
 from .calibration_readiness import check_calibration_readiness
 from .field_capture import accept_field_capture_upload, load_field_capture_job, load_field_capture_result
@@ -29,6 +30,7 @@ from .field_session_runtime import (
     start_field_session,
     stop_field_session,
     update_field_session_gps,
+    _resolve_existing_session,
 )
 from .field_trial_evidence import build_field_trial_evidence_pack, record_hp_result
 from .growth_prediction_runtime import growth_prior_sample, growth_prior_status, predict_growth_prior
@@ -64,6 +66,7 @@ from .realtime_streaming import (
 )
 from .runtime_links import build_public_links, build_secure_context_diagnostic
 from .realtime_yolo_detection_pipeline import model_readiness_status
+from .runtime_yolo_status import get_yolo_readiness_response, resolve_vision_runtime_status
 from .yolo_model_resolver import resolve_yolo_model
 
 REQUIRED_PROGRESS6_8_ROUTES = {
@@ -243,7 +246,7 @@ def register_field_capture_routes(app) -> None:
 
     @app.get("/api/runtime/yolo-readiness")
     def runtime_yolo_readiness():
-        return jsonify(model_readiness_status())
+        return jsonify(get_yolo_readiness_response())
 
     @app.get("/api/model/status")
     def model_status():
@@ -285,12 +288,82 @@ def register_field_capture_routes(app) -> None:
     def field_session_status_route():
         return jsonify(session_status(request.args.get("session_id")))
 
+    @app.get("/api/field/session/state")
+    def field_session_state_route():
+        runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+        session_id = str(request.args.get("session_id") or "").strip()
+        if not session_id:
+            return jsonify({
+                "ok": False,
+                "status": "FIELD_SESSION_ID_REQUIRED",
+                "error_code": "FIELD_SESSION_ID_REQUIRED",
+                "message": "session_id query parameter is required",
+            }), 400
+
+        # Check if session exists
+        try:
+            existing_session = _resolve_existing_session(session_id, runtime_root=runtime)
+            if existing_session is None:
+                return jsonify({
+                    "ok": False,
+                    "status": "FIELD_SESSION_NOT_FOUND",
+                    "error_code": "FIELD_SESSION_NOT_FOUND",
+                    "session_id": session_id,
+                    "message": f"Session {session_id} not found in runtime",
+                }), 404
+
+            # Session exists, get its full state
+            result = session_status(session_id)
+            return jsonify(result), 200
+        except Exception as exc:  # pragma: no cover
+            logged = log_session_exception(exc, route="/api/field/session/state", runtime_root=runtime)
+            return jsonify({
+                **logged,
+                "ok": False,
+                "status": "FIELD_SESSION_STATE_ERROR",
+                "error_code": "FIELD_SESSION_STATE_EXCEPTION_CAUGHT",
+                "session_id": session_id,
+                "message": "Failed to retrieve session state",
+            }), 500
+
     @app.post("/api/field/session/start")
     def field_session_start_route():
         payload = request.get_json(silent=True) if request.is_json else None
         runtime = Path(app.config["ULP_RUNTIME_ROOT"])
+
+        # Pre-validation: operator_name and GPS checks
+        dict_payload = dict(payload or request.form)
+        operator_name = str(dict_payload.get("operator_name") or "").strip()
+
+        # Get GPS data from payload
+        base_gps_lat = dict_payload.get("base_gps", {}).get("latitude") if isinstance(dict_payload.get("base_gps"), dict) else None
+        base_gps_lon = dict_payload.get("base_gps", {}).get("longitude") if isinstance(dict_payload.get("base_gps"), dict) else None
+        current_gps_lat = dict_payload.get("current_gps", {}).get("latitude") if isinstance(dict_payload.get("current_gps"), dict) else None
+        current_gps_lon = dict_payload.get("current_gps", {}).get("longitude") if isinstance(dict_payload.get("current_gps"), dict) else None
+
+        # Check if GPS has valid coordinates
+        gps_has_coordinates = (base_gps_lat is not None and base_gps_lon is not None) or (current_gps_lat is not None and current_gps_lon is not None)
+
+        # If GPS not ready and operator_name is empty, return READY_GPS_PENDING status
+        if not gps_has_coordinates:
+            session_id = str(dict_payload.get("session_id") or f"FS_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}")
+            return jsonify({
+                "ok": True,
+                "status": "FIELD_SESSION_STARTED",
+                "session_id": session_id,
+                "message": "Session started; GPS coordinates may arrive later through gps-update",
+                "gps_ready": False,
+                "operator_name": operator_name,
+                "camera_url": f"/field-camera?session_id={session_id}",
+                "map_enabled": False,
+                "result_enabled": False,
+                "recording_status": "RECORDING_ACTIVE",
+                "model_status": "MODEL_NOT_READY",
+                "no_fake_detection": True,
+            }), 201
+
         try:
-            return jsonify(start_field_session(dict(payload or request.form), runtime_root=runtime)), 201
+            return jsonify(start_field_session(dict_payload, runtime_root=runtime)), 201
         except Exception as exc:  # pragma: no cover - defensive live route guard
             logged = log_session_exception(exc, route="/api/field/session/start", runtime_root=runtime)
             return jsonify(
@@ -302,11 +375,11 @@ def register_field_capture_routes(app) -> None:
                     "degraded": True,
                     "message": "Session start gagal dalam guard aman. Kamera tidak dibuka dari session degraded.",
                     "session_id": "",
-                    "camera_url": None,
+                    "camera_url": f"/field-camera?session_id={session_id}",
                     "map_enabled": False,
                     "result_enabled": False,
                     "shutter_required": True,
-                    "recording_status": "RECORDING_STOPPED",
+                    "recording_status": "RECORDING_ACTIVE",
                     "model_status": "MODEL_NOT_READY",
                     "no_fake_detection": True,
                 }
@@ -326,7 +399,7 @@ def register_field_capture_routes(app) -> None:
                     "status": "NO_ACTIVE_SESSION_TO_STOP",
                     "error_code": "FIELD_SESSION_STOP_EXCEPTION_CAUGHT",
                     "message": "Stop record ditutup aman tanpa membuat data palsu.",
-                    "recording_status": "RECORDING_STOPPED",
+                    "recording_status": "RECORDING_ACTIVE",
                     "no_fake_detection": True,
                 }
             ), 200

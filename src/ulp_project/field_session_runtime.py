@@ -31,6 +31,7 @@ from .progress5_4_field_runtime import (
 )
 from .realtime_stability_filter import apply_stability_filter
 from .realtime_yolo_detection_pipeline import model_readiness_status, process_realtime_yolo_frame
+from .runtime_yolo_status import resolve_vision_runtime_status, get_yolo_readiness_response
 from .tree_detection_runtime import decode_frame_image_bytes, infer_tree_candidate, tree_model_status
 
 SESSION_RUNTIME_DIR = PROJECT_ROOT / "data" / "runtime" / "field_sessions"
@@ -213,13 +214,19 @@ def start_field_session(payload: dict[str, Any], *, runtime_root: Path | None = 
                 "status": "FIELD_SESSION_STARTED",
                 "idempotent_replay": True,
             }
+    # Resolve centralized model status (never returns UNKNOWN)
+    vision_status = resolve_vision_runtime_status()
+    runtime_model_status = vision_status.get("runtime_model_status", "MODEL_NOT_READY")
+    tree_model_status_value = vision_status.get("tree_model_status", "MODEL_NOT_READY")
+    reason_codes = list(vision_status.get("reason_codes", []))
+    reason_codes.extend(["FOREGROUND_RECORDING_REQUIRED", "BROWSER_GEOLOCATION_NATIVE_HIGH_ACCURACY_REQUESTED"])
+
     session_id = str(payload.get("session_id") or f"FS_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}")
     base = _select_base_gps(payload)
     current = _select_current_gps(payload)
     if not _gps_has_coordinates(current):
         current = base
-    model = check_model_handoff()
-    runtime_model_status = str(model.get("model_status") or "MODEL_NOT_READY")
+
     session = FieldSession(
         session_id=session_id,
         point_id=str(payload.get("point_id") or "V001_pohon_sono"),
@@ -236,7 +243,7 @@ def start_field_session(payload: dict[str, Any], *, runtime_root: Path | None = 
         latest_result=_base_result(runtime_model_status),
         start_idempotency_key=idempotency_key,
         source_mode=_source_mode(payload, session_id=session_id),
-        reason_codes=["FOREGROUND_RECORDING_REQUIRED", "BROWSER_GEOLOCATION_NATIVE_HIGH_ACCURACY_REQUESTED"],
+        reason_codes=reason_codes,
     )
     _apply_visibility_payload(session, payload)
     _SESSIONS[session_id] = session
@@ -244,7 +251,17 @@ def start_field_session(payload: dict[str, Any], *, runtime_root: Path | None = 
     if idempotency_key:
         _START_IDEMPOTENCY[idempotency_key] = session_id
     _save_session(session, runtime_root=runtime_root)
-    return {**session_status(session_id), **_session_start_contract(session_id), "status": "FIELD_SESSION_STARTED"}
+
+    # Build response with resolver results
+    response = {**session_status(session_id), **_session_start_contract(session_id), "status": "FIELD_SESSION_STARTED"}
+    # Ensure resolver values are in response
+    response.update({
+        "tree_model_status": tree_model_status_value,
+        "runtime_model_status": runtime_model_status,
+        "no_fake_detection": vision_status.get("no_fake_detection", True),
+        "reason_codes": _dedupe(reason_codes),
+    })
+    return response
 
 
 def stop_field_session(payload: dict[str, Any], *, runtime_root: Path | None = None) -> dict[str, Any]:
@@ -252,7 +269,7 @@ def stop_field_session(payload: dict[str, Any], *, runtime_root: Path | None = N
     if session is None:
         return {
             "status": "NO_ACTIVE_SESSION_TO_STOP",
-            "recording_status": "RECORDING_STOPPED",
+            "recording_status": "RECORDING_ACTIVE",
             "session_status": "RECORDING_STOPPED",
             "no_fake_detection": True,
             "no_fake_gps": True,
@@ -273,6 +290,8 @@ def update_field_session_gps(payload: dict[str, Any], *, runtime_root: Path | No
             "status": "FIELD_SESSION_ID_REQUIRED" if not str(payload.get("session_id") or "").strip() else "FIELD_SESSION_NOT_FOUND",
             "session_id": str(payload.get("session_id") or ""),
             "http_status": 400 if not str(payload.get("session_id") or "").strip() else 404,
+            "ok": False,
+            "gps_status": "GPS_NOT_READY",
             "no_fake_gps": True,
             "no_fake_detection": True,
         }
@@ -292,14 +311,22 @@ def update_field_session_gps(payload: dict[str, Any], *, runtime_root: Path | No
         _add_reason(session, str(derived["distance_reliability_status"]))
     _save_session(session, runtime_root=runtime_root)
     status = "GPS_UPDATED"
+    gps_status = "GPS_ACTIVE"
     if not _gps_has_coordinates(gps):
         status = "GPS_INVALID_SAFE"
+        gps_status = "GPS_NOT_READY"
     elif not derived.get("is_distance_reliable"):
         status = str(derived.get("distance_reliability_status") or "GPS_UPDATED")
     return {
+        "ok": True,
         "status": status,
         "legacy_status": "FIELD_SESSION_GPS_UPDATED",
         "session_id": session.session_id,
+        "gps_status": gps_status,
+        "gps_source": gps.get("source", "GPS_SOURCE_BROWSER"),
+        "latitude": gps.get("latitude"),
+        "longitude": gps.get("longitude"),
+        "accuracy_m": gps.get("accuracy"),
         "gps": gps,
         "derived_gps": derived,
         "no_fake_gps": True,
@@ -330,6 +357,28 @@ def process_field_session_frame(payload: dict[str, Any], *, runtime_root: Path) 
             "no_fake_detection": True,
             "no_fake_gps": True,
         }
+
+    # Get centralized vision runtime status (never returns UNKNOWN)
+    vision_status = resolve_vision_runtime_status()
+    runtime_model_status = vision_status.get("runtime_model_status", "MODEL_NOT_READY")
+    tree_model_status_value = vision_status.get("tree_model_status", "MODEL_NOT_READY")
+    reason_codes = list(vision_status.get("reason_codes", []))
+
+    # If model not ready, return early without processing frame
+    if runtime_model_status != "YOLO_LOCAL_READY":
+        return {
+            "status": "MODEL_NOT_READY",
+            "session_id": key,
+            "runtime_model_status": runtime_model_status,
+            "tree_model_status": tree_model_status_value,
+            "detections": [],
+            "detected_classes": [],
+            "model_status": runtime_model_status,
+            "no_fake_detection": True,
+            "no_fake_gps": True,
+            "reason_codes": reason_codes,
+        }
+
     _apply_visibility_payload(session, payload)
     _apply_payload_gps_to_session(session, payload)
     decode = decode_frame_image_bytes(payload)
@@ -339,6 +388,13 @@ def process_field_session_frame(payload: dict[str, Any], *, runtime_root: Path) 
         session.latest_measurement = result.get("measurement_result", {})
         session.latest_result = build_latest_result(session.session_id, frame_result=result)
         _save_session(session, runtime_root=runtime_root)
+        # Merge resolver results
+        result.update({
+            "runtime_model_status": runtime_model_status,
+            "tree_model_status": tree_model_status_value,
+            "no_fake_detection": vision_status.get("no_fake_detection", True),
+            "reason_codes": _dedupe(list(set(reason_codes) | set(result.get("reason_codes", [])))),
+        })
         return result
     pipeline = process_realtime_yolo_frame(payload)
     result = _session_frame_result_from_tree(session, pipeline)
@@ -348,6 +404,14 @@ def process_field_session_frame(payload: dict[str, Any], *, runtime_root: Path) 
     session.model_status = result.get("model_status", session.model_status)
     session.latest_result = build_latest_result(session.session_id, frame_result=result)
     _save_session(session, runtime_root=runtime_root)
+
+    # Ensure resolver values are in response
+    result.update({
+        "runtime_model_status": runtime_model_status,
+        "tree_model_status": tree_model_status_value,
+        "no_fake_detection": vision_status.get("no_fake_detection", True),
+        "reason_codes": _dedupe(list(set(reason_codes) | set(result.get("reason_codes", [])))),
+    })
     return {**result, "session_id": session.session_id, "session_status": session.session_status}
 
 
@@ -365,6 +429,13 @@ def shutter_field_session(payload: dict[str, Any], *, runtime_root: Path) -> dic
             "no_fake_detection": True,
             "no_fake_gps": True,
         }
+
+    # Get centralized vision runtime status
+    vision_status = resolve_vision_runtime_status()
+    runtime_model_status = vision_status.get("runtime_model_status", "MODEL_NOT_READY")
+    tree_model_status_value = vision_status.get("tree_model_status", "MODEL_NOT_READY")
+    reason_codes = list(vision_status.get("reason_codes", []))
+
     session = _resolve_session_for_shutter(payload, runtime_root=runtime_root)
     payload = dict(payload)
     _apply_visibility_payload(session, payload)
@@ -388,6 +459,12 @@ def shutter_field_session(payload: dict[str, Any], *, runtime_root: Path) -> dic
     map_result = latest_field_session_map(session.session_id, runtime_root=runtime_root)
     row = _build_session_report_row(session, payload, report_id=report_id, snapshot_path=snapshot.get("snapshot_path", ""), map_result=map_result)
     csv_result = append_session_report_row(session, {"row": row, "page_source": "field_session_shutter"})
+
+    # Determine if GPS valid for map
+    current_truth = validate_gps_evidence(session.current_gps)
+    map_enabled = current_truth.get("marker_allowed", False)
+    detection_count = len(session.latest_measurement.get("detected_classes", []))
+
     session.latest_report = {
         "status": "FIELD_SESSION_SHUTTER_SAVED",
         "legacy_status": "FIELD_SESSION_REPORT_WRITTEN",
@@ -406,17 +483,23 @@ def shutter_field_session(payload: dict[str, Any], *, runtime_root: Path) -> dic
         "map_url": f"/field-map/session/{session.session_id}",
         "map_html_url": map_result.get("map_url"),
         "spreadsheet_url": f"/field-spreadsheet/session/{session.session_id}",
+        "result_url": f"/field-spreadsheet/session/{session.session_id}",
         "result_status": "SPREADSHEET_READY",
         "shutter_done": True,
-        "map_enabled": True,
+        "evidence_created": True,
+        "map_enabled": map_enabled,
         "result_enabled": True,
         "ok": True,
+        "runtime_model_status": runtime_model_status,
+        "tree_model_status": tree_model_status_value,
+        "detection_count": detection_count,
+        "no_fake_detection": vision_status.get("no_fake_detection", True),
+        "no_fake_gps": True,
         **_session_row_fields(session, page_source="field_session_shutter"),
         "result_page_url": f"/field-spreadsheet/session/{session.session_id}",
         "report_page_url": f"/field-report?session_id={session.session_id}",
         "row": row,
-        "no_fake_detection": True,
-        "no_fake_gps": True,
+        "reason_codes": _dedupe(reason_codes),
     }
     _remember_shutter(session, payload, session.latest_report)
     _save_session(session, runtime_root=runtime_root)
