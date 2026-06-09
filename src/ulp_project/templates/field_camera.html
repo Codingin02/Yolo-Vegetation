@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/static/progress6_14_hard_operator_fix.css?v=progress6_14_hard_operator_gps_map_spreadsheet_fix">
   <link rel="stylesheet" href="{{ url_for('static', filename='progress6_22_vision_camera.css') }}?v=progress6_22_frontend_vision_overlay">
   <link rel="stylesheet" href="{{ url_for('static', filename='progress6_23_ios_glass_3d_ui.css') }}?v=progress6_23_ios_glass_3d_ui">
+  <link rel="stylesheet" href="{{ url_for('static', filename='progress6_24_realtime_vision_switch.css') }}?v=progress6_24_realtime_vision_switch">
 </head>
 {% set sid = session_id|default('', true) %}
 {% set ui_ver = ui_version|default('PROGRESS_6_21_LIVE_YOLO_OVERLAY', true) %}
@@ -94,5 +95,6 @@
 <script src="{{ url_for('static', filename='progress6_20_gps_reliability.js') }}?v=progress6_20_gps_yolo"></script>
   <script defer src="{{ url_for('static', filename='progress6_22_vision_camera.js') }}?v=progress6_22_frontend_vision_overlay"></script>
   <script defer src="{{ url_for('static', filename='progress6_23_ios_glass_3d_ui.js') }}?v=progress6_23_ios_glass_3d_ui"></script>
+  <script defer src="{{ url_for('static', filename='progress6_24_realtime_vision_switch.js') }}?v=progress6_24_realtime_vision_switch"></script>
 </body>
 </html>
