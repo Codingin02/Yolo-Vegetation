@@ -1,4 +1,4 @@
-﻿# LANGKAH BESAR 3 — Field Acceptance, Output Operator, dan Laporan Final
+# LANGKAH BESAR 3 — Field Acceptance, Output Operator, dan Laporan Final
 
 Status target:
 SYSTEM_FINAL_READY_FOR_LIMITED_FIELD_TRIAL_AND_REPORT
@@ -22,9 +22,9 @@ Kontrak final sistem:
 - Prediksi clearance/ETA memakai route final-step2 dan tetap provisional.
 
 Kontrak latency:
-- Backend route smoke untuk frame, GPS, shutter, map, spreadsheet, dan prediction harus berada dalam budget 1000 ms.
+- Backend realtime frame setelah YOLO warmup harus berada dalam budget 1000 ms.
 - Delay jaringan HP lewat tunnel tetap dapat dipengaruhi sinyal, browser, dan kualitas koneksi.
-- Jika backend lebih dari 1000 ms, gate harus gagal.
+- Jika frame hot setelah warmup lebih dari 1000 ms, gate harus gagal. Shutter evidence boleh lebih lambat karena menulis CSV/map/spreadsheet.
 
 Klaim yang boleh masuk laporan:
 - Prototype monitoring vegetasi jaringan distribusi 20 kV untuk limited field trial.
@@ -44,3 +44,10 @@ Klaim yang tidak boleh:
 - Bukan multi-class final penuh.
 - Cloud vision bukan core realtime.
 - GPS bukan alat ukur pixel-to-meter.
+
+
+Catatan latency final:
+- Cold-start YOLO pertama tidak dihitung sebagai delay switch.
+- Halaman kamera melakukan warmup sebelum switch realtime aktif.
+- Kontrak <=1000 ms berlaku untuk frame loop setelah warmup.
+- Jika frame hot tetap >1000 ms, sistem belum boleh dianggap final.

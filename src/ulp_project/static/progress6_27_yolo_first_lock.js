@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   "use strict";
 
   var PATCH_ID = "PROGRESS_6_27_YOLO_FIRST_LOCK";
@@ -214,6 +214,7 @@
     if (state.enabled) return;
 
     state.enabled = true;
+    warmupYoloFirstOnce();
     setBadge("YOLO-FIRST ON", true);
     clearOverlay();
 
@@ -302,6 +303,47 @@
     });
   }
 
+
+  // PROGRESS_6_27B_WARMUP_BEFORE_SWITCH
+  async function warmupYoloFirstOnce() {
+    var sid = sessionId();
+    if (!sid || state.progress627WarmupDone === true) return;
+
+    state.progress627WarmupDone = true;
+
+    try {
+      var c = document.createElement("canvas");
+      c.width = 320;
+      c.height = 240;
+      var ctx = c.getContext("2d");
+      ctx.fillStyle = "rgb(18,18,18)";
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.fillStyle = "rgb(80,110,80)";
+      ctx.fillRect(120, 60, 80, 120);
+
+      var dataUrl = c.toDataURL("image/jpeg", 0.65);
+
+      await fetch("/api/field/session/frame", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sid,
+          frame_base64: dataUrl,
+          image_base64: dataUrl,
+          source: "PROGRESS_6_27B_WARMUP_BEFORE_SWITCH",
+          realtime_mode: "YOLO_FIRST_WARMUP",
+          synthetic_warmup: true,
+          no_fake_detection: true,
+          shutter_triggered: false
+        })
+      });
+
+      try { console.log("[6.27B] YOLO warmup sent before realtime switch"); } catch (e) {}
+    } catch (err) {
+      try { console.warn("[6.27B] YOLO warmup failed", err); } catch (e) {}
+    }
+  }
+
   window.ULP_PROGRESS_6_27_YOLO_FIRST = {
     start: startLoop,
     stop: stopLoop,
@@ -312,6 +354,7 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     ensureBadge();
+    warmupYoloFirstOnce();
     attachToExistingControls();
     setInterval(attachToExistingControls, 1500);
     setBadge("YOLO-FIRST OFF", false);
