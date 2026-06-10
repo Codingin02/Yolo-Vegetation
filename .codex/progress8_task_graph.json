@@ -1,0 +1,79 @@
+{
+  "version": "progress8_task_graph_v1",
+  "ordered_tasks": [
+    {
+      "step": 1,
+      "name": "Read context",
+      "must_read": [
+        "AGENTS.md",
+        ".codex/progress8_master_context.json",
+        ".codex/progress8_guardrails.json",
+        ".codex/progress8_route_storage_schema.json",
+        ".codex/progress8_acceptance_matrix.json"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "Create Plan C modules",
+      "create": [
+        "src/ulp_project/plan_c_session.py",
+        "src/ulp_project/plan_c_storage.py",
+        "src/ulp_project/plan_c_yolo.py",
+        "src/ulp_project/plan_c_ai_validator.py",
+        "src/ulp_project/plan_c_geometry.py",
+        "src/ulp_project/plan_c_growth_model.py",
+        "src/ulp_project/plan_c_processor.py",
+        "src/ulp_project/plan_c_map.py",
+        "src/ulp_project/plan_c_routes.py"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "Create templates and static assets",
+      "create": [
+        "src/ulp_project/templates/plan_c_home.html",
+        "src/ulp_project/templates/plan_c_capture.html",
+        "src/ulp_project/templates/plan_c_processing.html",
+        "src/ulp_project/templates/plan_c_result.html",
+        "src/ulp_project/templates/plan_c_map.html",
+        "src/ulp_project/templates/plan_c_developer.html",
+        "src/ulp_project/static/plan_c.css",
+        "src/ulp_project/static/plan_c_capture.js",
+        "src/ulp_project/static/plan_c_result.js"
+      ]
+    },
+    {
+      "step": 4,
+      "name": "Register blueprint safely",
+      "notes": [
+        "Register Plan C route without breaking existing field routes.",
+        "Do not remove old Plan A/B routes."
+      ]
+    },
+    {
+      "step": 5,
+      "name": "Create smoke test",
+      "create": [
+        "scripts/plan_c_smoke.py"
+      ]
+    },
+    {
+      "step": 6,
+      "name": "Run validation",
+      "commands": [
+        "py_compile new python files",
+        "scripts/plan_c_smoke.py",
+        "git diff --check",
+        "git diff --stat",
+        "git status --short --untracked-files=all"
+      ]
+    },
+    {
+      "step": 7,
+      "name": "Write implementation report",
+      "create": [
+        "docs/progress8/PLAN_C_IMPLEMENTATION_REPORT.md"
+      ]
+    }
+  ]
+}

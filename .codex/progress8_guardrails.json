@@ -1,0 +1,56 @@
+{
+  "version": "progress8_guardrails_v1",
+  "branch_rules": {
+    "required_branch": "progress8-plan-c-snapshot-processing",
+    "base_branch": "system-finalization-no-label-touch",
+    "do_not_use_main": true,
+    "do_not_delete_plan_a_or_b": true
+  },
+  "allowed_new_paths": [
+    "src/ulp_project/plan_c_*.py",
+    "src/ulp_project/templates/plan_c_*.html",
+    "src/ulp_project/static/plan_c*.css",
+    "src/ulp_project/static/plan_c*.js",
+    "scripts/plan_c_*.py",
+    "docs/progress8/*.md",
+    ".codex/progress8_*.json",
+    "data/runtime/plan_c/**"
+  ],
+  "forbidden_paths": [
+    "data/raw/",
+    "data/labels/",
+    "data/datasets/",
+    "runs/",
+    "weights/",
+    "models/",
+    "dataset_botol/",
+    "labels/"
+  ],
+  "forbidden_globs": [
+    "*.pt",
+    "*.onnx",
+    "*.engine",
+    "*.tflite",
+    ".env",
+    ".env.*",
+    "*credential*",
+    "*secret*",
+    "*token*"
+  ],
+  "forbidden_commands": [
+    "git add .",
+    "git clean -fd",
+    "git reset --hard",
+    "git push --force"
+  ],
+  "required_behaviors": [
+    "Use route prefix /plan-c and /api/plan-c",
+    "Preserve old realtime pages",
+    "No fake detection",
+    "No fake GPS",
+    "No raw debug on operator page",
+    "Append spreadsheet, do not reset",
+    "Append map marker, do not reset",
+    "Return structured status when model or AI is not ready"
+  ]
+}

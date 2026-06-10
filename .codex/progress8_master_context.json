@@ -1,0 +1,191 @@
+{
+  "version": "progress8_master_context_v2",
+  "project": {
+    "name": "ULP_Project",
+    "progress": "Progress 8",
+    "active_plan": "Plan C",
+    "final_report_system": true,
+    "repository_windows": "E:\\Projects\\ULP_Project",
+    "worktree_windows": "E:\\Projects\\ULP_Project_PROGRESS8_PLAN_C_CONTEXT",
+    "branch": "progress8-plan-c-snapshot-processing",
+    "base_branch": "system-finalization-no-label-touch"
+  },
+  "memory_lock": {
+    "plan_c_is_final_for_laporan_akhir": true,
+    "proposal_not_submitted_yet": true,
+    "do_not_claim_multiclass_realtime_in_final_report": true,
+    "do_not_claim_realtime_yolo_core_in_final_report": true,
+    "use_technology_that_is_actually_implemented": true
+  },
+  "plans": {
+    "plan_a": {
+      "name": "YOLO-only realtime",
+      "status": "preserve_as_research_history",
+      "do_not_delete": true,
+      "do_not_extend_now": true
+    },
+    "plan_b": {
+      "name": "YOLO + AI realtime",
+      "status": "preserve_as_research_history",
+      "do_not_delete": true,
+      "reason_not_primary": "Realtime loop, frontend state, GPS, and detection UI caused instability."
+    },
+    "plan_c": {
+      "name": "Snapshot/manual capture + backend processing",
+      "status": "primary_final_system",
+      "core": "HP captures snapshot, laptop processes image after shutter, result returns to website.",
+      "not_realtime": true
+    }
+  },
+  "system_goal": {
+    "summary": "Build a stable snapshot-based vegetation monitoring workflow for distribution network field evidence.",
+    "operator_flow": [
+      "Open /plan-c",
+      "Read field instruction",
+      "Click Get Started",
+      "Allow camera and GPS",
+      "Stand near or under tree target",
+      "Save tree anchor GPS if available",
+      "Move backward until tree and power network are visible",
+      "Take snapshot",
+      "Upload image and metadata to laptop backend",
+      "Backend runs YOLO and optional AI validator",
+      "Backend runs geometry and growth prediction",
+      "Backend appends spreadsheet and map marker",
+      "HP displays result page"
+    ]
+  },
+  "target_objects": [
+    "pohon_sono",
+    "konduktor",
+    "struktur_penyangga"
+  ],
+  "ignored_objects": [
+    "person",
+    "car",
+    "keyboard",
+    "mouse",
+    "wallet",
+    "chair",
+    "table",
+    "laptop",
+    "room_background"
+  ],
+  "technology_roles": {
+    "flask": "web backend and API runtime",
+    "hp_browser": "camera and GPS client",
+    "https_tunnel": "required for phone on different network",
+    "yolo": "post-capture object detection and bounding boxes",
+    "ai_vision": "optional visual validator and narrative helper",
+    "python_geometry": "source of truth for distance, height, clearance, and risk",
+    "growth_model": "quarterly prediction from Excel/local data if available",
+    "spreadsheet": "append-only evidence history",
+    "map": "append-only marker visualization"
+  },
+  "forbidden_claims": [
+    "real-time YOLO detection as final core",
+    "YOLO-FIRST live mode as final system",
+    "AI realtime switch as final system",
+    "absolute PLN-grade accuracy",
+    "fake model readiness",
+    "fake detection",
+    "fake GPS"
+  ],
+  "report_safe_language": [
+    "snapshot-based image processing",
+    "post-capture object detection",
+    "YOLO-assisted vegetation detection",
+    "AI-assisted visual validation",
+    "quarterly growth-risk prediction",
+    "append-only field evidence record",
+    "decision-support estimate, not a replacement for manual PLN measurement"
+  ],
+  "routes_required": {
+    "pages": [
+      "GET /plan-c",
+      "GET /plan-c/capture/<session_id>",
+      "GET /plan-c/processing/<session_id>",
+      "GET /plan-c/result/<session_id>",
+      "GET /plan-c/map",
+      "GET /plan-c/developer/<session_id>"
+    ],
+    "api": [
+      "POST /api/plan-c/session/start",
+      "POST /api/plan-c/session/tree-anchor",
+      "POST /api/plan-c/session/snapshot",
+      "GET /api/plan-c/session/<session_id>/status",
+      "GET /api/plan-c/session/<session_id>/result"
+    ]
+  },
+  "data_contract": {
+    "session_id_prefix": "PC_",
+    "storage_root": "data/runtime/plan_c",
+    "session_files": [
+      "original.jpg",
+      "annotated.jpg",
+      "result.json",
+      "developer.json",
+      "metadata.json",
+      "yolo_raw.json",
+      "ai_raw.json",
+      "geometry.json"
+    ],
+    "append_only_files": [
+      "data/runtime/plan_c/spreadsheet/plan_c_records.csv",
+      "data/runtime/plan_c/spreadsheet/plan_c_records.jsonl",
+      "data/runtime/plan_c/map/plan_c_markers.json"
+    ]
+  },
+  "risk_statuses": [
+    "AMAN",
+    "PANTAU",
+    "SIAGA",
+    "PERLU_PEMANGKASAN",
+    "DATA_TIDAK_CUKUP"
+  ],
+  "prediction_windows": [
+    "0-3 bulan",
+    "3-6 bulan",
+    "6-9 bulan",
+    "9-12 bulan",
+    ">12 bulan",
+    "data tidak cukup"
+  ],
+  "geometry_defaults": {
+    "pole_height_default_m": 11.0,
+    "pole_height_min_m": 10.5,
+    "pole_height_max_m": 12.0,
+    "clearance_threshold_m": 3.0,
+    "gps_accuracy_warning_m": 20.0,
+    "manual_distance_allowed": true
+  },
+  "yolo_ai_policy": {
+    "yolo_is_required_for_boxes": true,
+    "ai_can_validate_context": true,
+    "ai_cannot_create_final_fake_boxes": true,
+    "ai_cannot_replace_python_geometry": true,
+    "if_yolo_missing": "save photo and return YOLO_MODEL_NOT_READY plus DATA_TIDAK_CUKUP",
+    "if_ai_key_missing": "continue with AI_VALIDATOR_DISABLED"
+  },
+  "ui_policy": {
+    "capture_page_must_be_clean": true,
+    "capture_page_forbidden": [
+      "YOLO-FIRST",
+      "AI realtime switch",
+      "custom lens selector",
+      "MODEL_STATUS_UNKNOWN",
+      "GPS debug chips",
+      "realtime bounding overlay",
+      "developer raw JSON"
+    ],
+    "capture_page_allowed": [
+      "short instruction",
+      "camera preview",
+      "shutter button",
+      "retry button",
+      "processing loader"
+    ],
+    "developer_page_can_show_debug": true,
+    "result_page_can_be_creative": true
+  }
+}
