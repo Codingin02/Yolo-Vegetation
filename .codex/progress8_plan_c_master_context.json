@@ -1,0 +1,106 @@
+{
+  "version": "progress8_plan_c_master_context_v1",
+  "project": {
+    "name": "ULP_Project",
+    "progress": "Progress 8",
+    "branch": "progress8-plan-c-snapshot-processing",
+    "worktree": "E:\\Projects\\ULP_Project_PROGRESS8_PLAN_C_CONTEXT",
+    "final_report_system": "Plan C Snapshot Processing"
+  },
+  "decision_lock": {
+    "plan_a": "YOLO-only realtime, preserve as research history",
+    "plan_b": "YOLO + AI realtime, preserve as research history",
+    "plan_c": "Snapshot capture + backend processing, primary final system",
+    "do_not_delete_plan_a_or_b": true,
+    "do_not_continue_realtime_debugging": true,
+    "do_not_claim_multiclass_realtime_final": true
+  },
+  "plan_c_flow": [
+    "GET /plan-c home",
+    "POST /api/plan-c/session/start",
+    "GET /plan-c/capture/<session_id>",
+    "POST /api/plan-c/session/tree-anchor",
+    "POST /api/plan-c/session/snapshot",
+    "backend stores original image",
+    "backend runs YOLO post-capture",
+    "backend runs AI vision validator if enabled",
+    "backend runs Python geometry",
+    "backend runs growth prediction",
+    "backend writes result JSON",
+    "backend appends spreadsheet CSV/JSONL",
+    "backend appends map marker",
+    "GET /plan-c/result/<session_id>",
+    "GET /plan-c/map",
+    "GET /plan-c/developer/<session_id>"
+  ],
+  "target_objects": [
+    "pohon_sono",
+    "konduktor",
+    "struktur_penyangga"
+  ],
+  "ignored_objects": [
+    "person",
+    "car",
+    "keyboard",
+    "wallet",
+    "room_background"
+  ],
+  "risk_statuses": [
+    "AMAN",
+    "PANTAU",
+    "SIAGA",
+    "PERLU_PEMANGKASAN",
+    "DATA_TIDAK_CUKUP"
+  ],
+  "prediction_windows": [
+    "0-3 bulan",
+    "3-6 bulan",
+    "6-9 bulan",
+    "9-12 bulan",
+    ">12 bulan",
+    "data tidak cukup"
+  ],
+  "geometry_defaults": {
+    "pole_height_min_m": 10.5,
+    "pole_height_default_m": 11.0,
+    "pole_height_max_m": 12.0,
+    "vegetation_clearance_threshold_m": 3.0,
+    "gps_accuracy_warning_m": 20.0,
+    "manual_distance_override_allowed": true
+  },
+  "technology_policy": {
+    "yolo_role": "post-capture bounding box detector",
+    "ai_role": "optional validator and summarizer",
+    "python_geometry_role": "source of truth for calculations",
+    "ai_must_not_replace_geometry": true,
+    "ai_must_not_create_fake_boxes": true
+  },
+  "storage_policy": {
+    "append_only": true,
+    "root": "data/runtime/plan_c",
+    "session_folder": "data/runtime/plan_c/sessions/<session_id>",
+    "original_image": "original.jpg",
+    "annotated_image": "annotated.jpg",
+    "result_json": "result.json",
+    "developer_json": "developer.json",
+    "csv": "data/runtime/plan_c/spreadsheet/plan_c_records.csv",
+    "jsonl": "data/runtime/plan_c/spreadsheet/plan_c_records.jsonl",
+    "map_markers": "data/runtime/plan_c/map/plan_c_markers.json"
+  },
+  "hard_forbidden": [
+    "git add .",
+    "git clean -fd",
+    "git reset --hard",
+    "edit data/raw",
+    "edit dataset",
+    "edit labels",
+    "edit runs",
+    "edit weights",
+    "edit models",
+    "fake detection",
+    "fake GPS",
+    "fake bounding box",
+    "fake prediction",
+    "commit API key"
+  ]
+}

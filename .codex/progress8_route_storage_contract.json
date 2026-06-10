@@ -1,0 +1,71 @@
+{
+  "version": "progress8_route_storage_contract_v1",
+  "routes": {
+    "pages": [
+      {"method": "GET", "path": "/plan-c", "template": "plan_c_home.html"},
+      {"method": "GET", "path": "/plan-c/capture/<session_id>", "template": "plan_c_capture.html"},
+      {"method": "GET", "path": "/plan-c/processing/<session_id>", "template": "plan_c_processing.html"},
+      {"method": "GET", "path": "/plan-c/result/<session_id>", "template": "plan_c_result.html"},
+      {"method": "GET", "path": "/plan-c/map", "template": "plan_c_map.html"},
+      {"method": "GET", "path": "/plan-c/developer/<session_id>", "template": "plan_c_developer.html"}
+    ],
+    "api": [
+      {"method": "POST", "path": "/api/plan-c/session/start", "success": 201},
+      {"method": "POST", "path": "/api/plan-c/session/tree-anchor", "success": 200},
+      {"method": "POST", "path": "/api/plan-c/session/snapshot", "success": 201},
+      {"method": "GET", "path": "/api/plan-c/session/<session_id>/status", "success": 200},
+      {"method": "GET", "path": "/api/plan-c/session/<session_id>/result", "success": 200}
+    ]
+  },
+  "files_to_create": {
+    "python": [
+      "src/ulp_project/plan_c_routes.py",
+      "src/ulp_project/plan_c_session.py",
+      "src/ulp_project/plan_c_storage.py",
+      "src/ulp_project/plan_c_yolo.py",
+      "src/ulp_project/plan_c_ai_validator.py",
+      "src/ulp_project/plan_c_geometry.py",
+      "src/ulp_project/plan_c_growth_model.py",
+      "src/ulp_project/plan_c_processor.py",
+      "src/ulp_project/plan_c_map.py"
+    ],
+    "templates": [
+      "src/ulp_project/templates/plan_c_home.html",
+      "src/ulp_project/templates/plan_c_capture.html",
+      "src/ulp_project/templates/plan_c_processing.html",
+      "src/ulp_project/templates/plan_c_result.html",
+      "src/ulp_project/templates/plan_c_map.html",
+      "src/ulp_project/templates/plan_c_developer.html"
+    ],
+    "static": [
+      "src/ulp_project/static/plan_c.css",
+      "src/ulp_project/static/plan_c_capture.js",
+      "src/ulp_project/static/plan_c_result.js"
+    ],
+    "scripts": [
+      "scripts/plan_c_smoke.py"
+    ],
+    "docs": [
+      "docs/progress8/PLAN_C_IMPLEMENTATION_REPORT.md"
+    ]
+  },
+  "storage": {
+    "session_id_prefix": "PC_",
+    "session_path": "data/runtime/plan_c/sessions/<session_id>",
+    "session_files": [
+      "original.jpg",
+      "annotated.jpg",
+      "result.json",
+      "developer.json",
+      "metadata.json",
+      "yolo_raw.json",
+      "ai_raw.json",
+      "geometry.json"
+    ],
+    "append_only": [
+      "data/runtime/plan_c/spreadsheet/plan_c_records.csv",
+      "data/runtime/plan_c/spreadsheet/plan_c_records.jsonl",
+      "data/runtime/plan_c/map/plan_c_markers.json"
+    ]
+  }
+}
