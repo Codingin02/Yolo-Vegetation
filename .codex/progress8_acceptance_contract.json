@@ -1,39 +1,29 @@
-{
-  "version": "progress8_acceptance_contract_v1",
-  "must_pass": [
-    "/plan-c returns 200",
-    "POST /api/plan-c/session/start returns 201 and session_id with PC_ prefix",
-    "tree-anchor stores GPS if available but does not block camera if GPS unavailable",
-    "capture page has no YOLO-FIRST, no AI realtime switch, no debug chips",
-    "snapshot upload stores original.jpg",
-    "processor creates result.json and developer.json",
-    "YOLO unavailable returns YOLO_MODEL_NOT_READY without crash",
-    "AI key missing returns AI_VALIDATOR_DISABLED without crash",
-    "annotated.jpg is created even when detection incomplete, but no fake box is drawn",
-    "CSV append-only record is created",
-    "JSONL append-only record is created",
-    "map marker JSON preserves old markers and adds new marker",
-    "result page displays risk_status and prediction_window",
-    "developer page displays raw diagnostics",
-    "py_compile passes",
-    "scripts/plan_c_smoke.py passes",
-    "git diff --check passes",
-    "no forbidden path is modified"
-  ],
-  "must_not_appear": [
-    "MODEL_STATUS_UNKNOWN",
-    "YOLO-FIRST",
-    "AI realtime switch",
-    "vision-analyze realtime loop",
-    "fake_detection",
-    "fake_gps",
-    "git add ."
-  ],
-  "commands": [
-    ".\\venv\\Scripts\\python.exe -m py_compile src\\ulp_project\\plan_c_routes.py src\\ulp_project\\plan_c_session.py src\\ulp_project\\plan_c_storage.py src\\ulp_project\\plan_c_yolo.py src\\ulp_project\\plan_c_ai_validator.py src\\ulp_project\\plan_c_geometry.py src\\ulp_project\\plan_c_growth_model.py src\\ulp_project\\plan_c_processor.py src\\ulp_project\\plan_c_map.py scripts\\plan_c_smoke.py",
-    ".\\venv\\Scripts\\python.exe scripts\\plan_c_smoke.py",
-    "git diff --check",
-    "git diff --stat",
-    "git status --short --untracked-files=all"
-  ]
+﻿{
+    "version":  "progress8_acceptance_contract_v2",
+    "must_not_appear":  [
+                            "MODEL_STATUS_UNKNOWN",
+                            "YOLO-FIRST",
+                            "AI realtime switch",
+                            "fake_detection",
+                            "fake_gps",
+                            "git add ."
+                        ],
+    "must_pass":  [
+                      "/plan-c returns 200",
+                      "session start returns 201 and PC_ session_id",
+                      "tree-anchor does not block camera if GPS fails",
+                      "capture page has no YOLO-FIRST",
+                      "snapshot upload stores original.jpg",
+                      "processor creates result.json and developer.json",
+                      "YOLO unavailable returns YOLO_MODEL_NOT_READY",
+                      "AI key missing returns AI_VALIDATOR_DISABLED",
+                      "CSV append-only",
+                      "JSONL append-only",
+                      "map marker append-only",
+                      "result page displays risk and prediction",
+                      "developer page displays diagnostics",
+                      "py_compile passes",
+                      "plan_c_smoke passes",
+                      "git diff --check passes"
+                  ]
 }

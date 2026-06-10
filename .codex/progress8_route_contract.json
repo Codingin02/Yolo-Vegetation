@@ -1,0 +1,68 @@
+﻿{
+    "pages":  [
+                  {
+                      "method":  "GET",
+                      "path":  "/plan-c",
+                      "template":  "plan_c_home.html"
+                  },
+                  {
+                      "method":  "GET",
+                      "path":  "/plan-c/capture/\u003csession_id\u003e",
+                      "template":  "plan_c_capture.html"
+                  },
+                  {
+                      "method":  "GET",
+                      "path":  "/plan-c/processing/\u003csession_id\u003e",
+                      "template":  "plan_c_processing.html"
+                  },
+                  {
+                      "method":  "GET",
+                      "path":  "/plan-c/result/\u003csession_id\u003e",
+                      "template":  "plan_c_result.html"
+                  },
+                  {
+                      "method":  "GET",
+                      "path":  "/plan-c/map",
+                      "template":  "plan_c_map.html"
+                  },
+                  {
+                      "method":  "GET",
+                      "path":  "/plan-c/developer/\u003csession_id\u003e",
+                      "template":  "plan_c_developer.html"
+                  }
+              ],
+    "forbidden_route_behaviors":  [
+                                      "do not patch /field-camera",
+                                      "do not use realtime YOLO frame loop",
+                                      "do not use AI realtime switch",
+                                      "do not show YOLO-FIRST"
+                                  ],
+    "api":  [
+                {
+                    "method":  "POST",
+                    "path":  "/api/plan-c/session/start",
+                    "success":  201
+                },
+                {
+                    "method":  "POST",
+                    "path":  "/api/plan-c/session/tree-anchor",
+                    "success":  200
+                },
+                {
+                    "method":  "POST",
+                    "path":  "/api/plan-c/session/snapshot",
+                    "success":  201
+                },
+                {
+                    "method":  "GET",
+                    "path":  "/api/plan-c/session/\u003csession_id\u003e/status",
+                    "success":  200
+                },
+                {
+                    "method":  "GET",
+                    "path":  "/api/plan-c/session/\u003csession_id\u003e/result",
+                    "success":  200
+                }
+            ],
+    "version":  "progress8_route_contract_v2"
+}
