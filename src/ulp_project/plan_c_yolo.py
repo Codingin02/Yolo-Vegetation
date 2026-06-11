@@ -19,18 +19,37 @@ MODEL_CANDIDATES = [
 
 def resolve_plan_c_yolo_model() -> dict[str, Any]:
     checked = [str(path) for path in MODEL_CANDIDATES]
+    try:
+        from .plan_c_system_c_runtime_selector import select_plan_c_runtime_model
+
+        registry_model = select_plan_c_runtime_model()
+        if registry_model.get("status") == "PLAN_C_RUNTIME_MODEL_FROM_SYSTEM_C_REGISTRY":
+            return {
+                "status": "YOLO_MODEL_READY",
+                "model_path": str(registry_model.get("model_path") or ""),
+                "checked_paths": ["System C model registry", *checked],
+                "model_source": "system_c_registry",
+                "registry_status": registry_model.get("registry_status"),
+                "not_accuracy_claim": True,
+            }
+    except Exception as exc:
+        registry_error = f"{type(exc).__name__}: {exc}"
+    else:
+        registry_error = ""
     for path in MODEL_CANDIDATES:
         if path.exists():
             return {
                 "status": "YOLO_MODEL_READY",
                 "model_path": str(path),
                 "checked_paths": checked,
+                "model_source": "legacy_candidate_path",
                 "not_accuracy_claim": True,
             }
     return {
         "status": "YOLO_MODEL_NOT_READY",
         "model_path": "",
         "checked_paths": checked,
+        "registry_error": registry_error,
         "manual_review_required": True,
         "not_accuracy_claim": True,
     }

@@ -1,0 +1,10 @@
+﻿path: E:/Projects/ULP_Project/data/dataset_yolo/plan_c_final_v1
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: struktur_penyangga
+  1: konduktor
+  2: pohon_sono
+  3: pohon_non_sono

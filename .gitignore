@@ -60,6 +60,10 @@ models/
 data/external_candidate_sources/
 data/external_dataset_inbox/
 data/runtime/plan_c_dataset_acquisition/
+data/dataset_yolo/plan_c_final_v1/images/
+data/dataset_yolo/plan_c_final_v1/labels/
+data/dataset_yolo/plan_c_final_v1/roboflow_package/
+data/dataset_yolo/plan_c_final_v1/rejected/
 manual_backups/
 # Plan C local secrets and runtime artifacts
 outputs/
