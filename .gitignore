@@ -58,6 +58,8 @@ models/
 
 !data/metadata/.gitkeep
 data/external_candidate_sources/
+data/external_dataset_inbox/
+data/runtime/plan_c_dataset_acquisition/
 manual_backups/
 # Plan C local secrets and runtime artifacts
 outputs/
