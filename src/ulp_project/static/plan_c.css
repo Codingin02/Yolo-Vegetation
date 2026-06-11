@@ -276,6 +276,27 @@ button,
   gap: 18px;
 }
 
+.operator-status-strip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.operator-status-strip span {
+  min-height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 760;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
 .image-frame {
   margin: 0;
   background: #111;
@@ -384,7 +405,8 @@ pre {
 
   .step-list,
   .result-layout,
-  .compact-status {
+  .compact-status,
+  .operator-status-strip {
     grid-template-columns: 1fr;
   }
 

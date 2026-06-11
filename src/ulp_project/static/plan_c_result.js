@@ -4,6 +4,6 @@
   image.addEventListener("error", () => {
     const parent = image.parentElement;
     if (!parent) return;
-    parent.innerHTML = '<div class="image-placeholder">ANNOTATED_IMAGE_NOT_AVAILABLE</div>';
+    parent.innerHTML = '<div class="image-placeholder">ANNOTATION_NOT_READY</div>';
   });
 })();

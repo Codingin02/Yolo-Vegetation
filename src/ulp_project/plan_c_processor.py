@@ -8,7 +8,8 @@ from pathlib import Path
 import re
 from typing import Any
 
-from .plan_c_ai_validator import validate_snapshot_with_ai
+from .plan_c_free_vision_config import load_free_vision_config, redact_config
+from .plan_c_free_vision_detector import detect_yolo_compatible_from_snapshot
 from .plan_c_geometry import DEFAULT_GEOMETRY_PARAMETERS, compute_plan_c_geometry
 from .plan_c_growth_model import build_growth_summary, load_growth_profile
 from .plan_c_session import load_plan_c_metadata, save_plan_c_metadata, update_plan_c_status
@@ -23,6 +24,7 @@ from .plan_c_storage import (
     write_json,
 )
 from .plan_c_yolo import run_yolo_post_capture
+from .plan_c_yolo_compatible_renderer import render_yolo_compatible_annotation
 
 _IDEMPOTENCY_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{8,128}$")
 
@@ -50,11 +52,22 @@ def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload:
     yolo_raw = run_yolo_post_capture(original_path, annotated_path)
     write_json(session_file(session_id, "yolo_raw.json"), yolo_raw)
 
-    ai_raw = validate_snapshot_with_ai(original_path, metadata=metadata)
+    image_width, image_height = _read_image_size(original_path)
+    free_vision_config = load_free_vision_config()
+    detection_result = detect_yolo_compatible_from_snapshot(
+        original_path,
+        image_width=image_width,
+        image_height=image_height,
+        config=free_vision_config,
+        yolo_result=yolo_raw,
+    )
+    render_status = render_yolo_compatible_annotation(original_path, annotated_path, detection_result.get("detections", []))
+
+    ai_raw = _disabled_legacy_visual_validator(original_path, metadata=metadata)
     write_json(session_file(session_id, "ai_raw.json"), ai_raw)
 
     geometry = compute_plan_c_geometry(
-        yolo_raw.get("detections", []),
+        detection_result.get("detections", []),
         metadata=metadata,
         manual_inputs=metadata.get("manual_inputs", {}),
     )
@@ -78,6 +91,8 @@ def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload:
         annotated_path=annotated_path,
         yolo_raw=yolo_raw,
         ai_raw=ai_raw,
+        detection_result=detection_result,
+        render_status=render_status,
         geometry=geometry,
         growth=growth,
         risk_status=risk_status,
@@ -105,6 +120,9 @@ def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload:
         metadata=metadata,
         yolo_raw=yolo_raw,
         ai_raw=ai_raw,
+        detection_result=detection_result,
+        render_status=render_status,
+        free_vision_config=free_vision_config,
         geometry=geometry,
         growth=growth,
         append_status=append_status,
@@ -309,6 +327,8 @@ def _build_result_payload(
     annotated_path: Path,
     yolo_raw: dict[str, Any],
     ai_raw: dict[str, Any],
+    detection_result: dict[str, Any],
+    render_status: dict[str, Any],
     geometry: dict[str, Any],
     growth: dict[str, Any],
     risk_status: str,
@@ -316,6 +336,8 @@ def _build_result_payload(
     idempotency_key: str = "",
 ) -> dict[str, Any]:
     gps = metadata.get("gps", {})
+    detection_count = int(detection_result.get("detection_count") or len(detection_result.get("detections") or []))
+    detection_status = str(detection_result.get("status") or detection_result.get("pipeline_status") or "DATA_TIDAK_CUKUP")
     return {
         "status": "PLAN_C_RESULT_READY",
         "session_id": session_id,
@@ -327,8 +349,18 @@ def _build_result_payload(
         "tree_height_estimate_m": geometry.get("tree_height_estimate_m"),
         "clearance_estimate_m": geometry.get("clearance_estimate_m"),
         "manual_review_required": bool(
-            geometry.get("manual_review_required") or yolo_raw.get("manual_review_required") or risk_status == "DATA_TIDAK_CUKUP"
+            geometry.get("manual_review_required")
+            or detection_result.get("manual_review_required")
+            or risk_status == "DATA_TIDAK_CUKUP"
         ),
+        "detection_status": detection_status,
+        "detection_count": detection_count,
+        "operator_detection_label": detection_result.get("operator_detection_label", "Detection"),
+        "operator_output_format": detection_result.get("operator_output_format", "YOLO-compatible"),
+        "consensus_status": detection_result.get("consensus_status"),
+        "review_status": "MANUAL_REVIEW_REQUIRED"
+        if detection_result.get("manual_review_required") or risk_status == "DATA_TIDAK_CUKUP"
+        else "REVIEW_OPTIONAL",
         "yolo_status": yolo_raw.get("status"),
         "yolo_summary": {
             "status": yolo_raw.get("status"),
@@ -336,13 +368,12 @@ def _build_result_payload(
             "manual_review_required": yolo_raw.get("manual_review_required", True),
             "model_path": yolo_raw.get("model_path", ""),
         },
-        "ai_validator_status": ai_raw.get("status"),
-        "ai_validation_summary": {
-            "status": ai_raw.get("status"),
-            "visual_quality": ai_raw.get("visual_quality"),
-            "object_visibility": ai_raw.get("object_visibility"),
-            "retake_recommendation": ai_raw.get("retake_recommendation"),
-            "short_validation_summary": ai_raw.get("short_validation_summary"),
+        "detection_summary": {
+            "status": detection_status,
+            "detection_count": detection_count,
+            "operator_output_format": detection_result.get("operator_output_format", "YOLO-compatible"),
+            "manual_review_required": detection_result.get("manual_review_required", True),
+            "render_status": render_status.get("status"),
         },
         "gps_summary": gps,
         "gps_status": gps.get("gps_quality_status") or gps.get("gps_status") or "GPS_NOT_READY",
@@ -383,8 +414,8 @@ def _build_record(result: dict[str, Any]) -> dict[str, Any]:
         "latitude": gps.get("latitude"),
         "longitude": gps.get("longitude"),
         "gps_accuracy_m": gps.get("gps_accuracy_m"),
-        "yolo_status": result.get("yolo_status"),
-        "ai_validator_status": result.get("ai_validator_status"),
+        "yolo_status": result.get("detection_status") or result.get("yolo_status"),
+        "ai_validator_status": "",
         "geometry_status": result.get("geometry_status"),
         "growth_profile_status": result.get("growth_profile_status"),
         "growth_rate_m_per_quarter": result.get("growth_rate_m_per_quarter"),
@@ -419,6 +450,9 @@ def _build_developer_payload(
     metadata: dict[str, Any],
     yolo_raw: dict[str, Any],
     ai_raw: dict[str, Any],
+    detection_result: dict[str, Any],
+    render_status: dict[str, Any],
+    free_vision_config: dict[str, Any],
     geometry: dict[str, Any],
     growth: dict[str, Any],
     append_status: dict[str, Any],
@@ -433,6 +467,9 @@ def _build_developer_payload(
         "metadata": metadata,
         "yolo_raw": yolo_raw,
         "ai_raw": ai_raw,
+        "free_vision_detection": detection_result,
+        "free_vision_config_redacted": redact_config(free_vision_config),
+        "yolo_compatible_render": render_status,
         "geometry": geometry,
         "growth": growth,
         "growth_dataset_diagnostics": growth_profile,
@@ -456,7 +493,7 @@ def _build_developer_payload(
         },
         "warnings": [
             "Plan C bukan realtime dan bukan pengganti pengukuran manual PLN.",
-            "AI validator tidak menggantikan YOLO atau Python geometry.",
+            "Detection adapter dan YOLO-compatible output tetap membutuhkan review lapangan.",
         ],
         "errors": [],
     }
@@ -469,3 +506,27 @@ def _capture_month(timestamp: Any) -> int | None:
         return datetime.fromisoformat(str(timestamp).replace("Z", "+00:00")).month
     except ValueError:
         return None
+
+
+def _read_image_size(path: Path) -> tuple[int, int]:
+    try:
+        from PIL import Image
+
+        with Image.open(path) as image:
+            return int(image.width), int(image.height)
+    except Exception:
+        return 0, 0
+
+
+def _disabled_legacy_visual_validator(original_path: Path, *, metadata: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "status": "VISION_PROVIDER_DISABLED",
+        "enabled": False,
+        "visual_quality": "not_run",
+        "object_visibility": "not_run",
+        "retake_recommendation": "Detection summary dan geometry digunakan untuk review operator.",
+        "short_validation_summary": "External visual validation tidak dijalankan pada mode free-only tanpa konfigurasi lokal.",
+        "image_path": relative_to_project(original_path),
+        "metadata_keys": sorted(metadata.keys()),
+        "no_secret_logged": True,
+    }

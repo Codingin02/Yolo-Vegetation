@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .plan_c_free_vision_detector import build_free_vision_status_payload
 from .plan_c_map import load_plan_c_map_payload
 from .plan_c_processor import process_plan_c_snapshot
 from .plan_c_session import build_session_status, create_plan_c_session, load_plan_c_metadata, save_tree_anchor
@@ -157,6 +158,11 @@ def api_runtime_ui_version():
             "route_status": "PLAN_C_UI_VERSION_READY",
         }
     ), 200
+
+
+@plan_c_bp.get("/api/plan-c/free-vision/status")
+def api_free_vision_status():
+    return jsonify(build_free_vision_status_payload()), 200
 
 
 @plan_c_bp.get("/api/plan-c/session/<session_id>/status")

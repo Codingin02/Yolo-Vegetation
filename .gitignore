@@ -38,8 +38,10 @@ weights/
 models/
 .env
 .env.*
+!.env.example
 *token*
 *credential*
+*secret*
 *service-account*.json
 *.pt
 *.onnx
@@ -56,4 +58,7 @@ models/
 
 !data/metadata/.gitkeep
 data/external_candidate_sources/
+manual_backups/
+# Plan C local secrets and runtime artifacts
+outputs/
 manual_backups/

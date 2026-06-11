@@ -66,6 +66,7 @@ _SECRET_KEYWORDS = {
     "groq_api_key",
     "ngrok_authtoken",
     "openai_api_key",
+    "openrouter_api_key",
     "secret",
     "service_account",
     "token",

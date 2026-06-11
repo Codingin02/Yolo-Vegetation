@@ -319,6 +319,8 @@ MODE_GROUPS = {
     "progress8-plan-c-field-trial": [
         ".\\venv\\Scripts\\python.exe scripts\\plan_c_smoke.py",
         ".\\venv\\Scripts\\python.exe scripts\\plan_c_field_trial_hardening_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --plan-c-free-vision-status",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --plan-c-free-vision-smoke",
         ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --plan-c-print-links",
         ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --plan-c-check-growth",
         ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --plan-c-check-storage",
@@ -396,6 +398,16 @@ def print_plan_c_storage_status() -> int:
     return 0
 
 
+def print_plan_c_free_vision_status() -> int:
+    import json
+
+    sys.path.insert(0, str(ROOT / "src"))
+    from ulp_project.plan_c_free_vision_detector import build_free_vision_status_payload
+
+    print(json.dumps(build_free_vision_status_payload(), indent=2, ensure_ascii=False))
+    return 0
+
+
 def _local_lan_ip() -> str:
     try:
         import socket
@@ -420,6 +432,8 @@ def main() -> int:
     parser.add_argument("--plan-c-print-links", action="store_true")
     parser.add_argument("--plan-c-check-growth", action="store_true")
     parser.add_argument("--plan-c-check-storage", action="store_true")
+    parser.add_argument("--plan-c-free-vision-status", action="store_true")
+    parser.add_argument("--plan-c-free-vision-smoke", action="store_true")
     parser.add_argument("--run-server", action="store_true")
     parser.add_argument("--run-remote-server", action="store_true")
     parser.add_argument("--check-model", action="store_true")
@@ -530,6 +544,8 @@ def main() -> int:
         return print_plan_c_growth_status()
     if args.plan_c_check_storage:
         return print_plan_c_storage_status()
+    if args.plan_c_free_vision_status:
+        return print_plan_c_free_vision_status()
 
     actions = [
         (args.status, ["scripts\\system_status_report.py"]),
@@ -537,6 +553,7 @@ def main() -> int:
         (args.print_links, ["scripts\\print_remote_realtime_links.py"]),
         (args.plan_c_smoke, ["scripts\\plan_c_smoke.py"]),
         (args.plan_c_field_trial_smoke, ["scripts\\plan_c_field_trial_hardening_smoke.py"]),
+        (args.plan_c_free_vision_smoke, ["scripts\\plan_c_free_vision_smoke.py"]),
         (args.run_server, ["scripts\\run_field_capture_server.py", "--host", "0.0.0.0", "--port", "5000"]),
         (args.run_remote_server, ["scripts\\run_remote_realtime_server.py", "--host", "0.0.0.0", "--port", "5000"]),
         (args.check_model, ["scripts\\check_model_handoff_ready.py"]),
