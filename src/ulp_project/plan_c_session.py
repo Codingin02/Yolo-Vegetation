@@ -27,6 +27,7 @@ def create_plan_c_session(payload: dict[str, Any] | None = None) -> dict[str, An
         "snapshot_status": "SNAPSHOT_PENDING",
         "processing_status": "WAITING_FOR_SNAPSHOT",
         "result_status": "RESULT_NOT_READY",
+        "idempotency_keys": {},
         "storage": {"session_dir": str(folder)},
     }
     write_json(session_file(session_id, "metadata.json"), metadata)
@@ -68,7 +69,7 @@ def save_tree_anchor(session_id: str, payload: dict[str, Any]) -> dict[str, Any]
         "longitude": longitude,
         "gps_accuracy_m": accuracy,
         "captured_at": utc_now_iso(),
-        "source": "browser_gps_client",
+        "gps_source": "GPS_SOURCE_BROWSER" if latitude is not None and longitude is not None else "GPS_SOURCE_UNAVAILABLE",
     }
     if latitude is None or longitude is None:
         metadata["tree_anchor_status"] = "TREE_ANCHOR_PENDING"
@@ -76,7 +77,8 @@ def save_tree_anchor(session_id: str, payload: dict[str, Any]) -> dict[str, Any]
         save_plan_c_metadata(session_id, metadata)
         return {
             "ok": True,
-            "status": "TREE_ANCHOR_PENDING",
+            "status": "TREE_ANCHOR_ACCEPTED_DEGRADED",
+            "tree_anchor_status": "TREE_ANCHOR_PENDING",
             "session_id": session_id,
             "gps_valid": False,
             "message": "GPS belum valid; kamera tetap dapat dipakai.",
@@ -88,6 +90,7 @@ def save_tree_anchor(session_id: str, payload: dict[str, Any]) -> dict[str, Any]
     return {
         "ok": True,
         "status": "TREE_ANCHOR_SAVED",
+        "tree_anchor_status": "TREE_ANCHOR_SAVED",
         "session_id": session_id,
         "gps_valid": True,
         "tree_anchor": metadata["tree_anchor"],

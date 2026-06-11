@@ -11,8 +11,8 @@
     <header class="result-header">
       <div>
         <p class="eyebrow">Plan C Result</p>
-        <h1>risk_status: {{ result.get('risk_status', 'DATA_TIDAK_CUKUP') }}</h1>
-        <p>prediction_window: {{ result.get('prediction_window', 'data tidak cukup') }}</p>
+        <h1>{{ result.get('risk_status', 'DATA_TIDAK_CUKUP') }}</h1>
+        <p>{{ result.get('prediction_window', 'data tidak cukup') }}</p>
       </div>
       <nav class="result-links">
         <a href="/plan-c/map">Map</a>
@@ -21,44 +21,67 @@
       </nav>
     </header>
 
+    {% if not result_ready %}
+      <section class="status-panel">
+        <strong>PLAN_C_PROCESSING</strong>
+        <p>Hasil belum selesai. Buka halaman processing untuk polling status session ini.</p>
+        <a href="/plan-c/processing/{{ session_id }}">Processing</a>
+      </section>
+    {% endif %}
+
     <section class="result-layout">
       <figure class="image-frame">
-        {% if result.get('image_urls', {}).get('annotated') %}
+        {% if annotated_exists and result.get('image_urls', {}).get('annotated') %}
           <img id="annotatedImage" src="{{ result.get('image_urls', {}).get('annotated') }}" alt="Annotated snapshot">
         {% else %}
-          <div class="image-placeholder">annotated image belum tersedia</div>
+          <div class="image-placeholder">ANNOTATED_IMAGE_NOT_AVAILABLE</div>
         {% endif %}
       </figure>
 
       <section class="summary-grid">
         <article>
+          <h2>Session</h2>
+          <dl class="metric-list">
+            <dt>session_id</dt><dd>{{ session_id }}</dd>
+            <dt>point_id</dt><dd>{{ result.get('point_id', 'pohon_sono') }}</dd>
+            <dt>risk_status</dt><dd>{{ result.get('risk_status', 'DATA_TIDAK_CUKUP') }}</dd>
+            <dt>prediction_window</dt><dd>{{ result.get('prediction_window', 'data tidak cukup') }}</dd>
+            <dt>manual_review_required</dt><dd>{{ result.get('manual_review_required') }}</dd>
+          </dl>
+        </article>
+        <article>
           <h2>Geometry</h2>
-          <p>tree_height_estimate: {{ result.get('tree_height_estimate_m') }}</p>
-          <p>clearance_estimate: {{ result.get('clearance_estimate_m') }}</p>
-          <p>status: {{ result.get('geometry_status') }}</p>
+          <dl class="metric-list">
+            <dt>clearance_estimate_m</dt><dd>{{ result.get('clearance_estimate_m') }}</dd>
+            <dt>tree_height_estimate_m</dt><dd>{{ result.get('tree_height_estimate_m') }}</dd>
+            <dt>geometry_status</dt><dd>{{ result.get('geometry_status') }}</dd>
+          </dl>
         </article>
         <article>
-          <h2>YOLO summary</h2>
-          <p>status: {{ result.get('yolo_summary', {}).get('status') }}</p>
-          <p>detection_count: {{ result.get('yolo_summary', {}).get('detection_count') }}</p>
+          <h2>Detection</h2>
+          <dl class="metric-list">
+            <dt>yolo_status</dt><dd>{{ result.get('yolo_summary', {}).get('status') or result.get('yolo_status') }}</dd>
+            <dt>detection_count</dt><dd>{{ result.get('yolo_summary', {}).get('detection_count') }}</dd>
+            <dt>ai_validator_status</dt><dd>{{ result.get('ai_validation_summary', {}).get('status') or result.get('ai_validator_status') }}</dd>
+          </dl>
         </article>
         <article>
-          <h2>AI validation summary</h2>
-          <p>status: {{ result.get('ai_validation_summary', {}).get('status') }}</p>
-          <p>{{ result.get('ai_validation_summary', {}).get('short_validation_summary') }}</p>
-        </article>
-        <article>
-          <h2>GPS summary</h2>
-          <p>lat: {{ result.get('gps_summary', {}).get('latitude') }}</p>
-          <p>lon: {{ result.get('gps_summary', {}).get('longitude') }}</p>
-          <p>accuracy_m: {{ result.get('gps_summary', {}).get('gps_accuracy_m') }}</p>
+          <h2>GPS</h2>
+          <dl class="metric-list">
+            <dt>gps_status</dt><dd>{{ result.get('gps_status') }}</dd>
+            <dt>latitude</dt><dd>{{ result.get('gps_summary', {}).get('latitude') }}</dd>
+            <dt>longitude</dt><dd>{{ result.get('gps_summary', {}).get('longitude') }}</dd>
+            <dt>accuracy_m</dt><dd>{{ result.get('gps_summary', {}).get('gps_accuracy_m') }}</dd>
+          </dl>
         </article>
         <article>
           <h2>Growth prediction</h2>
-          <p>growth_profile_status: {{ result.get('growth_profile_status') }}</p>
-          <p>growth_rate_m_per_quarter: {{ result.get('growth_rate_m_per_quarter') }}</p>
-          <p>data_source_type: {{ result.get('data_source_type') }}</p>
-          <p>confidence_level: {{ result.get('confidence_level') }}</p>
+          <dl class="metric-list">
+            <dt>growth_profile_status</dt><dd>{{ result.get('growth_profile_status') }}</dd>
+            <dt>growth_rate_m_per_quarter</dt><dd>{{ result.get('growth_rate_m_per_quarter') }}</dd>
+            <dt>data_source_type</dt><dd>{{ result.get('data_source_type') }}</dd>
+            <dt>confidence_level</dt><dd>{{ result.get('confidence_level') }}</dd>
+          </dl>
         </article>
         <article>
           <h2>Limitations</h2>

@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 from datetime import datetime
 from pathlib import Path
+import re
 from typing import Any
 
 from .plan_c_ai_validator import validate_snapshot_with_ai
@@ -23,15 +24,24 @@ from .plan_c_storage import (
 )
 from .plan_c_yolo import run_yolo_post_capture
 
+_IDEMPOTENCY_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{8,128}$")
+
 
 def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload: dict[str, Any]) -> dict[str, Any]:
+    metadata = load_plan_c_metadata(session_id)
+    idempotency_key = _normalize_idempotency_key(payload.get("idempotency_key"))
+    duplicate = _duplicate_response_if_processed(session_id, metadata, idempotency_key)
+    if duplicate:
+        return duplicate
+    if idempotency_key:
+        metadata = _mark_idempotency_processing(session_id, metadata, idempotency_key)
+
     folder = ensure_session_dir(session_id)
     original_path = folder / "original.jpg"
     annotated_path = folder / "annotated.jpg"
     _save_snapshot_image(original_path, image_file=image_file, payload=payload)
 
-    metadata = load_plan_c_metadata(session_id)
-    metadata.update(_build_snapshot_metadata(session_id, payload, original_path))
+    metadata.update(_build_snapshot_metadata(session_id, payload, original_path, idempotency_key=idempotency_key))
     metadata["status"] = "PLAN_C_PROCESSING"
     metadata["snapshot_status"] = "PLAN_C_SNAPSHOT_ACCEPTED"
     metadata["processing_status"] = "PLAN_C_PROCESSING"
@@ -72,12 +82,23 @@ def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload:
         growth=growth,
         risk_status=risk_status,
         prediction_window=prediction_window,
+        idempotency_key=idempotency_key,
     )
     write_json(session_file(session_id, "result.json"), result)
 
     record = _build_record(result)
     append_status = append_plan_c_record(record)
     marker_status = append_marker(_build_marker(result))
+
+    if idempotency_key:
+        metadata = _mark_idempotency_completed(
+            session_id,
+            metadata,
+            idempotency_key,
+            result=result,
+            append_status=append_status,
+            marker_status=marker_status,
+        )
 
     developer = _build_developer_payload(
         session_id=session_id,
@@ -104,6 +125,8 @@ def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload:
         "status": "PLAN_C_RESULT_READY",
         "accepted_status": "PLAN_C_SNAPSHOT_ACCEPTED",
         "session_id": session_id,
+        "idempotency_key": idempotency_key,
+        "duplicate_ignored": False,
         "result_url": f"/plan-c/result/{session_id}",
         "processing_url": f"/plan-c/processing/{session_id}",
         "developer_url": f"/plan-c/developer/{session_id}",
@@ -112,6 +135,113 @@ def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload:
         "append_status": append_status,
         "marker_status": marker_status,
     }
+
+
+def _normalize_idempotency_key(value: Any) -> str:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return ""
+    if not _IDEMPOTENCY_PATTERN.match(cleaned):
+        raise ValueError("PLAN_C_IDEMPOTENCY_KEY_INVALID")
+    return cleaned
+
+
+def _duplicate_response_if_processed(session_id: str, metadata: dict[str, Any], idempotency_key: str) -> dict[str, Any] | None:
+    if not idempotency_key:
+        return None
+    item = _idempotency_items(metadata).get(idempotency_key)
+    if not isinstance(item, dict):
+        return None
+    result = _load_existing_result(session_id)
+    if item.get("status") == "completed" and result:
+        return {
+            "ok": True,
+            "status": "PLAN_C_SNAPSHOT_ALREADY_PROCESSED",
+            "duplicate_status": "DUPLICATE_IGNORED",
+            "duplicate_ignored": True,
+            "session_id": session_id,
+            "idempotency_key": idempotency_key,
+            "http_status": 200,
+            "result_url": f"/plan-c/result/{session_id}",
+            "processing_url": f"/plan-c/processing/{session_id}",
+            "developer_url": f"/plan-c/developer/{session_id}",
+            "risk_status": result.get("risk_status"),
+            "prediction_window": result.get("prediction_window"),
+            "append_status": {"status": "DUPLICATE_IGNORED", "record_appended": False},
+            "marker_status": {"status": "DUPLICATE_IGNORED", "marker_appended": False},
+        }
+    if item.get("status") == "processing":
+        return {
+            "ok": True,
+            "status": "PLAN_C_SNAPSHOT_PROCESSING",
+            "duplicate_status": "DUPLICATE_IGNORED",
+            "duplicate_ignored": True,
+            "session_id": session_id,
+            "idempotency_key": idempotency_key,
+            "http_status": 202,
+            "result_url": f"/plan-c/result/{session_id}",
+            "processing_url": f"/plan-c/processing/{session_id}",
+        }
+    return None
+
+
+def _mark_idempotency_processing(session_id: str, metadata: dict[str, Any], idempotency_key: str) -> dict[str, Any]:
+    items = _idempotency_items(metadata)
+    items[idempotency_key] = {
+        "status": "processing",
+        "received_at": utc_now_iso(),
+        "completed_at": "",
+        "result_path": "",
+    }
+    metadata["idempotency_keys"] = items
+    metadata["last_idempotency_key"] = idempotency_key
+    save_plan_c_metadata(session_id, metadata)
+    return metadata
+
+
+def _mark_idempotency_completed(
+    session_id: str,
+    metadata: dict[str, Any],
+    idempotency_key: str,
+    *,
+    result: dict[str, Any],
+    append_status: dict[str, Any],
+    marker_status: dict[str, Any],
+) -> dict[str, Any]:
+    items = _idempotency_items(metadata)
+    current = dict(items.get(idempotency_key) or {})
+    current.update(
+        {
+            "status": "completed",
+            "completed_at": utc_now_iso(),
+            "result_path": result.get("files", {}).get("result", ""),
+            "risk_status": result.get("risk_status"),
+            "prediction_window": result.get("prediction_window"),
+            "csv_rows_after": append_status.get("csv_rows_after"),
+            "jsonl_rows_after": append_status.get("jsonl_rows_after"),
+            "marker_count_after": marker_status.get("marker_count_after"),
+        }
+    )
+    items[idempotency_key] = current
+    metadata["idempotency_keys"] = items
+    metadata["last_idempotency_key"] = idempotency_key
+    save_plan_c_metadata(session_id, metadata)
+    return metadata
+
+
+def _idempotency_items(metadata: dict[str, Any]) -> dict[str, Any]:
+    items = metadata.get("idempotency_keys")
+    return items if isinstance(items, dict) else {}
+
+
+def _load_existing_result(session_id: str) -> dict[str, Any]:
+    try:
+        from .plan_c_storage import read_json
+
+        result = read_json(session_file(session_id, "result.json"), default={}) or {}
+    except Exception:
+        return {}
+    return result if isinstance(result, dict) else {}
 
 
 def _save_snapshot_image(original_path: Path, *, image_file: Any | None, payload: dict[str, Any]) -> None:
@@ -128,7 +258,7 @@ def _save_snapshot_image(original_path: Path, *, image_file: Any | None, payload
     raise ValueError("PLAN_C_SNAPSHOT_IMAGE_REQUIRED")
 
 
-def _build_snapshot_metadata(session_id: str, payload: dict[str, Any], original_path: Path) -> dict[str, Any]:
+def _build_snapshot_metadata(session_id: str, payload: dict[str, Any], original_path: Path, *, idempotency_key: str = "") -> dict[str, Any]:
     gps = _extract_gps(payload)
     manual_inputs = {
         "manual_distance_m": to_float(payload.get("manual_distance_m")),
@@ -138,6 +268,8 @@ def _build_snapshot_metadata(session_id: str, payload: dict[str, Any], original_
     }
     return {
         "session_id": session_id,
+        "point_id": str(payload.get("point_id") or "pohon_sono").strip() or "pohon_sono",
+        "idempotency_key": idempotency_key,
         "snapshot_captured_at": utc_now_iso(),
         "operator_note": str(payload.get("operator_note") or payload.get("notes") or "").strip(),
         "gps": gps,
@@ -151,12 +283,21 @@ def _extract_gps(payload: dict[str, Any]) -> dict[str, Any]:
     latitude = to_float(payload.get("latitude") or payload.get("lat"))
     longitude = to_float(payload.get("longitude") or payload.get("lon") or payload.get("lng"))
     accuracy = to_float(payload.get("gps_accuracy_m") or payload.get("accuracy"))
+    gps_valid = latitude is not None and longitude is not None
+    raw_status = str(payload.get("gps_status") or "").strip()
+    gps_status = raw_status if raw_status else "GPS_NOT_READY"
+    gps_quality_status = "GPS_NOT_READY"
+    if gps_valid:
+        gps_status = "GPS_READY"
+        gps_quality_status = "GPS_LOW_ACCURACY_EVIDENCE_ONLY" if accuracy is not None and accuracy > 20 else "GPS_ACCURACY_ACCEPTED"
     return {
         "latitude": latitude,
         "longitude": longitude,
         "gps_accuracy_m": accuracy,
-        "gps_valid": latitude is not None and longitude is not None,
-        "source": "browser_gps_client",
+        "gps_valid": gps_valid,
+        "gps_status": gps_status,
+        "gps_quality_status": gps_quality_status,
+        "gps_source": "GPS_SOURCE_BROWSER" if gps_valid else "GPS_SOURCE_UNAVAILABLE",
     }
 
 
@@ -172,11 +313,14 @@ def _build_result_payload(
     growth: dict[str, Any],
     risk_status: str,
     prediction_window: str,
+    idempotency_key: str = "",
 ) -> dict[str, Any]:
     gps = metadata.get("gps", {})
     return {
         "status": "PLAN_C_RESULT_READY",
         "session_id": session_id,
+        "point_id": metadata.get("point_id") or "pohon_sono",
+        "idempotency_key": idempotency_key,
         "created_at": utc_now_iso(),
         "risk_status": risk_status,
         "prediction_window": prediction_window,
@@ -201,6 +345,7 @@ def _build_result_payload(
             "short_validation_summary": ai_raw.get("short_validation_summary"),
         },
         "gps_summary": gps,
+        "gps_status": gps.get("gps_quality_status") or gps.get("gps_status") or "GPS_NOT_READY",
         "geometry_status": geometry.get("geometry_status"),
         "growth_profile_status": growth.get("growth_profile_status"),
         "growth_rate_m_per_quarter": growth.get("growth_rate_m_per_quarter"),
@@ -259,6 +404,7 @@ def _build_marker(result: dict[str, Any]) -> dict[str, Any]:
         "latitude": gps.get("latitude"),
         "longitude": gps.get("longitude"),
         "gps_accuracy_m": gps.get("gps_accuracy_m"),
+        "gps_status": result.get("gps_status"),
         "risk_status": result.get("risk_status"),
         "prediction_window": result.get("prediction_window"),
         "result_url": result.get("links", {}).get("result"),

@@ -32,9 +32,15 @@ outputs/*
 !outputs/templates/
 !outputs/templates/README.md
 !outputs/templates/*.md
+reports/
 runs/
 weights/
 models/
+.env
+.env.*
+*token*
+*credential*
+*service-account*.json
 *.pt
 *.onnx
 *.engine

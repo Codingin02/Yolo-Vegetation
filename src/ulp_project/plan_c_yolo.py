@@ -60,10 +60,10 @@ def run_yolo_post_capture(
     try:
         from ultralytics import YOLO  # type: ignore
     except Exception as exc:
-        _copy_with_label(original_path, annotated_path, "YOLO_MODEL_NOT_READY - ultralytics unavailable")
+        _copy_with_label(original_path, annotated_path, "YOLO_RUNTIME_UNAVAILABLE - manual review required")
         return {
             **model_info,
-            "status": "YOLO_MODEL_NOT_READY",
+            "status": "YOLO_RUNTIME_UNAVAILABLE",
             "runtime_status": "ULTRALYTICS_NOT_AVAILABLE",
             "runtime_error": f"{type(exc).__name__}: {exc}",
             "detections": [],
@@ -98,10 +98,10 @@ def run_yolo_post_capture(
             "not_accuracy_claim": True,
         }
     except Exception as exc:
-        _copy_with_label(original_path, annotated_path, "YOLO_MODEL_NOT_READY - prediction failed")
+        _copy_with_label(original_path, annotated_path, "YOLO_INFERENCE_FAILED - manual review required")
         return {
             **model_info,
-            "status": "YOLO_MODEL_NOT_READY",
+            "status": "YOLO_INFERENCE_FAILED",
             "runtime_status": "YOLO_PREDICT_FAILED",
             "runtime_error": f"{type(exc).__name__}: {exc}",
             "detections": [],

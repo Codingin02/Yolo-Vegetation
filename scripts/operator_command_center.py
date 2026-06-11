@@ -316,6 +316,16 @@ MODE_GROUPS = {
         "After Shutter map: https://<ngrok-public-url>/field-map/session/<session_id>",
         "After Shutter spreadsheet/result: https://<ngrok-public-url>/field-spreadsheet/session/<session_id>",
     ],
+    "progress8-plan-c-field-trial": [
+        ".\\venv\\Scripts\\python.exe scripts\\plan_c_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\plan_c_field_trial_hardening_smoke.py",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --plan-c-print-links",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --plan-c-check-growth",
+        ".\\venv\\Scripts\\python.exe scripts\\operator_command_center.py --plan-c-check-storage",
+        ".\\venv\\Scripts\\python.exe scripts\\run_remote_realtime_server.py --host 0.0.0.0 --port 5000",
+        "Tunnel: ngrok http 5000",
+        "HP: https://<ngrok-public-url>/plan-c",
+    ],
 }
 
 
@@ -334,12 +344,82 @@ def render_command_center(mode: str = "all") -> str:
     return "\n".join(lines)
 
 
+def render_plan_c_links(port: int = 5000) -> str:
+    lan_host = _local_lan_ip()
+    lines = [
+        "Plan C Field Trial Links",
+        f"Local URL: http://127.0.0.1:{port}/plan-c",
+        f"LAN URL debug-only: http://{lan_host}:{port}/plan-c" if lan_host else "LAN URL debug-only: unavailable",
+        "Public tunnel URL: gunakan URL dari terminal ngrok",
+        "Result pattern: /plan-c/result/<session_id>",
+        "Developer pattern: /plan-c/developer/<session_id>",
+        "Map: /plan-c/map",
+    ]
+    return "\n".join(lines)
+
+
+def print_plan_c_growth_status() -> int:
+    sys.path.insert(0, str(ROOT / "src"))
+    from ulp_project.plan_c_growth_model import load_growth_profile
+    from ulp_project.plan_c_storage import PLAN_C_REFERENCE_DIR
+
+    profile = load_growth_profile(PLAN_C_REFERENCE_DIR)
+    print("Plan C growth reference")
+    print(f"reference_dir={PLAN_C_REFERENCE_DIR}")
+    print(f"growth_profile_status={profile.get('growth_profile_status')}")
+    print(f"json_status={profile.get('json_status')}")
+    print(f"csv_status={profile.get('csv_status')}")
+    print(f"excel_status={profile.get('excel_status')}")
+    print(f"data_source_type={profile.get('data_source_type')}")
+    print(f"observed_or_proxy={profile.get('observed_or_proxy')}")
+    print(f"not_final_accuracy_claim={profile.get('not_final_accuracy_claim')}")
+    return 0
+
+
+def print_plan_c_storage_status() -> int:
+    sys.path.insert(0, str(ROOT / "src"))
+    from ulp_project.plan_c_storage import (
+        PLAN_C_MARKERS_JSON,
+        PLAN_C_RECORDS_CSV,
+        PLAN_C_RECORDS_JSONL,
+        PLAN_C_RUNTIME_ROOT,
+        count_csv_rows,
+        count_jsonl_rows,
+        read_markers,
+    )
+
+    print("Plan C append-only storage")
+    print(f"runtime_root={PLAN_C_RUNTIME_ROOT}")
+    print(f"records_csv={PLAN_C_RECORDS_CSV} rows={count_csv_rows(PLAN_C_RECORDS_CSV)}")
+    print(f"records_jsonl={PLAN_C_RECORDS_JSONL} lines={count_jsonl_rows(PLAN_C_RECORDS_JSONL)}")
+    print(f"markers_json={PLAN_C_MARKERS_JSON} markers={len(read_markers())}")
+    return 0
+
+
+def _local_lan_ip() -> str:
+    try:
+        import socket
+
+        hostname = socket.gethostname()
+        address = socket.gethostbyname(hostname)
+    except OSError:
+        return ""
+    if address.startswith("127."):
+        return ""
+    return address
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Print safe ULP operator commands.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--status", action="store_true")
     parser.add_argument("--diagnose", action="store_true")
     parser.add_argument("--print-links", action="store_true")
+    parser.add_argument("--plan-c-smoke", action="store_true")
+    parser.add_argument("--plan-c-field-trial-smoke", action="store_true")
+    parser.add_argument("--plan-c-print-links", action="store_true")
+    parser.add_argument("--plan-c-check-growth", action="store_true")
+    parser.add_argument("--plan-c-check-storage", action="store_true")
     parser.add_argument("--run-server", action="store_true")
     parser.add_argument("--run-remote-server", action="store_true")
     parser.add_argument("--check-model", action="store_true")
@@ -443,10 +523,20 @@ def main() -> int:
     parser.add_argument("--all-gates", action="store_true")
     parser.add_argument("--mode", choices=["all", *MODE_GROUPS.keys()], default="all")
     args = parser.parse_args()
+    if args.plan_c_print_links:
+        print(render_plan_c_links())
+        return 0
+    if args.plan_c_check_growth:
+        return print_plan_c_growth_status()
+    if args.plan_c_check_storage:
+        return print_plan_c_storage_status()
+
     actions = [
         (args.status, ["scripts\\system_status_report.py"]),
         (args.diagnose, ["scripts\\diagnose_remote_field_trial.py"]),
         (args.print_links, ["scripts\\print_remote_realtime_links.py"]),
+        (args.plan_c_smoke, ["scripts\\plan_c_smoke.py"]),
+        (args.plan_c_field_trial_smoke, ["scripts\\plan_c_field_trial_hardening_smoke.py"]),
         (args.run_server, ["scripts\\run_field_capture_server.py", "--host", "0.0.0.0", "--port", "5000"]),
         (args.run_remote_server, ["scripts\\run_remote_realtime_server.py", "--host", "0.0.0.0", "--port", "5000"]),
         (args.check_model, ["scripts\\check_model_handoff_ready.py"]),

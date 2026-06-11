@@ -20,6 +20,7 @@ PLAN_C_REFERENCE_DIR = PROJECT_ROOT / "data" / "reference" / "pohon_sono_growth"
 PLAN_C_RECORDS_CSV = PLAN_C_SPREADSHEET_DIR / "plan_c_records.csv"
 PLAN_C_RECORDS_JSONL = PLAN_C_SPREADSHEET_DIR / "plan_c_records.jsonl"
 PLAN_C_MARKERS_JSON = PLAN_C_MAP_DIR / "plan_c_markers.json"
+PLAN_C_UI_VERSION = "progress8_1_plan_c_field_trial_hardening"
 
 SESSION_FILES = [
     "original.jpg",
@@ -54,6 +55,21 @@ PLAN_C_RECORD_FIELDS = [
 ]
 
 _SESSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+_LONG_BASE64_PATTERN = re.compile(r"^[A-Za-z0-9+/=\s]{240,}$")
+_RUNTIME_TUNNEL_PATTERN = re.compile(r"https://[^\s\"']*(ngrok|trycloudflare|loca\.lt)[^\s\"']*", re.IGNORECASE)
+_SECRET_KEYWORDS = {
+    "api_key",
+    "apikey",
+    "authorization",
+    "credential",
+    "gemini_api_key",
+    "groq_api_key",
+    "ngrok_authtoken",
+    "openai_api_key",
+    "secret",
+    "service_account",
+    "token",
+}
 
 
 def utc_now_iso() -> str:
@@ -120,6 +136,18 @@ def relative_to_project(path: Path | str | None) -> str:
         return str(path_obj.resolve().relative_to(PROJECT_ROOT.resolve())).replace("\\", "/")
     except (OSError, ValueError):
         return str(path_obj).replace("\\", "/")
+
+
+def redact_secrets(value: Any) -> Any:
+    return _redact(value, redact_paths_enabled=False)
+
+
+def redact_paths(value: Any) -> Any:
+    return _redact(value, redact_paths_enabled=True, redact_secret_keys=False)
+
+
+def redact_for_display(value: Any) -> Any:
+    return _redact(value, redact_paths_enabled=True, redact_secret_keys=True)
 
 
 def append_plan_c_record(record: dict[str, Any]) -> dict[str, Any]:
@@ -214,3 +242,31 @@ def _stringify_csv_value(value: Any) -> str:
     if isinstance(value, (dict, list)):
         return json.dumps(value, ensure_ascii=False, default=str)
     return str(value)
+
+
+def _redact(value: Any, *, redact_paths_enabled: bool, redact_secret_keys: bool = True, key_name: str = "") -> Any:
+    lowered_key = key_name.lower()
+    if redact_secret_keys and any(secret in lowered_key for secret in _SECRET_KEYWORDS):
+        return "[REDACTED_SECRET]"
+    if isinstance(value, dict):
+        return {key: _redact(item, redact_paths_enabled=redact_paths_enabled, redact_secret_keys=redact_secret_keys, key_name=str(key)) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_redact(item, redact_paths_enabled=redact_paths_enabled, redact_secret_keys=redact_secret_keys, key_name=key_name) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_redact(item, redact_paths_enabled=redact_paths_enabled, redact_secret_keys=redact_secret_keys, key_name=key_name) for item in value)
+    if not isinstance(value, str):
+        return value
+    text = _RUNTIME_TUNNEL_PATTERN.sub("[REDACTED_RUNTIME_TUNNEL_URL]", value)
+    if text.startswith("data:image"):
+        return "[REDACTED_IMAGE_DATA_URL]"
+    if _LONG_BASE64_PATTERN.match(text.strip()):
+        return "[REDACTED_LONG_BASE64]"
+    if redact_paths_enabled and _looks_like_path(text):
+        return relative_to_project(text)
+    return text
+
+
+def _looks_like_path(text: str) -> bool:
+    normalized = text.replace("\\", "/")
+    project = str(PROJECT_ROOT).replace("\\", "/")
+    return normalized.startswith(project) or bool(re.match(r"^[A-Za-z]:/", normalized))

@@ -129,6 +129,7 @@ button,
 .capture-header p,
 .result-header p,
 .summary-grid p,
+.summary-grid dd,
 .marker-item p {
   color: var(--muted);
 }
@@ -310,12 +311,38 @@ button,
   padding-left: 18px;
 }
 
+.metric-list {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.9fr) minmax(0, 1.1fr);
+  gap: 8px 12px;
+  margin: 0;
+}
+
+.metric-list dt {
+  color: var(--ink);
+  font-weight: 760;
+}
+
+.metric-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.status-panel {
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff8e8;
+}
+
 .developer-shell {
   width: min(1280px, 100%);
 }
 
 pre {
   overflow: auto;
+  overflow-wrap: anywhere;
   max-height: 460px;
   margin: 0;
   padding: 12px;
@@ -364,5 +391,9 @@ pre {
   .result-header,
   .capture-header {
     display: grid;
+  }
+
+  .metric-list {
+    grid-template-columns: 1fr;
   }
 }
