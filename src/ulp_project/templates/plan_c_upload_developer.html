@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Developer Upload Plan C</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='plan_c_upload.css') }}">
+</head>
+<body class="upload-body">
+  <main class="upload-shell">
+    <section class="upload-panel wide">
+      <p class="eyebrow">Developer Detail</p>
+      <h1>{{ session_id }}</h1>
+      <div class="dev-grid">
+        <div><span>internal_engine</span><strong>{{ model_status.get('internal_engine') }}</strong></div>
+        <div><span>model_path</span><strong>{{ model_status.get('model_path') }}</strong></div>
+        <div><span>model_status</span><strong>{{ model_status.get('status') }}</strong></div>
+      </div>
+      <h2>File paths</h2>
+      <pre>{{ file_paths | tojson(indent=2) }}</pre>
+      <h2>metadata.json</h2>
+      <pre>{{ files.get('metadata', {}) | tojson(indent=2) }}</pre>
+      <h2>result.json</h2>
+      <pre>{{ files.get('result', {}) | tojson(indent=2) }}</pre>
+      <h2>developer.json</h2>
+      <pre>{{ files.get('developer', {}) | tojson(indent=2) }}</pre>
+      <h2>ai_model_raw.json</h2>
+      <pre>{{ files.get('ai_model_raw', {}) | tojson(indent=2) }}</pre>
+      <h2>ai_raw.json</h2>
+      <pre>{{ files.get('ai_raw', {}) | tojson(indent=2) }}</pre>
+      <h2>geometry.json</h2>
+      <pre>{{ files.get('geometry', {}) | tojson(indent=2) }}</pre>
+      <h2>growth.json</h2>
+      <pre>{{ files.get('growth', {}) | tojson(indent=2) }}</pre>
+      <nav class="links">
+        <a href="/plan-c/upload">Upload</a>
+        <a href="/plan-c/upload/result/{{ session_id }}">Result</a>
+      </nav>
+    </section>
+  </main>
+</body>
+</html>

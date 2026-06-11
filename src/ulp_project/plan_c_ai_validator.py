@@ -11,12 +11,13 @@ import os
 from pathlib import Path
 from typing import Any
 
-AI_ENV_CANDIDATES = ["OPENAI_API_KEY", "AZURE_OPENAI_API_KEY"]
+AI_ENV_CANDIDATES = ["OPENAI_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY"]
 
 
 def validate_snapshot_with_ai(original_path: Path, *, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
     metadata = metadata or {}
-    key_present = any(bool(os.environ.get(name)) for name in AI_ENV_CANDIDATES)
+    configured = [name for name in AI_ENV_CANDIDATES if bool(os.environ.get(name))]
+    key_present = bool(configured)
     if not key_present:
         return {
             "status": "AI_VALIDATOR_DISABLED",
@@ -27,6 +28,8 @@ def validate_snapshot_with_ai(original_path: Path, *, metadata: dict[str, Any] |
             "short_validation_summary": "AI vision validator tidak dijalankan karena API key tidak tersedia di environment.",
             "image_path": str(original_path),
             "metadata_keys": sorted(metadata.keys()),
+            "configured_provider_count": 0,
+            "provider_names_redacted": [],
             "no_secret_logged": True,
         }
 
@@ -40,5 +43,9 @@ def validate_snapshot_with_ai(original_path: Path, *, metadata: dict[str, Any] |
         "short_validation_summary": "AI validator siap secara konfigurasi, namun tidak menggantikan YOLO atau Python geometry.",
         "image_path": str(original_path),
         "metadata_keys": sorted(metadata.keys()),
+        "configured_provider_count": len(configured),
+        "provider_names_redacted": ["configured_provider" for _ in configured],
+        "does_not_create_bounding_box": True,
+        "does_not_compute_clearance": True,
         "no_secret_logged": True,
     }

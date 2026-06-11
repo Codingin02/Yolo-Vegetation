@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Review Upload Plan C</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='plan_c_upload.css') }}">
+</head>
+<body class="upload-body">
+  <main class="upload-shell">
+    <section class="upload-panel wide">
+      <p class="eyebrow">AI Vision Detector</p>
+      <h1>Review Foto</h1>
+      {% if original_exists %}
+      <img class="preview-image" src="/plan-c/upload/session/{{ session_id }}/original.jpg" alt="Foto upload">
+      {% else %}
+      <div class="empty-image">Foto tidak tersedia</div>
+      {% endif %}
+      <div class="info-grid">
+        <div><span>Session</span><strong>{{ session_id }}</strong></div>
+        <div><span>GPS</span><strong>{{ metadata.get('gps_status', 'GPS_NOT_AVAILABLE') }}</strong></div>
+        <div><span>Model</span><strong>{{ model_status.get('status', 'PLAN_C_AI_MODEL_NOT_READY') }}</strong></div>
+      </div>
+      <button id="processButton" class="primary large" data-session-id="{{ session_id }}">Jalankan Deteksi dan Prediksi</button>
+      <div id="processState" class="status-pill">Menunggu perintah proses</div>
+      <nav class="links">
+        <a href="/plan-c/upload">Upload lagi</a>
+        <a href="/plan-c/upload/developer/{{ session_id }}">Developer</a>
+      </nav>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='plan_c_upload.js') }}"></script>
+</body>
+</html>

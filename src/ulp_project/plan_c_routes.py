@@ -23,6 +23,9 @@ except ImportError:  # pragma: no cover
 
 if Blueprint is not None:
     plan_c_bp = Blueprint("plan_c", __name__)
+    from .plan_c_upload_routes import register_plan_c_upload_routes
+
+    register_plan_c_upload_routes(plan_c_bp)
 else:  # pragma: no cover
     plan_c_bp = None
 

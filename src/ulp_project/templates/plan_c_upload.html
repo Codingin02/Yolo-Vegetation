@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plan C Upload Image Mode</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='plan_c_upload.css') }}">
+</head>
+<body class="upload-body">
+  <main class="upload-shell">
+    <section class="upload-panel">
+      <p class="eyebrow">Plan C Field Trial</p>
+      <h1>Upload Image</h1>
+      <p class="lead">Pilih foto pohon, konduktor, dan struktur penyangga. Titik GPS diambil saat upload.</p>
+      <form id="uploadForm" class="upload-form">
+        <label class="field">
+          <span>Foto</span>
+          <input id="imageInput" name="image" type="file" accept="image/*" required>
+        </label>
+        <div class="grid">
+          <label class="field">
+            <span>Point ID</span>
+            <input name="point_id" type="text" autocomplete="off">
+          </label>
+          <label class="field">
+            <span>Operator</span>
+            <input name="operator_name" type="text" autocomplete="name">
+          </label>
+        </div>
+        <label class="field">
+          <span>Catatan</span>
+          <textarea name="notes" rows="3"></textarea>
+        </label>
+        <input id="latitude" name="latitude" type="hidden">
+        <input id="longitude" name="longitude" type="hidden">
+        <input id="accuracyM" name="accuracy_m" type="hidden">
+        <input name="source_mode" type="hidden" value="UPLOAD_IMAGE_MODE">
+        <div id="gpsState" class="status-pill">GPS belum diambil</div>
+        <button class="primary" type="submit">Upload Foto</button>
+      </form>
+      <nav class="links">
+        <a href="/plan-c">Home</a>
+        <a href="/plan-c/map">Map</a>
+      </nav>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='plan_c_upload.js') }}"></script>
+</body>
+</html>

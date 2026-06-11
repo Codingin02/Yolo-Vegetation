@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Result Upload Plan C</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='plan_c_upload.css') }}">
+</head>
+<body class="upload-body">
+  <main class="upload-shell">
+    <section class="upload-panel wide">
+      <p class="eyebrow">AI Vision Detector</p>
+      <h1>{{ result.get('risk_status', 'DATA_TIDAK_CUKUP') if result_ready else 'Upload belum diproses' }}</h1>
+      <p class="lead">{{ result.get('prediction_window', 'data tidak cukup') if result_ready else 'Jalankan deteksi dari halaman review.' }}</p>
+      {% if annotated_exists %}
+      <img class="result-image" src="/plan-c/upload/session/{{ session_id }}/annotated.jpg" alt="Annotated result">
+      {% elif result_ready %}
+      <div class="empty-image">ANNOTATED_IMAGE_NOT_AVAILABLE</div>
+      {% endif %}
+      <div class="cards">
+        <article><span>Zone</span><strong>{{ result.get('zone', 'DATA_TIDAK_CUKUP') }}</strong></article>
+        <article><span>Clearance</span><strong>{{ result.get('clearance_m') if result.get('clearance_m') is not none else 'DATA_TIDAK_CUKUP' }}</strong></article>
+        <article><span>Objects</span><strong>{{ result.get('detection_count', 0) }}</strong></article>
+        <article><span>GPS</span><strong>{{ result.get('gps_status', metadata.get('gps_status', 'GPS_NOT_AVAILABLE')) }}</strong></article>
+        <article><span>Growth</span><strong>{{ result.get('growth_profile_status', 'GROWTH_PROFILE_MISSING') }}</strong></article>
+        <article><span>Review</span><strong>{{ result.get('manual_review_required', True) }}</strong></article>
+      </div>
+      <section class="summary">
+        <h2>Detection Summary</h2>
+        <p>{{ result.get('detected_objects', {}) }}</p>
+        <h2>Validator</h2>
+        <p>{{ result.get('ai_validator_summary', 'AI validator tidak dijalankan.') }}</p>
+        <h2>Warnings</h2>
+        <p>{{ result.get('warnings', []) }}</p>
+      </section>
+      <nav class="links">
+        <a href="/plan-c/upload">Upload</a>
+        {% if result.get('links', {}).get('map') %}<a href="{{ result.get('links', {}).get('map') }}">Map</a>{% endif %}
+        <a href="/plan-c/upload/developer/{{ session_id }}">Developer</a>
+      </nav>
+    </section>
+  </main>
+</body>
+</html>
