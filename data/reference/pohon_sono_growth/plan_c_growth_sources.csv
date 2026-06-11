@@ -1,0 +1,6 @@
+
+source_id,source_name,url,used_for,notes
+SRC01,World Agroforestry Pterocarpus indicus,https://apps.worldagroforestry.org/treedb/AFTPDFS/Pterocarpus_indicus.PDF,species/growth prior,not local observation
+SRC02,BMKG Data Online,https://dataonline.bmkg.go.id/,climate observed replacement,primary if station data accessible
+SRC03,NASA POWER Daily API,https://power.larc.nasa.gov/docs/services/api/temporal/daily/,climate fallback/cross-check,daily API
+SRC04,SoilGrids layers,https://docs.isric.org/globaldata/soilgrids/SoilGrids_faqs_01.html,soil pH/SOC/N/CEC proxy replacement,250m global soil maps

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Developer Plan C</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='plan_c.css') }}">
+</head>
+<body class="plan-c-body">
+  <main class="developer-shell">
+    <header class="result-header">
+      <div>
+        <p class="eyebrow">Developer</p>
+        <h1>raw diagnostics</h1>
+        <p>Session {{ session_id }}</p>
+      </div>
+      <nav class="result-links">
+        <a href="/plan-c/result/{{ session_id }}">Result</a>
+        <a href="/plan-c/map">Map</a>
+      </nav>
+    </header>
+
+    <section class="developer-grid">
+      <article>
+        <h2>file paths</h2>
+        <pre>{{ file_paths | tojson(indent=2) }}</pre>
+      </article>
+      {% for name, payload in files.items() %}
+        <article>
+          <h2>{{ name }}</h2>
+          <pre>{{ payload | tojson(indent=2) }}</pre>
+        </article>
+      {% endfor %}
+    </section>
+  </main>
+</body>
+</html>

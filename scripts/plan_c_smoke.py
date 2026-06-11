@@ -1,0 +1,239 @@
+from __future__ import annotations
+
+import base64
+from io import BytesIO
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from ulp_project.flask_app import create_app  # noqa: E402
+from ulp_project.plan_c_growth_model import (  # noqa: E402
+    load_csv_reference,
+    load_excel_reference,
+    load_growth_profile,
+)
+from ulp_project.plan_c_storage import (  # noqa: E402
+    PLAN_C_MARKERS_JSON,
+    PLAN_C_RECORDS_CSV,
+    PLAN_C_RECORDS_JSONL,
+    PLAN_C_REFERENCE_DIR,
+    count_csv_rows,
+    count_jsonl_rows,
+    read_markers,
+    session_file,
+)
+
+JPEG_BYTES = base64.b64decode(
+    "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////"
+    "2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QA"
+    "FQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oA"
+    "CAEBAAEFAqf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/Aaf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/Aaf/xAAU"
+    "EAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAY/Aqf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/IV//2gAMAwEAAgADAAAAEP/E"
+    "ABQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQMBAT8QH//EABQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQIBAT8QH//EABQQAQAAAAAAAAAA"
+    "AAAAAAAAABD/2gAIAQEAAT8QH//Z"
+)
+
+FORBIDDEN_STAGED_PREFIXES = (
+    "data/raw/",
+    "data/gps/",
+    "data/processed/",
+    "data/exports/",
+    "data/dataset_yolo/",
+    "dataset_botol/",
+    "results/",
+    "runs/",
+    "weights/",
+    "models/",
+    "outputs/",
+    "reports/",
+    "manual_backups/",
+)
+FORBIDDEN_STAGED_PARTS = (".env", "token", "credential", "ngrok")
+FORBIDDEN_STAGED_SUFFIXES = (
+    ".pt",
+    ".onnx",
+    ".engine",
+    ".mp4",
+    ".mov",
+    ".avi",
+    ".mkv",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+)
+
+
+def main() -> int:
+    checks: list[str] = []
+
+    import ulp_project.plan_c_ai_validator  # noqa: F401
+    import ulp_project.plan_c_geometry  # noqa: F401
+    import ulp_project.plan_c_growth_model  # noqa: F401
+    import ulp_project.plan_c_map  # noqa: F401
+    import ulp_project.plan_c_processor  # noqa: F401
+    import ulp_project.plan_c_routes  # noqa: F401
+    import ulp_project.plan_c_session  # noqa: F401
+    import ulp_project.plan_c_storage  # noqa: F401
+    import ulp_project.plan_c_yolo  # noqa: F401
+
+    checks.append("import_plan_c_modules")
+    app = create_app()
+    client = app.test_client()
+    checks.append("create_app")
+
+    _assert(client.get("/plan-c").status_code == 200, "/plan-c HTTP 200")
+    checks.append("GET /plan-c")
+
+    start = client.post("/api/plan-c/session/start", json={})
+    _assert(start.status_code == 201, "session start HTTP 201")
+    start_json = start.get_json()
+    session_id = start_json.get("session_id")
+    _assert(isinstance(session_id, str) and session_id.startswith("PC_"), "session_id prefix PC_")
+    checks.append("POST /api/plan-c/session/start")
+
+    capture = client.get(f"/plan-c/capture/{session_id}")
+    _assert(capture.status_code == 200, "capture HTTP 200")
+    capture_text = capture.get_data(as_text=True)
+    for forbidden in ["YOLO-FIRST", "vision-analyze", "MODEL_STATUS_UNKNOWN"]:
+        _assert(forbidden not in capture_text, f"capture must not contain {forbidden}")
+    checks.append("GET /plan-c/capture/<session_id>")
+
+    anchor = client.post(
+        "/api/plan-c/session/tree-anchor",
+        json={"session_id": session_id, "latitude": -7.231, "longitude": 112.735, "gps_accuracy_m": 8.5},
+    )
+    _assert(anchor.status_code in {200, 201}, "tree-anchor HTTP 200/201")
+    checks.append("POST /api/plan-c/session/tree-anchor")
+
+    csv_before = count_csv_rows(PLAN_C_RECORDS_CSV)
+    jsonl_before = count_jsonl_rows(PLAN_C_RECORDS_JSONL)
+    marker_before = len(read_markers())
+
+    snapshot = client.post(
+        "/api/plan-c/session/snapshot",
+        data={
+            "session_id": session_id,
+            "latitude": "-7.231",
+            "longitude": "112.735",
+            "gps_accuracy_m": "8.5",
+            "snapshot": (BytesIO(JPEG_BYTES), "snapshot.jpg"),
+        },
+        content_type="multipart/form-data",
+    )
+    _assert(snapshot.status_code in {200, 201, 202}, f"snapshot HTTP {snapshot.status_code}")
+    checks.append("POST /api/plan-c/session/snapshot")
+
+    status = client.get(f"/api/plan-c/session/{session_id}/status")
+    _assert(status.status_code == 200, "status HTTP 200")
+    _assert(status.get_json().get("result_ready") is True, "result ready")
+    checks.append("GET /api/plan-c/session/<session_id>/status")
+
+    result_api = client.get(f"/api/plan-c/session/{session_id}/result")
+    _assert(result_api.status_code == 200, "result API HTTP 200")
+    result_json = result_api.get_json()
+    _assert(result_json.get("status") == "PLAN_C_RESULT_READY", "result status ready")
+    checks.append("GET /api/plan-c/session/<session_id>/result")
+
+    result_page = client.get(f"/plan-c/result/{session_id}")
+    _assert(result_page.status_code == 200, "result page HTTP 200")
+    result_text = result_page.get_data(as_text=True)
+    _assert("risk_status" in result_text and "prediction_window" in result_text, "result page risk/prediction")
+    checks.append("GET /plan-c/result/<session_id>")
+
+    developer = client.get(f"/plan-c/developer/{session_id}")
+    _assert(developer.status_code == 200, "developer page HTTP 200")
+    _assert("raw diagnostics" in developer.get_data(as_text=True), "developer raw diagnostics")
+    checks.append("GET /plan-c/developer/<session_id>")
+
+    map_page = client.get("/plan-c/map")
+    _assert(map_page.status_code == 200, "map HTTP 200")
+    checks.append("GET /plan-c/map")
+
+    for filename in [
+        "original.jpg",
+        "annotated.jpg",
+        "result.json",
+        "developer.json",
+        "metadata.json",
+        "yolo_raw.json",
+        "ai_raw.json",
+        "geometry.json",
+    ]:
+        _assert(session_file(session_id, filename).exists(), f"{filename} created")
+    checks.append("session_files_created")
+
+    _assert(count_csv_rows(PLAN_C_RECORDS_CSV) == csv_before + 1, "CSV appended one row")
+    _assert(count_jsonl_rows(PLAN_C_RECORDS_JSONL) == jsonl_before + 1, "JSONL appended one line")
+    _assert(len(read_markers()) >= marker_before + 1, "marker appended")
+    _assert(PLAN_C_MARKERS_JSON.exists(), "marker file exists")
+    checks.append("append_only_csv_jsonl_map")
+
+    growth = load_growth_profile(PLAN_C_REFERENCE_DIR)
+    if (PLAN_C_REFERENCE_DIR / "plan_c_growth_profile.json").exists():
+        _assert(growth.get("json_status") == "GROWTH_PROFILE_LOADED", "JSON growth profile loaded")
+    csv_growth = load_csv_reference(PLAN_C_REFERENCE_DIR / "pohon_sono_growth_reference.csv")
+    if (PLAN_C_REFERENCE_DIR / "pohon_sono_growth_reference.csv").exists():
+        _assert(csv_growth.get("status") == "CSV_REFERENCE_LOADED", "CSV reference loaded")
+        _assert(csv_growth.get("row_count", 0) > 0, "CSV leading blank line tolerated")
+    excel_growth = load_excel_reference(PLAN_C_REFERENCE_DIR / "pohon_sono_growth_reference.xlsx")
+    _assert(
+        excel_growth.get("status") in {
+            "EXCEL_REFERENCE_LOADED",
+            "EXCEL_REFERENCE_MISSING",
+            "EXCEL_REFERENCE_SKIPPED_OPENPYXL_NOT_AVAILABLE",
+        },
+        "Excel loader fallback did not fail",
+    )
+    with tempfile.TemporaryDirectory() as temp_dir:
+        missing = load_growth_profile(Path(temp_dir))
+        _assert(missing.get("growth_profile_status") == "GROWTH_PROFILE_MISSING", "missing growth profile safe")
+        _assert(missing.get("prediction_window") == "data tidak cukup", "missing growth profile data not enough")
+    checks.append("growth_loaders")
+
+    diff_check = subprocess.run(["cmd", "/c", "git diff --check"], cwd=ROOT, text=True, capture_output=True)
+    _assert(diff_check.returncode == 0, f"git diff --check failed: {diff_check.stdout}{diff_check.stderr}")
+    checks.append("git diff --check")
+
+    staged = subprocess.run(["git", "diff", "--cached", "--name-only"], cwd=ROOT, text=True, capture_output=True, check=True)
+    forbidden = [path for path in staged.stdout.splitlines() if _is_forbidden_staged(path.replace("\\", "/"))]
+    _assert(not forbidden, f"forbidden staged path: {forbidden}")
+    checks.append("forbidden_path_not_staged")
+
+    print("PLAN_C_SMOKE_PASS")
+    print(f"session_id={session_id}")
+    print(f"csv_path={PLAN_C_RECORDS_CSV}")
+    print(f"jsonl_path={PLAN_C_RECORDS_JSONL}")
+    print(f"markers_path={PLAN_C_MARKERS_JSON}")
+    print(f"checks={','.join(checks)}")
+    print(f"growth_json_status={growth.get('json_status')}")
+    print(f"growth_csv_status={growth.get('csv_status')}")
+    print(f"growth_excel_status={growth.get('excel_status')}")
+    print(f"yolo_status={result_json.get('yolo_status')}")
+    print(f"ai_validator_status={result_json.get('ai_validator_status')}")
+    print(f"geometry_status={result_json.get('geometry_status')}")
+    return 0
+
+
+def _assert(condition: bool, message: str) -> None:
+    if not condition:
+        raise AssertionError(message)
+
+
+def _is_forbidden_staged(path: str) -> bool:
+    lowered = path.lower()
+    return (
+        lowered.startswith(FORBIDDEN_STAGED_PREFIXES)
+        or any(part in lowered for part in FORBIDDEN_STAGED_PARTS)
+        or lowered.endswith(FORBIDDEN_STAGED_SUFFIXES)
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

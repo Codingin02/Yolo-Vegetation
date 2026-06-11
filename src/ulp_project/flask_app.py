@@ -15,6 +15,7 @@ from .inference_runtime import run_image_inference
 from .job_queue import RUNTIME_ROOT
 from .map_runtime import build_system_map
 from .paths import PROJECT_ROOT
+from .plan_c_routes import register_plan_c_routes
 from .risk_map_exporter import risk_map_status
 from .vegetation_report_writer import latest_report_status
 from .system_status import collect_project_status
@@ -45,6 +46,7 @@ def create_app(runtime_root: Path | None = None):
     app = Flask(__name__)
     app.config["ULP_RUNTIME_ROOT"] = str(runtime_root or RUNTIME_ROOT)
     register_field_capture_routes(app)
+    register_plan_c_routes(app)
 
     @app.errorhandler(Exception)
     def api_error_handler(error):

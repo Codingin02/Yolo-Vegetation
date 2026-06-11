@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Map Plan C</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='plan_c.css') }}">
+</head>
+<body class="plan-c-body">
+  <main class="plan-c-shell">
+    <header class="result-header">
+      <div>
+        <p class="eyebrow">Plan C Map</p>
+        <h1>{{ map_payload.status }}</h1>
+        <p>{{ map_payload.marker_count }} marker tersimpan.</p>
+      </div>
+      <a class="secondary-link" href="/plan-c">New capture</a>
+    </header>
+
+    <section class="marker-list">
+      {% for marker in map_payload.markers %}
+        <article class="marker-item">
+          <h2>{{ marker.session_id }}</h2>
+          <p>{{ marker.risk_status }} / {{ marker.prediction_window }}</p>
+          <p>{{ marker.latitude }}, {{ marker.longitude }} (accuracy {{ marker.gps_accuracy_m }} m)</p>
+          <a href="{{ marker.result_url }}">Result</a>
+          <a href="https://www.google.com/maps?q={{ marker.latitude }},{{ marker.longitude }}">Open map</a>
+        </article>
+      {% else %}
+        <p class="empty-state">NO_MARKERS_YET</p>
+      {% endfor %}
+    </section>
+  </main>
+</body>
+</html>

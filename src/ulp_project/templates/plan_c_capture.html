@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Capture Plan C</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='plan_c.css') }}">
+</head>
+<body class="plan-c-body capture-body">
+  <main class="capture-shell" data-session-id="{{ session_id }}">
+    <header class="capture-header">
+      <a class="back-link" href="/plan-c">Plan C</a>
+      <p>Foto pohon, konduktor, dan struktur penyangga dalam satu frame.</p>
+    </header>
+
+    <section class="camera-panel" aria-label="Camera capture">
+      <video id="cameraPreview" class="camera-preview" playsinline autoplay muted></video>
+      <canvas id="snapshotCanvas" hidden></canvas>
+      <div id="loadingOverlay" class="loading-overlay" hidden>Processing...</div>
+    </section>
+
+    <section class="compact-status" aria-live="polite">
+      <span id="cameraStatus">Camera</span>
+      <span id="gpsStatus">GPS</span>
+      <span id="snapshotStatus">Snapshot</span>
+      <span id="serverStatus">Server</span>
+    </section>
+
+    <section class="capture-controls">
+      <button id="anchorButton" class="secondary-button" type="button">Save Anchor</button>
+      <button id="shutterButton" class="shutter-button" type="button" aria-label="Shutter"></button>
+      <button id="retryButton" class="secondary-button" type="button">Retry</button>
+    </section>
+
+    <details class="manual-panel">
+      <summary>Manual input opsional</summary>
+      <label>Clearance m <input id="manualClearance" inputmode="decimal" type="number" step="0.1"></label>
+      <label>Tinggi pohon m <input id="manualTreeHeight" inputmode="decimal" type="number" step="0.1"></label>
+      <label>Jarak operator m <input id="manualDistance" inputmode="decimal" type="number" step="0.1"></label>
+    </details>
+  </main>
+
+  <script src="{{ url_for('static', filename='plan_c_capture.js') }}"></script>
+</body>
+</html>

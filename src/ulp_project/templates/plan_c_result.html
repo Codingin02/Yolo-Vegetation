@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Result Plan C</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='plan_c.css') }}">
+</head>
+<body class="plan-c-body">
+  <main class="result-shell">
+    <header class="result-header">
+      <div>
+        <p class="eyebrow">Plan C Result</p>
+        <h1>risk_status: {{ result.get('risk_status', 'DATA_TIDAK_CUKUP') }}</h1>
+        <p>prediction_window: {{ result.get('prediction_window', 'data tidak cukup') }}</p>
+      </div>
+      <nav class="result-links">
+        <a href="/plan-c/map">Map</a>
+        <a href="/plan-c/developer/{{ session_id }}">Developer</a>
+        <a href="/plan-c">New</a>
+      </nav>
+    </header>
+
+    <section class="result-layout">
+      <figure class="image-frame">
+        {% if result.get('image_urls', {}).get('annotated') %}
+          <img id="annotatedImage" src="{{ result.get('image_urls', {}).get('annotated') }}" alt="Annotated snapshot">
+        {% else %}
+          <div class="image-placeholder">annotated image belum tersedia</div>
+        {% endif %}
+      </figure>
+
+      <section class="summary-grid">
+        <article>
+          <h2>Geometry</h2>
+          <p>tree_height_estimate: {{ result.get('tree_height_estimate_m') }}</p>
+          <p>clearance_estimate: {{ result.get('clearance_estimate_m') }}</p>
+          <p>status: {{ result.get('geometry_status') }}</p>
+        </article>
+        <article>
+          <h2>YOLO summary</h2>
+          <p>status: {{ result.get('yolo_summary', {}).get('status') }}</p>
+          <p>detection_count: {{ result.get('yolo_summary', {}).get('detection_count') }}</p>
+        </article>
+        <article>
+          <h2>AI validation summary</h2>
+          <p>status: {{ result.get('ai_validation_summary', {}).get('status') }}</p>
+          <p>{{ result.get('ai_validation_summary', {}).get('short_validation_summary') }}</p>
+        </article>
+        <article>
+          <h2>GPS summary</h2>
+          <p>lat: {{ result.get('gps_summary', {}).get('latitude') }}</p>
+          <p>lon: {{ result.get('gps_summary', {}).get('longitude') }}</p>
+          <p>accuracy_m: {{ result.get('gps_summary', {}).get('gps_accuracy_m') }}</p>
+        </article>
+        <article>
+          <h2>Growth prediction</h2>
+          <p>growth_profile_status: {{ result.get('growth_profile_status') }}</p>
+          <p>growth_rate_m_per_quarter: {{ result.get('growth_rate_m_per_quarter') }}</p>
+          <p>data_source_type: {{ result.get('data_source_type') }}</p>
+          <p>confidence_level: {{ result.get('confidence_level') }}</p>
+        </article>
+        <article>
+          <h2>Limitations</h2>
+          <ul>
+            {% for item in result.get('limitations', []) %}
+              <li>{{ item }}</li>
+            {% else %}
+              <li>Limitasi belum tersedia.</li>
+            {% endfor %}
+          </ul>
+        </article>
+      </section>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='plan_c_result.js') }}"></script>
+</body>
+</html>

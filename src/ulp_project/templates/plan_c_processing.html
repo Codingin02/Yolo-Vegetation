@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Processing Plan C</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='plan_c.css') }}">
+</head>
+<body class="plan-c-body">
+  <main class="plan-c-shell compact">
+    <section class="processing-panel">
+      <div class="spinner" aria-hidden="true"></div>
+      <h1>Memproses snapshot</h1>
+      <p id="processingStatus">Menunggu hasil session {{ session_id }}.</p>
+      <a class="secondary-link" href="/plan-c/capture/{{ session_id }}">Kembali ke capture</a>
+    </section>
+  </main>
+  <script>
+    const sessionId = "{{ session_id }}";
+    const statusEl = document.getElementById("processingStatus");
+    async function poll() {
+      try {
+        const response = await fetch(`/api/plan-c/session/${sessionId}/status`);
+        const data = await response.json();
+        statusEl.textContent = data.status || "PLAN_C_PROCESSING";
+        if (data.result_ready) {
+          window.location.href = `/plan-c/result/${sessionId}`;
+          return;
+        }
+      } catch (error) {
+        statusEl.textContent = `Status gagal dibaca: ${error.message}`;
+      }
+      window.setTimeout(poll, 1200);
+    }
+    poll();
+  </script>
+</body>
+</html>

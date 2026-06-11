@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plan C Snapshot Processing</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='plan_c.css') }}">
+</head>
+<body class="plan-c-body">
+  <main class="plan-c-shell">
+    <section class="plan-c-hero">
+      <p class="eyebrow">Progress 8 / Plan C</p>
+      <h1>Snapshot monitoring vegetasi 20 kV</h1>
+      <p class="lead">Ambil foto pohon, konduktor, dan struktur penyangga. Backend memproses foto setelah shutter.</p>
+      <div class="action-row">
+        <button id="startSession" class="primary-button" type="button">Get Started</button>
+        <a class="secondary-link" href="/plan-c/map">Map</a>
+      </div>
+      <p id="startStatus" class="small-status" aria-live="polite"></p>
+    </section>
+
+    <section class="plan-c-band">
+      <div class="step-list">
+        <div><span>1</span><p>Buka kamera dan izinkan GPS bila tersedia.</p></div>
+        <div><span>2</span><p>Pastikan objek utama terlihat dalam satu foto.</p></div>
+        <div><span>3</span><p>Tekan shutter, tunggu hasil risiko dan prediksi kuartalan.</p></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const button = document.getElementById("startSession");
+    const statusEl = document.getElementById("startStatus");
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      statusEl.textContent = "Membuat session...";
+      try {
+        const response = await fetch("/api/plan-c/session/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+        const data = await response.json();
+        if (!response.ok || !data.session_id) throw new Error(data.status || "SESSION_START_FAILED");
+        window.location.href = data.capture_url;
+      } catch (error) {
+        statusEl.textContent = `Session gagal: ${error.message}`;
+        button.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
