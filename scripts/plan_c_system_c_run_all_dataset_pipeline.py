@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 import sys
 from typing import Any
+from urllib.parse import urlparse
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = PROJECT_ROOT / "src"
@@ -71,7 +72,38 @@ def main() -> int:
     if args.download:
         collected = collect_candidates_from_registry(limit_per_source=max(1, args.limit_per_source))
         candidate_rows = collected.get("rows", [])
-        downloaded_rows = [download_candidate(row) for row in candidate_rows]
+        downloaded_rows: list[dict[str, Any]] = []
+        rate_limited_sources: dict[str, int] = {}
+        rate_limited_hosts: dict[str, int] = {}
+        for row in candidate_rows:
+            source_id = str(row.get("source_id") or "")
+            host = urlparse(str(row.get("image_url") or "")).netloc.lower()
+            if rate_limited_sources.get(source_id, 0) >= 3 or (host and rate_limited_hosts.get(host, 0) >= 3):
+                downloaded_rows.append(
+                    {
+                        **row,
+                        "accepted_status": row.get("accepted_status") or row.get("status") or "RATE_LIMITED_RETRY_LATER",
+                        "download_status": "RATE_LIMITED_RETRY_LATER_SOURCE_SKIPPED",
+                        "download_error": "Source or host skipped after repeated HTTP 429 in this run.",
+                    }
+                )
+                continue
+            try:
+                downloaded = download_candidate(row)
+                downloaded_rows.append(downloaded)
+                if str(downloaded.get("download_status") or "") == "RATE_LIMITED_RETRY_LATER":
+                    rate_limited_sources[source_id] = rate_limited_sources.get(source_id, 0) + 1
+                    if host:
+                        rate_limited_hosts[host] = rate_limited_hosts.get(host, 0) + 1
+            except Exception as exc:
+                downloaded_rows.append(
+                    {
+                        **row,
+                        "accepted_status": row.get("accepted_status") or row.get("status") or "DOWNLOAD_FAILED_UNHANDLED",
+                        "download_status": "DOWNLOAD_FAILED_UNHANDLED",
+                        "download_error": f"{type(exc).__name__}: {exc}",
+                    }
+                )
         rows = downloaded_rows or candidate_rows
         manifest = write_manifest(rows, stem="system_c_download_manifest")
         result["manifest"] = manifest
@@ -81,6 +113,21 @@ def main() -> int:
             "source_status": collected.get("source_status", {}),
             "summary": manifest.get("summary", {}),
             "note": "Only rows passing license/species filters are downloaded; no fake candidates are created.",
+        }
+
+    if args.autolabel:
+        split = build_review_split(rows)
+        rows = split.get("rows", rows)
+        result["yolo_review_split"] = split
+        manifest = write_manifest(rows, stem="system_c_yolo_review_manifest")
+        result["manifest"] = manifest
+        result["autolabel"] = {
+            "requested": True,
+            "status": split.get("status"),
+            "image_count": split.get("image_count", 0),
+            "label_count": split.get("label_count", 0),
+            "needs_manual_check_count": split.get("needs_manual_check_count", 0),
+            "not_ground_truth": True,
         }
 
     if args.build_roboflow:
@@ -103,9 +150,6 @@ def main() -> int:
             result["model_registry"] = register_model_if_valid(model_path=args.model_path, gate_status=(gate or {}).get("status", ""))
         else:
             result["model_registry"] = {"status": "MODEL_REGISTRY_SKIPPED_MODEL_PATH_NOT_PROVIDED", "runtime_allowed": False}
-
-    if args.autolabel:
-        result["yolo_review_split"] = build_review_split([])
 
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0

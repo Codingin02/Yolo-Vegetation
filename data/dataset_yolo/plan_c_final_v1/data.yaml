@@ -1,4 +1,4 @@
-﻿path: E:/Projects/ULP_Project/data/dataset_yolo/plan_c_final_v1
+path: E:/Projects/ULP_Project/data/dataset_yolo/plan_c_final_v1
 train: images/train
 val: images/val
 test: images/test
