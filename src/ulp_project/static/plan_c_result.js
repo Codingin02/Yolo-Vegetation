@@ -4,7 +4,7 @@
     image.addEventListener("error", () => {
       const parent = image.parentElement;
       if (!parent) return;
-      parent.innerHTML = '<div class="image-placeholder">ANNOTATION_NOT_READY</div>';
+      parent.innerHTML = '<div class="image-placeholder">ANNOTATED_IMAGE_NOT_AVAILABLE</div>';
     });
   }
 
@@ -27,8 +27,11 @@
       <dl class="metric-list">
         <dt>tree_species_status</dt><dd>${text(result.tree_species_status, "unknown")}</dd>
         <dt>conductor_status</dt><dd>${text(result.conductor_status, "tidak tervalidasi")}</dd>
+        <dt>ground_reference_status</dt><dd>${text(result.ground_reference_status, "GROUND_REFERENCE_NOT_AVAILABLE")}</dd>
         <dt>zone_status</dt><dd>${text(result.zone_status, "unavailable")}</dd>
+        <dt>zone_precision</dt><dd>${text(result.zone_precision, "unavailable")}</dd>
         <dt>Bounding box</dt><dd>${text(result.detection_count, "0")}</dd>
+        <dt>conductor_group_count</dt><dd>${text(result.conductor_group_count, "0")}</dd>
         <dt>Prediction</dt><dd>${text(result.prediction_window, "data tidak cukup")}</dd>
         <dt>Review</dt><dd>${text(result.manual_review_required, true)}</dd>
       </dl>

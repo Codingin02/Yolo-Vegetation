@@ -15,6 +15,7 @@ CLASS_ORDER = {
 CLASS_BY_ID = {value: key for key, value in CLASS_ORDER.items()}
 
 SONO_TERMS = {"pohon_sono", "pohon sono", "sono", "angsana", "pterocarpus indicus"}
+NON_SONO_TERMS = {"pohon_non_sono", "pohon non sono", "non sono", "bukan sono", "unknown tree", "tree unknown"}
 TREE_TERMS = {"tree", "vegetation", "pohon", "tanaman", "daun", "canopy", "vegetasi"}
 CONDUCTOR_TERMS = {"konduktor", "conductor", "cable", "wire", "line", "power line", "overhead line", "kabel", "jaringan listrik"}
 STRUCTURE_TERMS = {"struktur_penyangga", "struktur penyangga", "support", "structure", "pole", "tiang", "utility pole", "electric pole", "crossarm", "bracket"}
@@ -25,6 +26,8 @@ NEGATIVE_TERMS = {
     "face",
     "head",
     "chin",
+    "mouth",
+    "eye",
     "hand",
     "body",
     "car",
@@ -206,7 +209,11 @@ def normalize_class_name(value: Any) -> str | None:
         return None
     if _contains_any(text, NEGATIVE_TERMS):
         return None
+    if text in NON_SONO_TERMS or any(term in text for term in NON_SONO_TERMS if len(term) >= 4):
+        return "pohon_non_sono"
     if text in SONO_TERMS or any(term in text for term in SONO_TERMS if len(term) >= 4):
+        if "non" in text or "bukan" in text or "unknown" in text:
+            return "pohon_non_sono"
         return "pohon_sono"
     if text in CONDUCTOR_TERMS or any(term in text for term in CONDUCTOR_TERMS if len(term) >= 4):
         return "konduktor"

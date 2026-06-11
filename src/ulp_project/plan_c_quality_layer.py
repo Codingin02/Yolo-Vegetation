@@ -67,15 +67,41 @@ def summarize_detection_context(detections: list[dict[str, Any]]) -> dict[str, A
     conductor_status = "tervalidasi" if "konduktor" in classes else "tidak tervalidasi"
     structure_status = "tervalidasi" if "struktur_penyangga" in classes else "tidak tervalidasi"
     zone_status = "unavailable" if conductor_status != "tervalidasi" else "approximate"
+    conductor_lines = _conductor_lines(detections)
     return {
         "tree_species_status": tree_species_status,
         "conductor_status": conductor_status,
         "structure_status": structure_status,
         "zone_status": zone_status,
+        "conductor_group_count": len(conductor_lines),
+        "conductor_lines": conductor_lines,
         "target_tree_detected": tree_species_status != "unknown",
         "conductor_validated": conductor_status == "tervalidasi",
         "structure_validated": structure_status == "tervalidasi",
     }
+
+
+def _conductor_lines(detections: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    lines: list[dict[str, Any]] = []
+    for item in detections:
+        if item.get("class_name") != "konduktor":
+            continue
+        bbox = item.get("bbox_xyxy")
+        if not isinstance(bbox, list) or len(bbox) != 4:
+            continue
+        try:
+            x1, y1, x2, y2 = [float(value) for value in bbox]
+        except (TypeError, ValueError):
+            continue
+        lines.append(
+            {
+                "bbox_xyxy": [round(x1, 2), round(y1, 2), round(x2, 2), round(y2, 2)],
+                "line_y": round((y1 + y2) / 2.0, 2),
+                "confidence": item.get("confidence"),
+                "review_status": item.get("review_status"),
+            }
+        )
+    return sorted(lines, key=lambda item: float(item.get("line_y") or 0.0))
 
 
 def _normalize_review(value: Any) -> str:

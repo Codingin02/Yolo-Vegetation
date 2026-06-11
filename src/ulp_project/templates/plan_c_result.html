@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Result Plan C</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='plan_c.css') }}">
+  <link rel="stylesheet" href="/static/plan_c_bottom_nav_v4.css?v=20260611_4">
 </head>
 <body class="plan-c-body">
   <main class="result-shell">
@@ -43,7 +44,7 @@
         {% if annotated_exists and result.get('image_urls', {}).get('annotated') %}
           <img id="annotatedImage" src="{{ result.get('image_urls', {}).get('annotated') }}" alt="Annotated snapshot">
         {% else %}
-          <div class="image-placeholder">ANNOTATION_NOT_READY</div>
+          <div class="image-placeholder">ANNOTATED_IMAGE_NOT_AVAILABLE</div>
         {% endif %}
       </figure>
 
@@ -64,6 +65,20 @@
             <dt>clearance_estimate_m</dt><dd>{{ result.get('clearance_estimate_m') }}</dd>
             <dt>tree_height_estimate_m</dt><dd>{{ result.get('tree_height_estimate_m') }}</dd>
             <dt>geometry_status</dt><dd>{{ result.get('geometry_status') }}</dd>
+          </dl>
+        </article>
+        <article id="plan-c-detection-zone-panel">
+          <h2>Detection + Zone</h2>
+          <dl class="metric-list">
+            <dt>tree_species_status</dt><dd>{{ result.get('tree_species_status', 'unknown') }}</dd>
+            <dt>conductor_status</dt><dd>{{ result.get('conductor_status', 'tidak tervalidasi') }}</dd>
+            <dt>ground_reference_status</dt><dd>{{ result.get('ground_reference_status', 'GROUND_REFERENCE_NOT_AVAILABLE') }}</dd>
+            <dt>zone_status</dt><dd>{{ result.get('zone_status', 'unavailable') }}</dd>
+            <dt>zone_precision</dt><dd>{{ result.get('zone_precision', 'unavailable') }}</dd>
+            <dt>Bounding box count</dt><dd>{{ result.get('detection_count', 0) }}</dd>
+            <dt>conductor_group_count</dt><dd>{{ result.get('conductor_group_count', 0) }}</dd>
+            <dt>Prediction</dt><dd>{{ result.get('prediction_window', 'data tidak cukup') }}</dd>
+            <dt>Review</dt><dd>{{ result.get('manual_review_required') }}</dd>
           </dl>
         </article>
         <article>
@@ -107,5 +122,6 @@
     </section>
   </main>
   <script src="{{ url_for('static', filename='plan_c_result.js') }}"></script>
+  <script src="/static/plan_c_bottom_nav_v4.js?v=20260611_4"></script>
 </body>
 </html>

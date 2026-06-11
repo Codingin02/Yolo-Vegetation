@@ -22,14 +22,17 @@ Definitions:
 - struktur_penyangga: utility pole, concrete/metal/wood pole, crossarm, bracket, or physical support for overhead distribution conductors. It is not a cabinet, wall, face, person, window frame, or door frame.
 
 Negative objects to ignore:
-person, face, head, chin, hand, body, car, motorcycle, bicycle, wall, roof, ceiling, floor, cabinet, door, window, lamp, picture frame, furniture, shadow, sky, generic background.
+person, face, head, chin, mouth, eye, hand, body, car, motorcycle, bicycle, wall, roof, ceiling, floor, cabinet, door, window, lamp, picture frame, furniture, shadow, sky, generic background.
 
 Critical rules:
 - Do not force a bounding box if the object is not visible.
 - Do not assign a bounding box to humans or body parts.
 - If a tree is visible but species is not confidently pohon_sono, use pohon_non_sono.
+- If multiple overhead conductor lines are visible, return each visible line as a tight konduktor bbox. If lines are too close to separate, return one tight group bbox and include conductor_group_count.
 - If conductor visibility is unclear, leave konduktor empty.
 - If support structure visibility is unclear, leave struktur_penyangga empty.
+- Never label roof edges, wall lines, shadows, ceiling lines, window frames, cabinet edges, or indoor cables as konduktor.
+- Never label walls, cabinets, furniture, people, or building frames as struktur_penyangga.
 - Never label pohon_non_sono as pohon_sono.
 - Each bounding box must include a short reason and review_status.
 - Bounding boxes must use pixel xyxy if possible. If you use normalized coordinates, set bbox_format to box_2d_1000 for [ymin, xmin, ymax, xmax] or normalized_1000 for [x1, y1, x2, y2].
