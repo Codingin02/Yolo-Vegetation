@@ -43,35 +43,54 @@ def compute_plan_c_geometry(
         }
 
     grouped = _largest_by_class(detections)
-    missing = [name for name in ["pohon_sono", "konduktor", "struktur_penyangga"] if name not in grouped]
+    tree_detection = grouped.get("pohon_sono") or grouped.get("pohon_non_sono")
+    missing = []
+    if tree_detection is None:
+        missing.append("pohon_sono_or_pohon_non_sono")
+    if "konduktor" not in grouped:
+        missing.append("konduktor")
     if missing:
-        return _insufficient_geometry(missing)
+        return _insufficient_geometry(missing, conductor_validated="konduktor" not in missing)
 
-    structure_box = grouped["struktur_penyangga"].get("bbox_xyxy") or []
-    tree_box = grouped["pohon_sono"].get("bbox_xyxy") or []
+    structure_box = (grouped.get("struktur_penyangga") or {}).get("bbox_xyxy") or []
+    tree_box = tree_detection.get("bbox_xyxy") or []
     conductor_box = grouped["konduktor"].get("bbox_xyxy") or []
-    if len(structure_box) != 4 or len(tree_box) != 4 or len(conductor_box) != 4:
+    if len(tree_box) != 4 or len(conductor_box) != 4:
         return _insufficient_geometry(["bbox_incomplete"])
 
-    structure_height_px = abs(float(structure_box[3]) - float(structure_box[1]))
+    structure_height_px = abs(float(structure_box[3]) - float(structure_box[1])) if len(structure_box) == 4 else 0.0
     tree_height_px = abs(float(tree_box[3]) - float(tree_box[1]))
-    if structure_height_px <= 0 or tree_height_px <= 0:
+    if tree_height_px <= 0:
         return _insufficient_geometry(["bbox_scale_invalid"])
 
-    meter_per_px = DEFAULT_GEOMETRY_PARAMETERS["pole_height_default_m"] / structure_height_px
+    scale_status = "APPROXIMATE_VISUAL_ESTIMATE"
+    meter_per_px = DEFAULT_GEOMETRY_PARAMETERS["pole_height_default_m"] / max(tree_height_px * 1.35, 1.0)
+    if structure_height_px > 0:
+        meter_per_px = DEFAULT_GEOMETRY_PARAMETERS["pole_height_default_m"] / structure_height_px
+        scale_status = "SCALE_FROM_STRUCTURE"
+    elif manual_distance is not None and manual_distance > 0:
+        meter_per_px = manual_distance / max(abs(float(conductor_box[0]) - float(tree_box[0])), 1.0)
+        scale_status = "SCALE_FROM_MANUAL_INPUT"
     tree_height_m = tree_height_px * meter_per_px
     tree_top_y = float(tree_box[1])
     conductor_center_y = (float(conductor_box[1]) + float(conductor_box[3])) / 2
     clearance_m = max((conductor_center_y - tree_top_y) * meter_per_px, 0.0)
+    tree_species_status = str(tree_detection.get("class_name") or "unknown")
+    risk_status = classify_risk_status(clearance_m, threshold_m=threshold)
 
     return {
-        "status": "GEOMETRY_READY_PROVISIONAL",
-        "geometry_status": "GEOMETRY_READY_PROVISIONAL",
-        "measurement_source": "yolo_bbox_scaled_by_structure_proxy",
+        "status": "GEOMETRY_READY_PROVISIONAL" if scale_status != "APPROXIMATE_VISUAL_ESTIMATE" else "GEOMETRY_READY_APPROXIMATE_VISUAL",
+        "geometry_status": "GEOMETRY_READY_PROVISIONAL" if scale_status != "APPROXIMATE_VISUAL_ESTIMATE" else "APPROXIMATE_VISUAL_ESTIMATE",
+        "measurement_source": "yolo_compatible_bbox_scaled_by_structure_proxy" if scale_status == "SCALE_FROM_STRUCTURE" else "approximate_visual_bbox_scale",
         "clearance_estimate_m": round(clearance_m, 3),
         "tree_height_estimate_m": round(tree_height_m, 3),
-        "risk_status": classify_risk_status(clearance_m, threshold_m=threshold),
+        "risk_status": risk_status,
         "manual_review_required": True,
+        "tree_species_status": tree_species_status,
+        "conductor_status": "tervalidasi",
+        "structure_status": "tervalidasi" if structure_height_px > 0 else "tidak tervalidasi",
+        "scale_status": scale_status,
+        "meter_per_px": round(meter_per_px, 6),
         "not_final_pln_measurement": True,
         "parameters": DEFAULT_GEOMETRY_PARAMETERS,
         "warnings": ["Estimasi berbasis bbox snapshot dan tinggi tiang default; validasi manual tetap diperlukan."],
@@ -82,24 +101,26 @@ def classify_risk_status(clearance_m: float | None, *, threshold_m: float = 3.0)
     if clearance_m is None:
         return "DATA_TIDAK_CUKUP"
     if clearance_m <= threshold_m:
-        return "PERLU_PEMANGKASAN"
-    if clearance_m <= threshold_m + 0.5:
-        return "SIAGA"
+        return "ZONA_TEBANG"
     if clearance_m <= threshold_m + 1.5:
         return "PANTAU"
     return "AMAN"
 
 
-def _insufficient_geometry(missing: list[str]) -> dict[str, Any]:
+def _insufficient_geometry(missing: list[str], *, conductor_validated: bool = False) -> dict[str, Any]:
     return {
         "status": "INSUFFICIENT_GEOMETRY_DATA",
-        "geometry_status": "INSUFFICIENT_GEOMETRY_DATA",
+        "geometry_status": "CONDUCTOR_NOT_VALIDATED" if "konduktor" in missing else "INSUFFICIENT_GEOMETRY_DATA",
         "measurement_source": "not_available",
         "missing_inputs": missing,
         "clearance_estimate_m": None,
         "tree_height_estimate_m": None,
         "risk_status": "DATA_TIDAK_CUKUP",
         "manual_review_required": True,
+        "tree_species_status": "unknown",
+        "conductor_status": "tervalidasi" if conductor_validated else "tidak tervalidasi",
+        "structure_status": "tidak tervalidasi",
+        "zone_status": "unavailable",
         "parameters": DEFAULT_GEOMETRY_PARAMETERS,
         "warnings": ["Data bbox belum cukup untuk estimasi geometry."],
     }
@@ -109,7 +130,7 @@ def _largest_by_class(detections: list[dict[str, Any]]) -> dict[str, dict[str, A
     grouped: dict[str, dict[str, Any]] = {}
     for detection in detections:
         class_name = str(detection.get("class_name") or "")
-        if class_name not in {"pohon_sono", "konduktor", "struktur_penyangga"}:
+        if class_name not in {"pohon_sono", "pohon_non_sono", "konduktor", "struktur_penyangga"}:
             continue
         current_area = _bbox_area(grouped.get(class_name, {}).get("bbox_xyxy"))
         candidate_area = _bbox_area(detection.get("bbox_xyxy"))

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .plan_c_feedback_learning import save_operator_feedback
 from .plan_c_free_vision_detector import build_free_vision_status_payload
 from .plan_c_map import load_plan_c_map_payload
 from .plan_c_processor import process_plan_c_snapshot
@@ -147,6 +148,12 @@ def api_snapshot():
         return jsonify({"ok": False, "status": "PLAN_C_SNAPSHOT_FAILED", "error": f"{type(exc).__name__}: {exc}"}), 400
     status_code = int(result.pop("http_status", 202))
     return jsonify(result), status_code
+
+
+@plan_c_bp.post("/api/plan-c/operator-feedback")
+def api_operator_feedback():
+    result = save_operator_feedback(_request_payload())
+    return jsonify(result), 200 if result.get("ok") else 400
 
 
 @plan_c_bp.get("/api/plan-c/runtime/ui-version")

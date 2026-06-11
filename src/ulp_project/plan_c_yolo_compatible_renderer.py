@@ -6,30 +6,53 @@ from pathlib import Path
 import shutil
 from typing import Any
 
+from .plan_c_zone_overlay import build_zone_overlay_summary, draw_zone_overlay
+
 COLORS = {
     "struktur_penyangga": (37, 99, 235),
     "konduktor": (234, 179, 8),
     "pohon_sono": (22, 163, 74),
+    "pohon_non_sono": (34, 197, 94),
 }
 
 
-def render_yolo_compatible_annotation(original_path: Path, annotated_path: Path, detections: list[dict[str, Any]]) -> dict[str, Any]:
+def render_yolo_compatible_annotation(
+    original_path: Path,
+    annotated_path: Path,
+    detections: list[dict[str, Any]],
+    *,
+    geometry: dict[str, Any] | None = None,
+    growth: dict[str, Any] | None = None,
+    risk_status: str = "",
+    prediction_window: str = "",
+) -> dict[str, Any]:
     annotated_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         from PIL import Image, ImageDraw, ImageFont
 
         image = Image.open(original_path).convert("RGB")
-        draw = ImageDraw.Draw(image)
+        draw = ImageDraw.Draw(image, "RGBA")
         font = ImageFont.load_default()
+        font_small = ImageFont.load_default()
+        zone_summary = build_zone_overlay_summary(
+            detections,
+            geometry or {},
+            image_width=int(image.width),
+            image_height=int(image.height),
+        )
+        draw_zone_overlay(draw, image.size, zone_summary, font=font, font_small=font_small)
         if not detections:
             _draw_watermark(draw, image.size, "DATA_TIDAK_CUKUP", font)
         for detection in detections:
             _draw_detection(draw, detection, font)
+        _draw_footer(draw, image.size, geometry or {}, growth or {}, zone_summary, risk_status=risk_status, prediction_window=prediction_window, font=font)
         image.save(annotated_path, quality=92)
         return {
             "status": "YOLO_COMPATIBLE_ANNOTATION_READY",
             "annotated_path": str(annotated_path),
             "detection_count": len(detections),
+            "zone_overlay_status": "ZONE_OVERLAY_READY",
+            "zone_summary": zone_summary,
         }
     except Exception as exc:
         shutil.copy2(original_path, annotated_path)
@@ -57,7 +80,7 @@ def _draw_detection(draw: Any, detection: dict[str, Any], font: Any) -> None:
     text_w = text_box[2] - text_box[0]
     text_h = text_box[3] - text_box[1]
     label_y = max(y1 - text_h - 6, 0)
-    draw.rectangle([x1, label_y, x1 + text_w + 8, label_y + text_h + 6], fill=color)
+    draw.rectangle([x1, label_y, x1 + text_w + 8, label_y + text_h + 6], fill=(*color, 220) if len(color) == 3 else color)
     draw.text((x1 + 4, label_y + 3), label, fill=(0, 0, 0), font=font)
 
 
@@ -66,3 +89,32 @@ def _draw_watermark(draw: Any, size: tuple[int, int], text: str, font: Any) -> N
     box_w = min(width - 16, 220)
     draw.rectangle([8, 8, 8 + box_w, 34], fill=(255, 255, 255), outline=(45, 45, 45))
     draw.text((14, 15), text, fill=(45, 45, 45), font=font)
+
+
+def _draw_footer(
+    draw: Any,
+    size: tuple[int, int],
+    geometry: dict[str, Any],
+    growth: dict[str, Any],
+    zone_summary: dict[str, Any],
+    *,
+    risk_status: str,
+    prediction_window: str,
+    font: Any,
+) -> None:
+    width, height = size
+    clearance = geometry.get("clearance_estimate_m")
+    growth_rate = growth.get("growth_rate_m_per_quarter")
+    zone_status = zone_summary.get("zone_status", "unavailable")
+    parts = [
+        f"Risk: {risk_status or 'DATA_TIDAK_CUKUP'}",
+        f"Window: {prediction_window or 'data tidak cukup'}",
+        f"Zone: {zone_status}",
+    ]
+    if clearance is not None:
+        parts.append(f"Clearance: {clearance} m")
+    if growth_rate is not None:
+        parts.append(f"Growth: {growth_rate} m/q")
+    text = " | ".join(parts)
+    draw.rectangle([0, max(0, height - 44), width, height], fill=(0, 0, 0, 190))
+    draw.text((10, max(0, height - 30)), text, fill=(255, 255, 255, 255), font=font)

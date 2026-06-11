@@ -10,8 +10,10 @@ from typing import Any
 
 from .plan_c_free_vision_config import load_free_vision_config, redact_config
 from .plan_c_free_vision_detector import detect_yolo_compatible_from_snapshot
+from .plan_c_free_vision_schema import normalize_detection_payload
 from .plan_c_geometry import DEFAULT_GEOMETRY_PARAMETERS, compute_plan_c_geometry
 from .plan_c_growth_model import build_growth_summary, load_growth_profile
+from .plan_c_quality_layer import apply_plan_c_quality_layer
 from .plan_c_session import load_plan_c_metadata, save_plan_c_metadata, update_plan_c_status
 from .plan_c_storage import (
     append_marker,
@@ -54,14 +56,15 @@ def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload:
 
     image_width, image_height = _read_image_size(original_path)
     free_vision_config = load_free_vision_config()
-    detection_result = detect_yolo_compatible_from_snapshot(
-        original_path,
+    detection_result = _detect_snapshot(
+        original_path=original_path,
+        payload=payload,
         image_width=image_width,
         image_height=image_height,
-        config=free_vision_config,
-        yolo_result=yolo_raw,
+        free_vision_config=free_vision_config,
+        yolo_raw=yolo_raw,
     )
-    render_status = render_yolo_compatible_annotation(original_path, annotated_path, detection_result.get("detections", []))
+    detection_result = apply_plan_c_quality_layer(detection_result, image_width=image_width, image_height=image_height)
 
     ai_raw = _disabled_legacy_visual_validator(original_path, metadata=metadata)
     write_json(session_file(session_id, "ai_raw.json"), ai_raw)
@@ -79,10 +82,23 @@ def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload:
         threshold_m=DEFAULT_GEOMETRY_PARAMETERS["vegetation_clearance_threshold_m"],
         month=capture_month,
     )
+    growth = _adjust_growth_for_species(growth, detection_result)
     risk_status = geometry.get("risk_status") or "DATA_TIDAK_CUKUP"
     prediction_window = growth.get("prediction_window") or "data tidak cukup"
     if risk_status == "DATA_TIDAK_CUKUP":
         prediction_window = "data tidak cukup"
+    elif risk_status == "ZONA_TEBANG":
+        prediction_window = "0-3 bulan"
+
+    render_status = render_yolo_compatible_annotation(
+        original_path,
+        annotated_path,
+        detection_result.get("detections", []),
+        geometry=geometry,
+        growth=growth,
+        risk_status=risk_status,
+        prediction_window=prediction_window,
+    )
 
     result = _build_result_payload(
         session_id=session_id,
@@ -150,6 +166,8 @@ def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload:
         "developer_url": f"/plan-c/developer/{session_id}",
         "risk_status": result["risk_status"],
         "prediction_window": result["prediction_window"],
+        "detection_status": result.get("detection_status"),
+        "detection_count": result.get("detection_count"),
         "append_status": append_status,
         "marker_status": marker_status,
     }
@@ -355,6 +373,13 @@ def _build_result_payload(
         ),
         "detection_status": detection_status,
         "detection_count": detection_count,
+        "detections": _operator_detections(detection_result.get("detections", [])),
+        "tree_species_status": detection_result.get("tree_species_status") or geometry.get("tree_species_status") or "unknown",
+        "conductor_status": detection_result.get("conductor_status") or geometry.get("conductor_status") or "tidak tervalidasi",
+        "structure_status": detection_result.get("structure_status") or geometry.get("structure_status") or "tidak tervalidasi",
+        "zone_status": render_status.get("zone_summary", {}).get("zone_status") or detection_result.get("zone_status") or "unavailable",
+        "zone_overlay_status": render_status.get("zone_overlay_status"),
+        "zone_summary": render_status.get("zone_summary", {}),
         "operator_detection_label": detection_result.get("operator_detection_label", "Detection"),
         "operator_output_format": detection_result.get("operator_output_format", "YOLO-compatible"),
         "consensus_status": detection_result.get("consensus_status"),
@@ -385,6 +410,8 @@ def _build_result_payload(
         "confidence_level": growth.get("confidence_level"),
         "limitations": growth.get("limitations", []),
         "growth_source_summary": growth.get("source_summary", {}),
+        "detection_image_width": detection_result.get("image_width"),
+        "detection_image_height": detection_result.get("image_height"),
         "files": {
             "original": relative_to_project(original_path),
             "annotated": relative_to_project(annotated_path),
@@ -441,6 +468,7 @@ def _build_marker(result: dict[str, Any]) -> dict[str, Any]:
         "result_url": result.get("links", {}).get("result"),
         "developer_url": result.get("links", {}).get("developer"),
         "source": "plan_c_snapshot",
+        "active_status": result.get("operator_feedback_status", "active"),
     }
 
 
@@ -506,6 +534,70 @@ def _capture_month(timestamp: Any) -> int | None:
         return datetime.fromisoformat(str(timestamp).replace("Z", "+00:00")).month
     except ValueError:
         return None
+
+
+def _detect_snapshot(
+    *,
+    original_path: Path,
+    payload: dict[str, Any],
+    image_width: int,
+    image_height: int,
+    free_vision_config: dict[str, Any],
+    yolo_raw: dict[str, Any],
+) -> dict[str, Any]:
+    mock_payload = payload.get("mock_detection_payload")
+    if mock_payload:
+        result = normalize_detection_payload(
+            mock_payload,
+            image_width=image_width,
+            image_height=image_height,
+            source_internal="mock_detection",
+        )
+        result["pipeline_status"] = "MOCK_DETECTION_USED"
+        result["provider_status_redacted"] = [{"role": "mock", "status": "MOCK_DETECTION_USED", "configured": True}]
+        result["provider_order"] = ["mock"]
+        return result
+    return detect_yolo_compatible_from_snapshot(
+        original_path,
+        image_width=image_width,
+        image_height=image_height,
+        config=free_vision_config,
+        yolo_result=yolo_raw,
+    )
+
+
+def _adjust_growth_for_species(growth: dict[str, Any], detection_result: dict[str, Any]) -> dict[str, Any]:
+    species = detection_result.get("tree_species_status")
+    if species != "pohon_non_sono":
+        return growth
+    adjusted = dict(growth)
+    adjusted["growth_profile_status"] = "GROWTH_PROFILE_READY_PROXY"
+    adjusted["data_source_type"] = "generic_vegetation_proxy"
+    adjusted["observed_or_proxy"] = "proxy"
+    adjusted["confidence_level"] = "generic_proxy_requires_field_validation"
+    limitations = list(adjusted.get("limitations") or [])
+    limitations.append("Pohon terdeteksi sebagai pohon_non_sono; growth profile pohon_sono tidak diklaim sebagai identifikasi final.")
+    adjusted["limitations"] = limitations
+    source = dict(adjusted.get("source_summary") or {})
+    source["species_handling"] = "generic_vegetation_proxy"
+    adjusted["source_summary"] = source
+    return adjusted
+
+
+def _operator_detections(detections: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    allowed = {
+        "class_id",
+        "class_name",
+        "bbox_format",
+        "bbox_xyxy",
+        "confidence",
+        "operator_label",
+        "species_guess",
+        "is_target_species",
+        "review_status",
+        "reason",
+    }
+    return [{key: value for key, value in detection.items() if key in allowed} for detection in detections if isinstance(detection, dict)]
 
 
 def _read_image_size(path: Path) -> tuple[int, int]:

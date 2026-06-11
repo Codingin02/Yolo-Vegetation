@@ -19,8 +19,8 @@ def test_free_vision_schema_converts_normalized_1000_bbox():
 
     assert result["status"] == "YOLO_COMPATIBLE_DETECTION_READY"
     detection = result["detections"][0]
-    assert detection["class_id"] == 2
-    assert detection["class_name"] == "pohon_sono"
+    assert detection["class_id"] == 3
+    assert detection["class_name"] == "pohon_non_sono"
     assert detection["bbox_xyxy"] == [64.0, 96.0, 320.0, 384.0]
 
 
@@ -37,7 +37,8 @@ def test_free_vision_schema_rejects_invalid_bbox():
 
 
 def test_free_vision_schema_maps_allowed_synonyms_only():
-    assert normalize_class_name("vegetation") == "pohon_sono"
+    assert normalize_class_name("vegetation") == "pohon_non_sono"
+    assert normalize_class_name("angsana") == "pohon_sono"
     assert normalize_class_name("power line") == "konduktor"
     assert normalize_class_name("utility pole") == "struktur_penyangga"
     assert normalize_class_name("car") is None

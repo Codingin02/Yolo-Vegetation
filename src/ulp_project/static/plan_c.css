@@ -389,6 +389,45 @@ pre {
   color: var(--muted);
 }
 
+.plan-c-feedback-box {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.plan-c-feedback-box p {
+  margin: 8px 0 12px;
+  color: var(--muted);
+}
+
+.plan-c-accept-btn,
+.plan-c-reject-btn {
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 4px 8px 4px 0;
+  color: #fff;
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.plan-c-accept-btn {
+  background: #17834f;
+}
+
+.plan-c-reject-btn {
+  background: #b83232;
+}
+
+.plan-c-feedback-status {
+  margin-top: 10px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
