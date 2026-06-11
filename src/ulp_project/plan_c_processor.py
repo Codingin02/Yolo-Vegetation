@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 from datetime import datetime
+import json
+import math
 from pathlib import Path
 import re
 from typing import Any
@@ -83,12 +85,15 @@ def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload:
         month=capture_month,
     )
     growth = _adjust_growth_for_species(growth, detection_result)
-    risk_status = geometry.get("risk_status") or "DATA_TIDAK_CUKUP"
-    prediction_window = growth.get("prediction_window") or "data tidak cukup"
-    if risk_status == "DATA_TIDAK_CUKUP":
-        prediction_window = "data tidak cukup"
-    elif risk_status == "ZONA_TEBANG":
-        prediction_window = "0-3 bulan"
+    prediction = _build_days_prediction(geometry=geometry, growth=growth)
+    growth.update(prediction)
+    risk_status = prediction.get("risk_status") or geometry.get("risk_status") or "DATA_TIDAK_CUKUP"
+    prediction_window = prediction.get("prediction_window") or growth.get("prediction_window") or "data tidak cukup"
+    geometry = {
+        **geometry,
+        "gps_distance_from_anchor_m": (metadata.get("gps") or {}).get("gps_distance_from_anchor_m"),
+        "estimated_steps_from_anchor": (metadata.get("gps") or {}).get("estimated_steps_from_anchor"),
+    }
 
     render_status = render_yolo_compatible_annotation(
         original_path,
@@ -301,6 +306,7 @@ def _build_snapshot_metadata(session_id: str, payload: dict[str, Any], original_
         "manual_tree_height_m": to_float(payload.get("manual_tree_height_m")),
         "manual_clearance_m": to_float(payload.get("manual_clearance_m")),
         "manual_conductor_height_m": to_float(payload.get("manual_conductor_height_m")),
+        "manual_structure_height_m": to_float(payload.get("manual_structure_height_m") or payload.get("structure_height_m")),
         "ground_reference_y": to_float(payload.get("ground_reference_y")),
         "conductor_y": to_float(payload.get("conductor_y")),
     }
@@ -309,6 +315,7 @@ def _build_snapshot_metadata(session_id: str, payload: dict[str, Any], original_
         "point_id": str(payload.get("point_id") or "pohon_sono").strip() or "pohon_sono",
         "idempotency_key": idempotency_key,
         "snapshot_captured_at": utc_now_iso(),
+        "capture_source": str(payload.get("capture_source") or "camera").strip() or "camera",
         "operator_note": str(payload.get("operator_note") or payload.get("notes") or "").strip(),
         "gps": gps,
         "gps_status": "GPS_VALID" if gps.get("gps_valid") else "NO_GPS_NO_MARKER",
@@ -318,16 +325,29 @@ def _build_snapshot_metadata(session_id: str, payload: dict[str, Any], original_
 
 
 def _extract_gps(payload: dict[str, Any]) -> dict[str, Any]:
-    latitude = to_float(payload.get("latitude") or payload.get("lat"))
-    longitude = to_float(payload.get("longitude") or payload.get("lon") or payload.get("lng"))
-    accuracy = to_float(payload.get("gps_accuracy_m") or payload.get("accuracy"))
+    tree_anchor = _json_payload_field(payload.get("tree_anchor_gps"))
+    shutter = _json_payload_field(payload.get("shutter_gps"))
+    track_summary = _json_payload_field(payload.get("gps_track_summary"))
+    track_points = _json_payload_field(payload.get("gps_track_points"))
+    latitude = to_float(_dict_get(shutter, "latitude") or payload.get("latitude") or payload.get("lat"))
+    longitude = to_float(_dict_get(shutter, "longitude") or payload.get("longitude") or payload.get("lon") or payload.get("lng"))
+    accuracy = to_float(_dict_get(shutter, "accuracy_m") or payload.get("gps_accuracy_m") or payload.get("accuracy"))
     gps_valid = latitude is not None and longitude is not None
     raw_status = str(payload.get("gps_status") or "").strip()
     gps_status = raw_status if raw_status else "GPS_NOT_READY"
     gps_quality_status = "GPS_NOT_READY"
+    distance_m = to_float(payload.get("gps_distance_from_anchor_m") or _dict_get(track_summary, "gps_distance_from_anchor_m"))
+    if distance_m is None:
+        distance_m = _haversine_m(tree_anchor, {"latitude": latitude, "longitude": longitude} if gps_valid else shutter)
+    estimated_steps = to_float(payload.get("estimated_steps_from_anchor") or _dict_get(track_summary, "estimated_steps_from_anchor"))
+    if estimated_steps is None and distance_m is not None:
+        estimated_steps = round(distance_m / 0.75, 1)
+    distance_status = str(payload.get("gps_distance_status") or _dict_get(track_summary, "gps_distance_status") or "").strip()
     if gps_valid:
         gps_status = "GPS_READY"
         gps_quality_status = "GPS_LOW_ACCURACY_EVIDENCE_ONLY" if accuracy is not None and accuracy > 20 else "GPS_ACCURACY_ACCEPTED"
+        if not distance_status:
+            distance_status = "GPS_DISTANCE_LOW_CONFIDENCE" if accuracy is not None and accuracy > 10 else "GPS_DISTANCE_ACCEPTED"
     return {
         "latitude": latitude,
         "longitude": longitude,
@@ -335,7 +355,15 @@ def _extract_gps(payload: dict[str, Any]) -> dict[str, Any]:
         "gps_valid": gps_valid,
         "gps_status": gps_status,
         "gps_quality_status": gps_quality_status,
-        "gps_source": "GPS_SOURCE_BROWSER" if gps_valid else "GPS_SOURCE_UNAVAILABLE",
+        "gps_distance_status": distance_status or "GPS_NOT_READY",
+        "gps_distance_from_anchor_m": round(distance_m, 2) if distance_m is not None else None,
+        "estimated_steps_from_anchor": round(estimated_steps, 1) if estimated_steps is not None else None,
+        "estimated_steps_note": "Estimasi langkah berbasis jarak GPS / 0.75 m, bukan sensor langkah aktual.",
+        "tree_anchor_gps": tree_anchor,
+        "shutter_gps": shutter,
+        "gps_track_summary": track_summary,
+        "gps_track_points": track_points if isinstance(track_points, list) else [],
+        "gps_source": str(payload.get("gps_source") or _dict_get(shutter, "gps_source") or ("GPS_SOURCE_BROWSER" if gps_valid else "GPS_SOURCE_UNAVAILABLE")),
     }
 
 
@@ -368,6 +396,15 @@ def _build_result_payload(
         "prediction_window": prediction_window,
         "tree_height_estimate_m": geometry.get("tree_height_estimate_m"),
         "clearance_estimate_m": geometry.get("clearance_estimate_m"),
+        "conductor_height_m": geometry.get("conductor_height_m"),
+        "structure_height_m": geometry.get("structure_height_m"),
+        "structure_height_source": geometry.get("structure_height_source"),
+        "prediction_days": growth.get("prediction_days"),
+        "prediction_months": growth.get("prediction_months"),
+        "prediction_remaining_days": growth.get("prediction_remaining_days"),
+        "prediction_months_days": growth.get("prediction_months_days"),
+        "remaining_clearance_to_tebang_m": growth.get("remaining_clearance_to_tebang_m"),
+        "growth_rate_m_per_day": growth.get("growth_rate_m_per_day"),
         "manual_review_required": bool(
             geometry.get("manual_review_required")
             or detection_result.get("manual_review_required")
@@ -424,6 +461,10 @@ def _build_result_payload(
         },
         "gps_summary": gps,
         "gps_status": gps.get("gps_quality_status") or gps.get("gps_status") or "GPS_NOT_READY",
+        "gps_distance_status": gps.get("gps_distance_status"),
+        "gps_distance_from_anchor_m": gps.get("gps_distance_from_anchor_m"),
+        "estimated_steps_from_anchor": gps.get("estimated_steps_from_anchor"),
+        "estimated_steps_note": gps.get("estimated_steps_note"),
         "geometry_status": geometry.get("geometry_status"),
         "growth_profile_status": growth.get("growth_profile_status"),
         "growth_rate_m_per_quarter": growth.get("growth_rate_m_per_quarter"),
@@ -558,6 +599,95 @@ def _capture_month(timestamp: Any) -> int | None:
         return None
 
 
+def _build_days_prediction(*, geometry: dict[str, Any], growth: dict[str, Any]) -> dict[str, Any]:
+    clearance = to_float(geometry.get("clearance_estimate_m"))
+    threshold = DEFAULT_GEOMETRY_PARAMETERS["vegetation_clearance_threshold_m"]
+    rate_quarter = to_float(growth.get("growth_rate_m_per_quarter"))
+    geometry_risk = str(geometry.get("risk_status") or "DATA_TIDAK_CUKUP")
+    if geometry_risk.startswith("DATA_TIDAK_CUKUP") or clearance is None:
+        return {
+            "prediction_status": geometry_risk,
+            "risk_status": geometry_risk,
+            "prediction_window": "data tidak cukup",
+            "prediction_days": None,
+            "prediction_months": None,
+            "prediction_remaining_days": None,
+            "prediction_months_days": "data tidak cukup",
+            "remaining_clearance_to_tebang_m": None,
+            "growth_rate_m_per_day": None,
+        }
+    if rate_quarter is None or rate_quarter <= 0:
+        return {
+            "prediction_status": "DATA_TIDAK_CUKUP_GROWTH_PROFILE",
+            "risk_status": "DATA_TIDAK_CUKUP_GROWTH_PROFILE",
+            "prediction_window": "data tidak cukup",
+            "prediction_days": None,
+            "prediction_months": None,
+            "prediction_remaining_days": None,
+            "prediction_months_days": "data tidak cukup",
+            "remaining_clearance_to_tebang_m": round(clearance - threshold, 3),
+            "growth_rate_m_per_day": None,
+        }
+
+    growth_rate_per_day = rate_quarter / 91.25
+    remaining = clearance - threshold
+    if clearance <= threshold:
+        days = 0
+        risk_status = "ZONA_TEBANG"
+    else:
+        days = max(0, math.floor(remaining / growth_rate_per_day))
+        risk_status = geometry_risk if geometry_risk in {"AMAN", "PANTAU", "ZONA_TEBANG"} else "PANTAU"
+    months = days // 30
+    remaining_days = days % 30
+    window = f"{months} bulan {remaining_days} hari"
+    return {
+        "prediction_status": "PREDICTION_DAYS_READY",
+        "risk_status": risk_status,
+        "prediction_window": window,
+        "prediction_days": days,
+        "prediction_months": months,
+        "prediction_remaining_days": remaining_days,
+        "prediction_months_days": window,
+        "remaining_clearance_to_tebang_m": round(remaining, 3),
+        "growth_rate_m_per_day": round(growth_rate_per_day, 6),
+        "adjusted_growth_rate_m_per_quarter": rate_quarter,
+    }
+
+
+def _json_payload_field(value: Any) -> Any:
+    if isinstance(value, (dict, list)):
+        return value
+    text = str(value or "").strip()
+    if not text:
+        return {}
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+
+
+def _dict_get(value: Any, key: str) -> Any:
+    return value.get(key) if isinstance(value, dict) else None
+
+
+def _haversine_m(anchor: Any, shutter: Any) -> float | None:
+    if not isinstance(anchor, dict) or not isinstance(shutter, dict):
+        return None
+    lat1 = to_float(anchor.get("latitude"))
+    lon1 = to_float(anchor.get("longitude"))
+    lat2 = to_float(shutter.get("latitude"))
+    lon2 = to_float(shutter.get("longitude"))
+    if None in {lat1, lon1, lat2, lon2}:
+        return None
+    radius = 6371000.0
+    phi1 = math.radians(float(lat1))
+    phi2 = math.radians(float(lat2))
+    d_phi = math.radians(float(lat2) - float(lat1))
+    d_lambda = math.radians(float(lon2) - float(lon1))
+    h = math.sin(d_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+    return 2 * radius * math.asin(math.sqrt(h))
+
+
 def _detect_snapshot(
     *,
     original_path: Path,
@@ -569,6 +699,11 @@ def _detect_snapshot(
 ) -> dict[str, Any]:
     mock_payload = payload.get("mock_detection_payload")
     if mock_payload:
+        if isinstance(mock_payload, str):
+            try:
+                mock_payload = json.loads(mock_payload)
+            except json.JSONDecodeError:
+                mock_payload = {}
         result = normalize_detection_payload(
             mock_payload,
             image_width=image_width,

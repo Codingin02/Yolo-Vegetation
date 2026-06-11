@@ -25,6 +25,7 @@ def compute_plan_c_geometry(
     manual_clearance = _to_float(manual_inputs.get("manual_clearance_m"))
     manual_tree_height = _to_float(manual_inputs.get("manual_tree_height_m"))
     manual_distance = _to_float(manual_inputs.get("manual_distance_m"))
+    manual_structure_height = _to_float(manual_inputs.get("manual_structure_height_m") or manual_inputs.get("structure_height_m"))
     manual_ground_reference_y = _to_float(manual_inputs.get("ground_reference_y") or metadata.get("ground_reference_y"))
     threshold = DEFAULT_GEOMETRY_PARAMETERS["vegetation_clearance_threshold_m"]
 
@@ -61,7 +62,8 @@ def compute_plan_c_geometry(
     if missing:
         return _insufficient_geometry(missing, conductor_validated="konduktor" not in missing)
 
-    structure_box = (grouped.get("struktur_penyangga") or {}).get("bbox_xyxy") or []
+    structure_detection = grouped.get("struktur_penyangga")
+    structure_box = (structure_detection or {}).get("bbox_xyxy") or []
     tree_box = tree_detection.get("bbox_xyxy") or []
     conductor_box = conductor_detection.get("bbox_xyxy") or []
     if len(tree_box) != 4 or len(conductor_box) != 4:
@@ -72,31 +74,35 @@ def compute_plan_c_geometry(
     if tree_height_px <= 0:
         return _insufficient_geometry(["bbox_scale_invalid"])
 
-    scale_status = "APPROXIMATE_VISUAL_ESTIMATE"
-    meter_per_px = DEFAULT_GEOMETRY_PARAMETERS["pole_height_default_m"] / max(tree_height_px * 1.35, 1.0)
-    if structure_height_px > 0:
-        meter_per_px = DEFAULT_GEOMETRY_PARAMETERS["pole_height_default_m"] / structure_height_px
-        scale_status = "SCALE_FROM_STRUCTURE"
-    elif manual_distance is not None and manual_distance > 0:
-        meter_per_px = manual_distance / max(abs(float(conductor_box[0]) - float(tree_box[0])), 1.0)
-        scale_status = "SCALE_FROM_MANUAL_INPUT"
+    if structure_height_px <= 0:
+        return _geometry_needs_reference_height(["struktur_penyangga_bbox"])
+
+    structure_height_m, structure_height_source = _resolve_structure_height(manual_structure_height, metadata=metadata)
+    if structure_height_m is None or structure_height_m <= 0:
+        return _geometry_needs_reference_height(["structure_height_m"])
+
+    meter_per_px = structure_height_m / structure_height_px
+    scale_status = "SCALE_FROM_STRUCTURE"
     tree_height_m = tree_height_px * meter_per_px
-    tree_top_y = float(tree_box[1])
     conductor_center_y = (float(conductor_box[1]) + float(conductor_box[3])) / 2
-    ground_reference_y, ground_reference_status = _ground_reference_from_tree_or_manual(
+    ground_reference_y, ground_reference_status = _ground_reference_from_available_bases(
         tree_box,
+        structure_box,
         manual_ground_reference_y=manual_ground_reference_y,
     )
+    if ground_reference_y is None:
+        return _insufficient_geometry(["ground_reference_y"])
+    conductor_height_m = max((ground_reference_y - conductor_center_y) * meter_per_px, 0.0)
     zone_fields = _build_zone_fields(
         conductor_y=conductor_center_y,
         meter_per_px=meter_per_px,
         ground_reference_y=ground_reference_y,
         scale_status=scale_status,
     )
-    clearance_m = max((conductor_center_y - tree_top_y) * meter_per_px, 0.0)
+    clearance_m = conductor_height_m - tree_height_m
     tree_species_status = str(tree_detection.get("class_name") or "unknown")
     risk_status = classify_risk_status(clearance_m, threshold_m=threshold)
-    meter_source = _meter_per_pixel_source(scale_status)
+    meter_source = structure_height_source
     conductor_lines = _conductor_lines(detections)
     ground_status = zone_fields.get("ground_reference_status") or ground_reference_status
     if ground_reference_status == "GROUND_REFERENCE_MANUAL_OPERATOR_INPUT" and ground_status != "GROUND_REFERENCE_NOT_ENOUGH_FOR_SAFE_ZONE":
@@ -105,11 +111,16 @@ def compute_plan_c_geometry(
     return {
         "status": "GEOMETRY_READY_PROVISIONAL" if scale_status != "APPROXIMATE_VISUAL_ESTIMATE" else "GEOMETRY_READY_APPROXIMATE_VISUAL",
         "geometry_status": "GEOMETRY_READY_PROVISIONAL" if scale_status != "APPROXIMATE_VISUAL_ESTIMATE" else "APPROXIMATE_VISUAL_ESTIMATE",
-        "measurement_source": "yolo_compatible_bbox_scaled_by_structure_proxy" if scale_status == "SCALE_FROM_STRUCTURE" else "approximate_visual_bbox_scale",
+        "measurement_source": "yolo_compatible_bbox_scaled_by_structure_reference",
         "clearance_estimate_m": round(clearance_m, 3),
         "tree_height_estimate_m": round(tree_height_m, 3),
+        "conductor_height_m": round(conductor_height_m, 3),
+        "structure_height_m": round(structure_height_m, 3),
+        "structure_height_source": structure_height_source,
+        "structure_bbox_height_px": round(structure_height_px, 2),
+        "tree_bbox_height_px": round(tree_height_px, 2),
         "risk_status": risk_status,
-        "manual_review_required": True,
+        "manual_review_required": structure_height_source != "STRUCTURE_HEIGHT_MANUAL",
         "tree_species_status": tree_species_status,
         "conductor_status": "tervalidasi",
         "structure_status": "tervalidasi" if structure_height_px > 0 else "tidak tervalidasi",
@@ -128,7 +139,7 @@ def compute_plan_c_geometry(
         **zone_fields,
         "not_final_pln_measurement": True,
         "parameters": DEFAULT_GEOMETRY_PARAMETERS,
-        "warnings": ["Estimasi berbasis bbox snapshot dan tinggi tiang default; validasi manual tetap diperlukan."],
+        "warnings": ["Estimasi berbasis bbox snapshot; validasi manual PLN tetap diperlukan."],
     }
 
 
@@ -143,14 +154,26 @@ def classify_risk_status(clearance_m: float | None, *, threshold_m: float = 3.0)
 
 
 def _insufficient_geometry(missing: list[str], *, conductor_validated: bool = False) -> dict[str, Any]:
+    if "konduktor" in missing:
+        risk_status = "DATA_TIDAK_CUKUP_KONDUKTOR_TIDAK_TERVALIDASI"
+        geometry_status = "DATA_TIDAK_CUKUP_KONDUKTOR_TIDAK_TERVALIDASI"
+    elif "pohon_sono_or_pohon_non_sono" in missing:
+        risk_status = "DATA_TIDAK_CUKUP_POHON_TIDAK_TERVALIDASI"
+        geometry_status = "DATA_TIDAK_CUKUP_POHON_TIDAK_TERVALIDASI"
+    else:
+        risk_status = "DATA_TIDAK_CUKUP"
+        geometry_status = "INSUFFICIENT_GEOMETRY_DATA"
     return {
         "status": "INSUFFICIENT_GEOMETRY_DATA",
-        "geometry_status": "CONDUCTOR_NOT_VALIDATED" if "konduktor" in missing else "INSUFFICIENT_GEOMETRY_DATA",
+        "geometry_status": geometry_status,
         "measurement_source": "not_available",
         "missing_inputs": missing,
         "clearance_estimate_m": None,
         "tree_height_estimate_m": None,
-        "risk_status": "DATA_TIDAK_CUKUP",
+        "conductor_height_m": None,
+        "structure_height_m": None,
+        "structure_height_source": "STRUCTURE_HEIGHT_UNKNOWN",
+        "risk_status": risk_status,
         "manual_review_required": True,
         "tree_species_status": "unknown",
         "conductor_status": "tervalidasi" if conductor_validated else "tidak tervalidasi",
@@ -176,6 +199,30 @@ def _insufficient_geometry(missing: list[str], *, conductor_validated: bool = Fa
     }
 
 
+def _geometry_needs_reference_height(missing: list[str]) -> dict[str, Any]:
+    payload = _insufficient_geometry(missing, conductor_validated=True)
+    payload.update(
+        {
+            "status": "GEOMETRY_NEEDS_REFERENCE_HEIGHT",
+            "geometry_status": "GEOMETRY_NEEDS_REFERENCE_HEIGHT",
+            "risk_status": "DATA_TIDAK_CUKUP",
+            "conductor_status": "tervalidasi",
+            "missing_inputs": missing,
+            "warnings": ["Struktur penyangga dan tinggi referensi diperlukan untuk skala geometri."],
+        }
+    )
+    return payload
+
+
+def _resolve_structure_height(manual_structure_height: float | None, *, metadata: dict[str, Any]) -> tuple[float | None, str]:
+    if manual_structure_height is not None and manual_structure_height > 0:
+        return manual_structure_height, "STRUCTURE_HEIGHT_MANUAL"
+    configured = _to_float(metadata.get("structure_height_m") or metadata.get("pole_height_m"))
+    if configured is not None and configured > 0:
+        return configured, "STRUCTURE_HEIGHT_CONFIG_DEFAULT"
+    return DEFAULT_GEOMETRY_PARAMETERS["pole_height_default_m"], "STRUCTURE_HEIGHT_CONFIG_DEFAULT"
+
+
 def _largest_by_class(detections: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     grouped: dict[str, dict[str, Any]] = {}
     for detection in detections:
@@ -197,15 +244,29 @@ def _select_conductor_reference(detections: list[dict[str, Any]]) -> dict[str, A
     return max(conductors, key=lambda item: (_bbox_center_y(item.get("bbox_xyxy")), float(item.get("confidence") or 0.0)))
 
 
-def _ground_reference_from_tree_or_manual(tree_box: list[Any], *, manual_ground_reference_y: float | None) -> tuple[float | None, str]:
+def _ground_reference_from_available_bases(
+    tree_box: list[Any],
+    structure_box: list[Any],
+    *,
+    manual_ground_reference_y: float | None,
+) -> tuple[float | None, str]:
     if manual_ground_reference_y is not None:
         return manual_ground_reference_y, "GROUND_REFERENCE_MANUAL_OPERATOR_INPUT"
+    candidates: list[tuple[float, str]] = []
     if isinstance(tree_box, list) and len(tree_box) == 4:
         try:
-            return float(tree_box[3]), "VEGETATION_BASE_ESTIMATED_FROM_TREE_BBOX"
+            candidates.append((float(tree_box[3]), "VEGETATION_BASE_ESTIMATED_FROM_TREE_BBOX"))
         except (TypeError, ValueError):
-            return None, "GROUND_REFERENCE_NOT_AVAILABLE"
-    return None, "GROUND_REFERENCE_NOT_AVAILABLE"
+            pass
+    if isinstance(structure_box, list) and len(structure_box) == 4:
+        try:
+            candidates.append((float(structure_box[3]), "STRUCTURE_BASE_ESTIMATED_FROM_BBOX"))
+        except (TypeError, ValueError):
+            pass
+    if not candidates:
+        return None, "GROUND_REFERENCE_NOT_AVAILABLE"
+    # Smaller y is conservative for clearance because image y grows downward.
+    return min(candidates, key=lambda item: item[0])
 
 
 def _build_zone_fields(

@@ -30,6 +30,12 @@
         <dt>ground_reference_status</dt><dd>${text(result.ground_reference_status, "GROUND_REFERENCE_NOT_AVAILABLE")}</dd>
         <dt>zone_status</dt><dd>${text(result.zone_status, "unavailable")}</dd>
         <dt>zone_precision</dt><dd>${text(result.zone_precision, "unavailable")}</dd>
+        <dt>clearance_estimate_m</dt><dd>${text(result.clearance_estimate_m, "-")}</dd>
+        <dt>tree_height_estimate_m</dt><dd>${text(result.tree_height_estimate_m, "-")}</dd>
+        <dt>conductor_height_m</dt><dd>${text(result.conductor_height_m, "-")}</dd>
+        <dt>prediction_days</dt><dd>${text(result.prediction_days, "-")}</dd>
+        <dt>prediction_months_days</dt><dd>${text(result.prediction_months_days, "data tidak cukup")}</dd>
+        <dt>GPS distance</dt><dd>${text(result.gps_distance_from_anchor_m, "-")}</dd>
         <dt>Bounding box</dt><dd>${text(result.detection_count, "0")}</dd>
         <dt>conductor_group_count</dt><dd>${text(result.conductor_group_count, "0")}</dd>
         <dt>Prediction</dt><dd>${text(result.prediction_window, "data tidak cukup")}</dd>

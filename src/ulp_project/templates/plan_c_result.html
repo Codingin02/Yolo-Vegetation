@@ -64,6 +64,11 @@
           <dl class="metric-list">
             <dt>clearance_estimate_m</dt><dd>{{ result.get('clearance_estimate_m') }}</dd>
             <dt>tree_height_estimate_m</dt><dd>{{ result.get('tree_height_estimate_m') }}</dd>
+            <dt>conductor_height_m</dt><dd>{{ result.get('conductor_height_m') }}</dd>
+            <dt>structure_height_m</dt><dd>{{ result.get('structure_height_m') }}</dd>
+            <dt>structure_height_source</dt><dd>{{ result.get('structure_height_source') }}</dd>
+            <dt>prediction_days</dt><dd>{{ result.get('prediction_days') }}</dd>
+            <dt>prediction_months_days</dt><dd>{{ result.get('prediction_months_days') }}</dd>
             <dt>geometry_status</dt><dd>{{ result.get('geometry_status') }}</dd>
           </dl>
         </article>
@@ -94,6 +99,9 @@
           <h2>GPS</h2>
           <dl class="metric-list">
             <dt>gps_status</dt><dd>{{ result.get('gps_status') }}</dd>
+            <dt>gps_distance_status</dt><dd>{{ result.get('gps_distance_status') }}</dd>
+            <dt>distance_from_anchor_m</dt><dd>{{ result.get('gps_distance_from_anchor_m') }}</dd>
+            <dt>estimasi_langkah</dt><dd>{{ result.get('estimated_steps_from_anchor') }}</dd>
             <dt>latitude</dt><dd>{{ result.get('gps_summary', {}).get('latitude') }}</dd>
             <dt>longitude</dt><dd>{{ result.get('gps_summary', {}).get('longitude') }}</dd>
             <dt>accuracy_m</dt><dd>{{ result.get('gps_summary', {}).get('gps_accuracy_m') }}</dd>

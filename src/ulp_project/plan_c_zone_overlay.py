@@ -155,6 +155,20 @@ def draw_zone_overlay(draw: Any, image_size: tuple[int, int], zone_summary: dict
         draw.rectangle([8, label_y - 4, min(width - 8, 420), label_y + 24], fill=(0, 0, 0, 130))
         draw.text((14, label_y), label, fill=label_colors.get(color_name, (255, 255, 255, 255)), font=font_small)
 
+    conductor_y = _number(zone_summary.get("conductor_y") or zone_summary.get("conductor_y_px"))
+    if conductor_y is not None:
+        y = int(round(max(0, min(float(conductor_y), float(height)))))
+        draw.line([0, y, width, y], fill=(255, 255, 255, 230), width=3)
+        draw.text((12, max(4, y - 18)), "KONDUKTOR", fill=(255, 255, 255, 255), font=font_small)
+
+    for key, label in [("zone_tebang_y2", "3 m"), ("zone_pantau_y2", "6 m")]:
+        value = _number(zone_summary.get(key))
+        if value is None:
+            continue
+        y = int(round(max(0, min(float(value), float(height)))))
+        draw.line([0, y, width, y], fill=(255, 255, 255, 190), width=2)
+        draw.text((12, max(4, y + 4)), label, fill=(255, 255, 255, 255), font=font_small)
+
     if zone_summary.get("ground_reference_status") == "GROUND_REFERENCE_NOT_ENOUGH_FOR_SAFE_ZONE":
         draw.rectangle([8, max(6, height - 78), min(width - 8, 470), max(34, height - 50)], fill=(0, 0, 0, 145))
         draw.text((14, max(12, height - 72)), "GROUND_REFERENCE_NOT_ENOUGH_FOR_SAFE_ZONE", fill=(255, 220, 130, 255), font=font_small)

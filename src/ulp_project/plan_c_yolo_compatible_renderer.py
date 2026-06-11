@@ -104,15 +104,28 @@ def _draw_footer(
 ) -> None:
     width, height = size
     clearance = geometry.get("clearance_estimate_m")
+    tree_height = geometry.get("tree_height_estimate_m")
+    conductor_height = geometry.get("conductor_height_m")
+    gps_distance = geometry.get("gps_distance_from_anchor_m")
     growth_rate = growth.get("growth_rate_m_per_quarter")
+    prediction_days = growth.get("prediction_days")
+    prediction_months_days = growth.get("prediction_months_days") or prediction_window
     zone_status = zone_summary.get("zone_status", "unavailable")
     parts = [
         f"Risk: {risk_status or 'DATA_TIDAK_CUKUP'}",
-        f"Window: {prediction_window or 'data tidak cukup'}",
+        f"Window: {prediction_months_days or 'data tidak cukup'}",
         f"Zone: {zone_status}",
     ]
     if clearance is not None:
         parts.append(f"Clearance: {clearance} m")
+    if tree_height is not None:
+        parts.append(f"Tree: {tree_height} m")
+    if conductor_height is not None:
+        parts.append(f"Conductor: {conductor_height} m")
+    if prediction_days is not None:
+        parts.append(f"Days: {prediction_days}")
+    if gps_distance is not None:
+        parts.append(f"GPS: {gps_distance} m")
     if growth_rate is not None:
         parts.append(f"Growth: {growth_rate} m/q")
     text = " | ".join(parts)
