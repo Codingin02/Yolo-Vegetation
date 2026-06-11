@@ -2,6 +2,8 @@
 
 Tanggal: 2026-06-12
 
+Commit implementasi utama: `fdaabf3 Implement Progress 9 Plan C upload mode with registered AI detector`.
+
 ## Tujuan
 
 Progress 9 menambahkan jalur upload image untuk Plan C tanpa menghapus shutter/capture lama. Operator dapat memilih foto, mengambil GPS saat upload, membuat session, lalu menjalankan proses deteksi dan prediksi secara manual dari halaman review.
@@ -82,3 +84,15 @@ Jika session diproses ulang, append duplikat ditahan dengan status `DUPLICATE_IG
 - Jika konduktor tidak terdeteksi kuat, risk menjadi `DATA_TIDAK_CUKUP`.
 - Clearance `0.0 m` tidak ditulis ketika data tidak cukup; nilai clearance menjadi `null`.
 - Hasil adalah field trial dan perlu validasi manual.
+
+## Validasi Siap Uji
+
+Validasi utama yang digunakan untuk readiness upload mode:
+
+- `python -m compileall src scripts tests`
+- `python scripts/plan_c_smoke.py`
+- `python scripts/plan_c_upload_smoke.py`
+- `python scripts/plan_c_upload_operator_selftest.py`
+- `git diff --check`
+
+Full `pytest -q` masih dapat memunculkan kegagalan historis di jalur lama `/field-*`, Progress 5/6, dan no-label-touch lama karena artefak dataset/model lokal yang memang tidak disentuh oleh Progress 9.

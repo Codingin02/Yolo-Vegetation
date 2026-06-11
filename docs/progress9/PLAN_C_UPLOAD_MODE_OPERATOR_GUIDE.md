@@ -25,6 +25,21 @@ Buka:
 https://<ngrok-url>/plan-c/upload
 ```
 
+## Self-Test Lokal
+
+Sebelum uji operator, jalankan self-test upload mode:
+
+```powershell
+Set-Location E:\Projects\ULP_Project
+.\venv\Scripts\python.exe scripts\plan_c_upload_operator_selftest.py
+```
+
+Status sukses:
+
+```text
+PLAN_C_UPLOAD_OPERATOR_SELFTEST_PASS
+```
+
 ## Alur Operator
 
 1. Buka `/plan-c/upload`.
@@ -53,3 +68,4 @@ Jika muncul warning `CONDUCTOR_CLASS_WEAK_OR_NOT_DETECTED`, hasil konduktor belu
 - AI Vision Detector adalah alat bantu field trial.
 - AI provider validator optional tidak membuat bounding box final.
 - Jangan memakai result sebagai klaim akurasi final PLN.
+- Detail `internal_engine` hanya ditampilkan di developer page.
