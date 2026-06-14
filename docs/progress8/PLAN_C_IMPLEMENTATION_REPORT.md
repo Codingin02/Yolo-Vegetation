@@ -164,3 +164,34 @@ Sistem ini membantu dokumentasi dan screening risiko vegetasi berbasis snapshot.
 - file `.onnx`
 - file `.env`
 - token, credential, dan URL tunnel
+
+## Progress 8.2 Single-Class Runtime Correction
+
+Plan C runtime dikoreksi ke mode `PLAN_C_SINGLE_CLASS_POHON_SONO`.
+
+- Detector operator: `YOLOv8`.
+- Target aktif runtime: `pohon_sono`.
+- Output bbox aktif hanya untuk `pohon_sono`.
+- Konduktor dan struktur penyangga tidak lagi diperlakukan sebagai class YOLO aktif pada runtime ini.
+- Ketiadaan konduktor tidak lagi menghasilkan hard blocker `DATA_TIDAK_CUKUP_KONDUKTOR_TIDAK_TERVALIDASI`.
+- Jika pohon_sono terdeteksi tetapi clearance belum bisa dihitung, hasil masuk review manual tanpa membuat clearance palsu.
+- Runner khusus Plan C tersedia di `scripts/run_plan_c_server.py` dan `scripts/run_plan_c_system.ps1`.
+
+Validasi yang diharapkan:
+
+```text
+PLAN_C_SINGLE_CLASS_POHON_SONO_SMOKE_PASS
+```
+
+Run command final:
+
+```powershell
+.\scripts\run_plan_c_system.ps1
+```
+
+Manual:
+
+```powershell
+.\venv\Scripts\python.exe scripts\run_plan_c_server.py --host 0.0.0.0 --port 5000
+ngrok http 5000
+```

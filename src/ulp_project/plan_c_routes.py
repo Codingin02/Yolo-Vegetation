@@ -165,7 +165,11 @@ def api_runtime_ui_version():
         {
             "ok": True,
             "plan_c_ui_version": PLAN_C_UI_VERSION,
-            "route_status": "PLAN_C_UI_VERSION_READY",
+            "runtime_mode": "PLAN_C_SINGLE_CLASS_POHON_SONO",
+            "detector": "YOLOv8",
+            "active_class": "pohon_sono",
+            "multi_class_runtime": False,
+            "route_status": "PLAN_C_SINGLE_CLASS_UI_READY",
         }
     ), 200
 

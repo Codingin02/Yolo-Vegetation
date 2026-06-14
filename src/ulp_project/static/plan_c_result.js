@@ -25,8 +25,9 @@
     panel.innerHTML = `
       <strong>Detection + Zone</strong>
       <dl class="metric-list">
+        <dt>detection_target</dt><dd>pohon_sono</dd>
         <dt>tree_species_status</dt><dd>${text(result.tree_species_status, "unknown")}</dd>
-        <dt>conductor_status</dt><dd>${text(result.conductor_status, "tidak tervalidasi")}</dd>
+        <dt>conductor_reference</dt><dd>${text(result.conductor_status, "manual/reference only")}</dd>
         <dt>ground_reference_status</dt><dd>${text(result.ground_reference_status, "GROUND_REFERENCE_NOT_AVAILABLE")}</dd>
         <dt>zone_status</dt><dd>${text(result.zone_status, "unavailable")}</dd>
         <dt>zone_precision</dt><dd>${text(result.zone_precision, "unavailable")}</dd>
@@ -37,7 +38,7 @@
         <dt>prediction_months_days</dt><dd>${text(result.prediction_months_days, "data tidak cukup")}</dd>
         <dt>GPS distance</dt><dd>${text(result.gps_distance_from_anchor_m, "-")}</dd>
         <dt>Bounding box</dt><dd>${text(result.detection_count, "0")}</dd>
-        <dt>conductor_group_count</dt><dd>${text(result.conductor_group_count, "0")}</dd>
+        <dt>operator_output_format</dt><dd>YOLOv8 single-class</dd>
         <dt>Prediction</dt><dd>${text(result.prediction_window, "data tidak cukup")}</dd>
         <dt>Review</dt><dd>${text(result.manual_review_required, true)}</dd>
       </dl>

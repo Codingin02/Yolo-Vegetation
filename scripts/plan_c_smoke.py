@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from io import BytesIO
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -91,6 +92,15 @@ def main() -> int:
     _assert(client.get("/plan-c").status_code == 200, "/plan-c HTTP 200")
     checks.append("GET /plan-c")
 
+    ui_version = client.get("/api/plan-c/runtime/ui-version")
+    _assert(ui_version.status_code == 200, "runtime ui-version HTTP 200")
+    ui_json = ui_version.get_json()
+    _assert(ui_json.get("runtime_mode") == "PLAN_C_SINGLE_CLASS_POHON_SONO", "runtime mode single class")
+    _assert(ui_json.get("detector") == "YOLOv8", "runtime detector YOLOv8")
+    _assert(ui_json.get("active_class") == "pohon_sono", "active class pohon_sono")
+    _assert(ui_json.get("multi_class_runtime") is False, "multi_class_runtime false")
+    checks.append("GET /api/plan-c/runtime/ui-version")
+
     start = client.post("/api/plan-c/session/start", json={})
     _assert(start.status_code == 201, "session start HTTP 201")
     start_json = start.get_json()
@@ -139,12 +149,28 @@ def main() -> int:
     _assert(result_api.status_code == 200, "result API HTTP 200")
     result_json = result_api.get_json()
     _assert(result_json.get("status") == "PLAN_C_RESULT_READY", "result status ready")
+    result_payload_text = json.dumps(result_json, ensure_ascii=False)
+    _assert(result_json.get("runtime_mode") == "PLAN_C_SINGLE_CLASS_POHON_SONO", "result runtime mode single class")
+    _assert(result_json.get("detector") == "YOLOv8", "result detector YOLOv8")
+    _assert(result_json.get("yolo_mode") == "single_class", "result yolo mode single_class")
+    _assert(result_json.get("detected_primary_object") == "pohon_sono", "detected primary object pohon_sono")
+    _assert(result_json.get("multi_class_runtime") is False, "result multi_class_runtime false")
+    _assert(result_json.get("conductor_required_for_detection") is False, "conductor not required for detection")
+    _assert("AI detected" not in result_payload_text, "result json must not contain AI detected")
+    _assert(
+        "DATA_TIDAK_CUKUP_KONDUKTOR_TIDAK_TERVALIDASI" not in result_payload_text,
+        "conductor-not-validated hard blocker removed",
+    )
     checks.append("GET /api/plan-c/session/<session_id>/result")
 
     result_page = client.get(f"/plan-c/result/{session_id}")
     _assert(result_page.status_code == 200, "result page HTTP 200")
     result_text = result_page.get_data(as_text=True)
     _assert("risk_status" in result_text and "prediction_window" in result_text, "result page risk/prediction")
+    _assert("YOLOv8" in result_text, "result page contains YOLOv8")
+    _assert("pohon_sono" in result_text, "result page contains pohon_sono")
+    _assert("AI detected" not in result_text, "result page must not contain AI detected")
+    _assert("multi-class runtime" not in result_text, "result page must not contain multi-class runtime")
     checks.append("GET /plan-c/result/<session_id>")
 
     developer = client.get(f"/plan-c/developer/{session_id}")
@@ -168,6 +194,26 @@ def main() -> int:
     ]:
         _assert(session_file(session_id, filename).exists(), f"{filename} created")
     checks.append("session_files_created")
+
+    yolo_raw = _read_json(session_file(session_id, "yolo_raw.json"))
+    _assert(yolo_raw.get("model_policy") == "single_class_pohon_sono", "yolo_raw model policy single class")
+    _assert(yolo_raw.get("multi_class_runtime") is False, "yolo_raw multi_class_runtime false")
+    _assert(yolo_raw.get("active_detection_target") == "pohon_sono", "yolo_raw active target pohon_sono")
+    if (ROOT / "models" / "plan_c_ai_detector" / "best.pt").exists():
+        _assert(
+            yolo_raw.get("status")
+            in {
+                "YOLOV8_SINGLE_CLASS_POHON_SONO_READY",
+                "YOLOV8_POHON_SONO_READY",
+                "YOLOV8_MODEL_READY_CLASS_MAPPING_REVIEW_REQUIRED",
+                "YOLOV8_INFERENCE_FAILED",
+            },
+            f"unexpected yolo status with model present: {yolo_raw.get('status')}",
+        )
+    else:
+        _assert(yolo_raw.get("status") == "YOLO_MODEL_NOT_READY", "missing model status")
+        _assert(yolo_raw.get("detections") == [], "missing model detections empty")
+    checks.append("single_class_yolo_raw")
 
     _assert(count_csv_rows(PLAN_C_RECORDS_CSV) == csv_before + 1, "CSV appended one row")
     _assert(count_jsonl_rows(PLAN_C_RECORDS_JSONL) == jsonl_before + 1, "JSONL appended one line")
@@ -206,7 +252,7 @@ def main() -> int:
     _assert(not forbidden, f"forbidden staged path: {forbidden}")
     checks.append("forbidden_path_not_staged")
 
-    print("PLAN_C_SMOKE_PASS")
+    print("PLAN_C_SINGLE_CLASS_POHON_SONO_SMOKE_PASS")
     print(f"session_id={session_id}")
     print(f"csv_path={PLAN_C_RECORDS_CSV}")
     print(f"jsonl_path={PLAN_C_RECORDS_JSONL}")
@@ -224,6 +270,10 @@ def main() -> int:
 def _assert(condition: bool, message: str) -> None:
     if not condition:
         raise AssertionError(message)
+
+
+def _read_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _is_forbidden_staged(path: str) -> bool:

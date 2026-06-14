@@ -27,6 +27,7 @@ def compute_plan_c_geometry(
     manual_distance = _to_float(manual_inputs.get("manual_distance_m"))
     manual_structure_height = _to_float(manual_inputs.get("manual_structure_height_m") or manual_inputs.get("structure_height_m"))
     manual_ground_reference_y = _to_float(manual_inputs.get("ground_reference_y") or metadata.get("ground_reference_y"))
+    manual_zone = str(manual_inputs.get("manual_zone") or metadata.get("manual_zone") or "").strip().lower()
     threshold = DEFAULT_GEOMETRY_PARAMETERS["vegetation_clearance_threshold_m"]
 
     if manual_clearance is not None:
@@ -54,13 +55,10 @@ def compute_plan_c_geometry(
     grouped = _largest_by_class(detections)
     tree_detection = grouped.get("pohon_sono") or grouped.get("pohon_non_sono")
     conductor_detection = _select_conductor_reference(detections)
-    missing = []
     if tree_detection is None:
-        missing.append("pohon_sono_or_pohon_non_sono")
+        return _insufficient_geometry(["pohon_sono"], conductor_validated=False)
     if conductor_detection is None:
-        missing.append("konduktor")
-    if missing:
-        return _insufficient_geometry(missing, conductor_validated="konduktor" not in missing)
+        return _single_class_tree_review_geometry(tree_detection, manual_zone=manual_zone)
 
     structure_detection = grouped.get("struktur_penyangga")
     structure_box = (structure_detection or {}).get("bbox_xyxy") or []
@@ -154,14 +152,11 @@ def classify_risk_status(clearance_m: float | None, *, threshold_m: float = 3.0)
 
 
 def _insufficient_geometry(missing: list[str], *, conductor_validated: bool = False) -> dict[str, Any]:
-    if "konduktor" in missing:
-        risk_status = "DATA_TIDAK_CUKUP_KONDUKTOR_TIDAK_TERVALIDASI"
-        geometry_status = "DATA_TIDAK_CUKUP_KONDUKTOR_TIDAK_TERVALIDASI"
-    elif "pohon_sono_or_pohon_non_sono" in missing:
+    if "pohon_sono" in missing or "pohon_sono_or_pohon_non_sono" in missing:
         risk_status = "DATA_TIDAK_CUKUP_POHON_TIDAK_TERVALIDASI"
         geometry_status = "DATA_TIDAK_CUKUP_POHON_TIDAK_TERVALIDASI"
     else:
-        risk_status = "DATA_TIDAK_CUKUP"
+        risk_status = "DATA_TIDAK_CUKUP_GEOMETRY"
         geometry_status = "INSUFFICIENT_GEOMETRY_DATA"
     return {
         "status": "INSUFFICIENT_GEOMETRY_DATA",
@@ -176,8 +171,9 @@ def _insufficient_geometry(missing: list[str], *, conductor_validated: bool = Fa
         "risk_status": risk_status,
         "manual_review_required": True,
         "tree_species_status": "unknown",
-        "conductor_status": "tervalidasi" if conductor_validated else "tidak tervalidasi",
-        "structure_status": "tidak tervalidasi",
+        "conductor_status": "reference/manual only" if not conductor_validated else "tervalidasi",
+        "structure_status": "reference/manual only",
+        "conductor_required_for_detection": False,
         "zone_status": "unavailable",
         "zone_precision": "unavailable",
         "conductor_y": None,
@@ -195,7 +191,60 @@ def _insufficient_geometry(missing: list[str], *, conductor_validated: bool = Fa
         "zone_aman_y1": None,
         "zone_aman_y2": None,
         "parameters": DEFAULT_GEOMETRY_PARAMETERS,
-        "warnings": ["Data bbox belum cukup untuk estimasi geometry."],
+        "warnings": ["Data geometri belum cukup untuk estimasi clearance; review manual diperlukan."],
+    }
+
+
+def _single_class_tree_review_geometry(tree_detection: dict[str, Any], *, manual_zone: str = "") -> dict[str, Any]:
+    tree_box = tree_detection.get("bbox_xyxy") or []
+    tree_height_px = None
+    if isinstance(tree_box, list) and len(tree_box) == 4:
+        try:
+            tree_height_px = round(abs(float(tree_box[3]) - float(tree_box[1])), 2)
+        except (TypeError, ValueError):
+            tree_height_px = None
+    manual_zone_tebang = manual_zone in {"tebang", "zona_tebang", "zona_tebang_manual_review", "zona_tebang_review"}
+    risk_status = "ZONA_TEBANG_MANUAL_REVIEW" if manual_zone_tebang else "POHON_SONO_DETECTED_REVIEW_REQUIRED"
+    return {
+        "status": "INSUFFICIENT_GEOMETRY_DATA",
+        "geometry_status": "INSUFFICIENT_GEOMETRY_DATA",
+        "measurement_source": "single_class_pohon_sono_yolov8_without_manual_clearance_reference",
+        "reason": "SINGLE_CLASS_TREE_DETECTED_NEEDS_MANUAL_CLEARANCE_REVIEW",
+        "missing_inputs": ["manual_clearance_m", "manual_conductor_reference_or_measurement"],
+        "clearance_estimate_m": None,
+        "tree_height_estimate_m": None,
+        "tree_bbox_height_px": tree_height_px,
+        "conductor_height_m": None,
+        "structure_height_m": None,
+        "structure_height_source": "STRUCTURE_HEIGHT_UNKNOWN",
+        "risk_status": risk_status,
+        "manual_review_required": True,
+        "tree_species_status": str(tree_detection.get("class_name") or "pohon_sono"),
+        "detected_primary_object": "pohon_sono",
+        "conductor_status": "reference/manual only",
+        "structure_status": "reference/manual only",
+        "conductor_required_for_detection": False,
+        "zone_status": "manual_review_required",
+        "zone_precision": "manual_review",
+        "conductor_y": None,
+        "conductor_y_px": None,
+        "conductor_group_count": 0,
+        "conductor_lines": [],
+        "ground_reference_y": None,
+        "ground_reference_status": "GROUND_REFERENCE_REQUIRES_MANUAL_REVIEW",
+        "meter_per_pixel": None,
+        "meter_per_pixel_source": "not_available",
+        "zone_tebang_y1": None,
+        "zone_tebang_y2": None,
+        "zone_pantau_y1": None,
+        "zone_pantau_y2": None,
+        "zone_aman_y1": None,
+        "zone_aman_y2": None,
+        "parameters": DEFAULT_GEOMETRY_PARAMETERS,
+        "warnings": [
+            "YOLOv8 mendeteksi pohon_sono, tetapi clearance tidak dihitung karena referensi konduktor/manual belum tersedia.",
+            "Zona tebang/review adalah indikasi operator, bukan keputusan final PLN.",
+        ],
     }
 
 

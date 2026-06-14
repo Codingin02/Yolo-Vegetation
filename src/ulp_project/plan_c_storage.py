@@ -20,7 +20,7 @@ PLAN_C_REFERENCE_DIR = PROJECT_ROOT / "data" / "reference" / "pohon_sono_growth"
 PLAN_C_RECORDS_CSV = PLAN_C_SPREADSHEET_DIR / "plan_c_records.csv"
 PLAN_C_RECORDS_JSONL = PLAN_C_SPREADSHEET_DIR / "plan_c_records.jsonl"
 PLAN_C_MARKERS_JSON = PLAN_C_MAP_DIR / "plan_c_markers.json"
-PLAN_C_UI_VERSION = "progress8_1_plan_c_field_trial_hardening"
+PLAN_C_UI_VERSION = "progress8_2_single_class_pohon_sono_ui_restore"
 
 SESSION_FILES = [
     "original.jpg",

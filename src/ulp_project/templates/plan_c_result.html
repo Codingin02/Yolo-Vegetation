@@ -34,7 +34,7 @@
       <span>GPS</span>
       <span>Camera</span>
       <span>Detection</span>
-      <span>YOLO Format</span>
+      <span>YOLOv8</span>
       <span>Prediction</span>
       <span>Review</span>
     </section>
@@ -75,13 +75,14 @@
         <article id="plan-c-detection-zone-panel">
           <h2>Detection + Zone</h2>
           <dl class="metric-list">
+            <dt>detection_target</dt><dd>{{ result.get('detection_summary', {}).get('detection_target', 'pohon_sono') }}</dd>
             <dt>tree_species_status</dt><dd>{{ result.get('tree_species_status', 'unknown') }}</dd>
-            <dt>conductor_status</dt><dd>{{ result.get('conductor_status', 'tidak tervalidasi') }}</dd>
+            <dt>conductor_reference</dt><dd>{{ result.get('conductor_status', 'manual/reference only') }}</dd>
             <dt>ground_reference_status</dt><dd>{{ result.get('ground_reference_status', 'GROUND_REFERENCE_NOT_AVAILABLE') }}</dd>
             <dt>zone_status</dt><dd>{{ result.get('zone_status', 'unavailable') }}</dd>
             <dt>zone_precision</dt><dd>{{ result.get('zone_precision', 'unavailable') }}</dd>
             <dt>Bounding box count</dt><dd>{{ result.get('detection_count', 0) }}</dd>
-            <dt>conductor_group_count</dt><dd>{{ result.get('conductor_group_count', 0) }}</dd>
+            <dt>multi_class_runtime</dt><dd>{{ result.get('multi_class_runtime', false) }}</dd>
             <dt>Prediction</dt><dd>{{ result.get('prediction_window', 'data tidak cukup') }}</dd>
             <dt>Review</dt><dd>{{ result.get('manual_review_required') }}</dd>
           </dl>
@@ -89,9 +90,10 @@
         <article>
           <h2>Detection</h2>
           <dl class="metric-list">
-            <dt>detection_status</dt><dd>{{ result.get('detection_status', 'DATA_TIDAK_CUKUP') }}</dd>
+            <dt>detection_status</dt><dd>{{ result.get('detection_status', 'YOLO_MODEL_NOT_READY') }}</dd>
+            <dt>detection_target</dt><dd>pohon_sono</dd>
             <dt>detection_count</dt><dd>{{ result.get('detection_count', 0) }}</dd>
-            <dt>operator_output_format</dt><dd>{{ result.get('operator_output_format', 'YOLO-compatible') }}</dd>
+            <dt>operator_output_format</dt><dd>{{ result.get('operator_output_format', 'YOLOv8 single-class') }}</dd>
             <dt>review_status</dt><dd>{{ result.get('review_status', 'MANUAL_REVIEW_REQUIRED') }}</dd>
           </dl>
         </article>
@@ -119,6 +121,10 @@
         <article>
           <h2>Review</h2>
           <ul>
+            <li>Dataset adalah proxy/model-prior, bukan observasi pertumbuhan pohon lapangan langsung.</li>
+            <li>Hasil YOLOv8 hanya mendeteksi pohon_sono.</li>
+            <li>Zona tebang/review adalah indikasi operator/supporting decision, bukan keputusan final PLN.</li>
+            <li>Hasil prediksi harus divalidasi dengan pengukuran manual PLN.</li>
             {% for item in result.get('limitations', []) %}
               <li>{{ item }}</li>
             {% else %}

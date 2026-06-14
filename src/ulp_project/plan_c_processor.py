@@ -11,7 +11,6 @@ import re
 from typing import Any
 
 from .plan_c_free_vision_config import load_free_vision_config, redact_config
-from .plan_c_free_vision_detector import detect_yolo_compatible_from_snapshot
 from .plan_c_free_vision_schema import normalize_detection_payload
 from .plan_c_geometry import DEFAULT_GEOMETRY_PARAMETERS, compute_plan_c_geometry
 from .plan_c_growth_model import build_growth_summary, load_growth_profile
@@ -67,6 +66,7 @@ def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload:
         yolo_raw=yolo_raw,
     )
     detection_result = apply_plan_c_quality_layer(detection_result, image_width=image_width, image_height=image_height)
+    detection_result = _restore_single_class_runtime_detection(detection_result, yolo_raw=yolo_raw)
 
     ai_raw = _disabled_legacy_visual_validator(original_path, metadata=metadata)
     write_json(session_file(session_id, "ai_raw.json"), ai_raw)
@@ -309,6 +309,7 @@ def _build_snapshot_metadata(session_id: str, payload: dict[str, Any], original_
         "manual_structure_height_m": to_float(payload.get("manual_structure_height_m") or payload.get("structure_height_m")),
         "ground_reference_y": to_float(payload.get("ground_reference_y")),
         "conductor_y": to_float(payload.get("conductor_y")),
+        "manual_zone": str(payload.get("manual_zone") or payload.get("zone") or "").strip(),
     }
     return {
         "session_id": session_id,
@@ -388,6 +389,12 @@ def _build_result_payload(
     detection_status = str(detection_result.get("status") or detection_result.get("pipeline_status") or "DATA_TIDAK_CUKUP")
     return {
         "status": "PLAN_C_RESULT_READY",
+        "runtime_mode": "PLAN_C_SINGLE_CLASS_POHON_SONO",
+        "detector": "YOLOv8",
+        "yolo_mode": "single_class",
+        "detected_primary_object": "pohon_sono",
+        "multi_class_runtime": False,
+        "conductor_required_for_detection": False,
         "session_id": session_id,
         "point_id": metadata.get("point_id") or "pohon_sono",
         "idempotency_key": idempotency_key,
@@ -414,8 +421,8 @@ def _build_result_payload(
         "detection_count": detection_count,
         "detections": _operator_detections(detection_result.get("detections", [])),
         "tree_species_status": detection_result.get("tree_species_status") or geometry.get("tree_species_status") or "unknown",
-        "conductor_status": detection_result.get("conductor_status") or geometry.get("conductor_status") or "tidak tervalidasi",
-        "structure_status": detection_result.get("structure_status") or geometry.get("structure_status") or "tidak tervalidasi",
+        "conductor_status": detection_result.get("conductor_status") or geometry.get("conductor_status") or "manual/reference only",
+        "structure_status": detection_result.get("structure_status") or geometry.get("structure_status") or "manual/reference only",
         "zone_status": render_status.get("zone_summary", {}).get("zone_status") or detection_result.get("zone_status") or "unavailable",
         "zone_precision": render_status.get("zone_summary", {}).get("zone_precision") or geometry.get("zone_precision") or "unavailable",
         "zone_overlay_status": render_status.get("zone_overlay_status"),
@@ -434,7 +441,7 @@ def _build_result_payload(
         "conductor_group_count": detection_result.get("conductor_group_count") or geometry.get("conductor_group_count") or 0,
         "conductor_lines": detection_result.get("conductor_lines") or geometry.get("conductor_lines") or [],
         "operator_detection_label": detection_result.get("operator_detection_label", "Detection"),
-        "operator_output_format": detection_result.get("operator_output_format", "YOLO-compatible"),
+        "operator_output_format": detection_result.get("operator_output_format", "YOLOv8 single-class"),
         "consensus_status": detection_result.get("consensus_status"),
         "review_status": "MANUAL_REVIEW_REQUIRED"
         if detection_result.get("manual_review_required") or risk_status == "DATA_TIDAK_CUKUP"
@@ -445,19 +452,25 @@ def _build_result_payload(
             "detection_count": yolo_raw.get("detection_count", 0),
             "manual_review_required": yolo_raw.get("manual_review_required", True),
             "model_path": yolo_raw.get("model_path", ""),
+            "model_policy": yolo_raw.get("model_policy", "single_class_pohon_sono"),
+            "active_detection_target": yolo_raw.get("active_detection_target", "pohon_sono"),
+            "multi_class_runtime": yolo_raw.get("multi_class_runtime", False),
         },
         "detection_summary": {
             "status": detection_status,
             "detection_count": detection_count,
-            "operator_output_format": detection_result.get("operator_output_format", "YOLO-compatible"),
+            "detection_target": "pohon_sono",
+            "operator_output_format": detection_result.get("operator_output_format", "YOLOv8 single-class"),
             "manual_review_required": detection_result.get("manual_review_required", True),
             "render_status": render_status.get("status"),
             "tree_species_status": detection_result.get("tree_species_status") or geometry.get("tree_species_status") or "unknown",
-            "conductor_status": detection_result.get("conductor_status") or geometry.get("conductor_status") or "tidak tervalidasi",
+            "conductor_status": detection_result.get("conductor_status") or geometry.get("conductor_status") or "manual/reference only",
             "ground_reference_status": render_status.get("zone_summary", {}).get("ground_reference_status") or geometry.get("ground_reference_status"),
             "zone_status": render_status.get("zone_summary", {}).get("zone_status") or geometry.get("zone_status") or "unavailable",
             "zone_precision": render_status.get("zone_summary", {}).get("zone_precision") or geometry.get("zone_precision") or "unavailable",
             "conductor_group_count": detection_result.get("conductor_group_count") or geometry.get("conductor_group_count") or 0,
+            "multi_class_runtime": False,
+            "conductor_required_for_detection": False,
         },
         "gps_summary": gps,
         "gps_status": gps.get("gps_quality_status") or gps.get("gps_status") or "GPS_NOT_READY",
@@ -584,7 +597,7 @@ def _build_developer_payload(
         },
         "warnings": [
             "Plan C bukan realtime dan bukan pengganti pengukuran manual PLN.",
-            "Detection adapter dan YOLO-compatible output tetap membutuhkan review lapangan.",
+            "Runtime operator memakai YOLOv8 single-class pohon_sono; geometri clearance tetap membutuhkan review lapangan.",
         ],
         "errors": [],
     }
@@ -713,14 +726,125 @@ def _detect_snapshot(
         result["pipeline_status"] = "MOCK_DETECTION_USED"
         result["provider_status_redacted"] = [{"role": "mock", "status": "MOCK_DETECTION_USED", "configured": True}]
         result["provider_order"] = ["mock"]
+        result = _filter_to_single_class_pohon_sono(result)
         return result
-    return detect_yolo_compatible_from_snapshot(
-        original_path,
+    return _single_class_detection_from_yolo(
+        yolo_raw=yolo_raw,
         image_width=image_width,
         image_height=image_height,
-        config=free_vision_config,
-        yolo_result=yolo_raw,
     )
+
+
+def _single_class_detection_from_yolo(*, yolo_raw: dict[str, Any], image_width: int, image_height: int) -> dict[str, Any]:
+    detections = [
+        dict(item)
+        for item in yolo_raw.get("detections", [])
+        if isinstance(item, dict) and str(item.get("class_name") or "") == "pohon_sono"
+    ]
+    model_ready = str(yolo_raw.get("status") or "") in {
+        "YOLOV8_SINGLE_CLASS_POHON_SONO_READY",
+        "YOLOV8_POHON_SONO_READY",
+        "YOLOV8_MODEL_READY_CLASS_MAPPING_REVIEW_REQUIRED",
+    }
+    status = str(yolo_raw.get("status") or "YOLO_MODEL_NOT_READY")
+    if not model_ready:
+        status = "YOLO_MODEL_NOT_READY" if status in {"", "AI_MODEL_NOT_READY"} else status
+    return {
+        "status": status,
+        "pipeline_status": "PLAN_C_SINGLE_CLASS_YOLOV8_RUNTIME",
+        "runtime_mode": "PLAN_C_SINGLE_CLASS_POHON_SONO",
+        "detector": "YOLOv8",
+        "yolo_mode": "single_class",
+        "model_policy": "single_class_pohon_sono",
+        "active_detection_target": "pohon_sono",
+        "active_class_names": ["pohon_sono"],
+        "multi_class_runtime": False,
+        "conductor_detection_enabled": False,
+        "structure_detection_enabled": False,
+        "conductor_required_for_detection": False,
+        "detections": detections,
+        "detection_count": len(detections),
+        "image_width": image_width,
+        "image_height": image_height,
+        "tree_species_status": "pohon_sono" if detections else "unknown",
+        "conductor_status": "manual/reference only",
+        "structure_status": "manual/reference only",
+        "zone_status": "manual_review_required",
+        "operator_detection_label": "Detection",
+        "operator_output_format": "YOLOv8 single-class",
+        "review_status": "MANUAL_REVIEW_REQUIRED" if not detections else "REVIEW",
+        "manual_review_required": True,
+        "warnings": list(yolo_raw.get("warnings") or []),
+        "limitations": [
+            "Runtime ini hanya memakai bounding box YOLOv8 untuk pohon_sono.",
+            "Konduktor dan struktur penyangga hanya konteks manual/reference, bukan class YOLO aktif.",
+        ],
+    }
+
+
+def _filter_to_single_class_pohon_sono(result: dict[str, Any]) -> dict[str, Any]:
+    detections = [
+        dict(item)
+        for item in result.get("detections", [])
+        if isinstance(item, dict) and str(item.get("class_name") or "") == "pohon_sono"
+    ]
+    result.update(
+        {
+            "runtime_mode": "PLAN_C_SINGLE_CLASS_POHON_SONO",
+            "detector": "YOLOv8",
+            "yolo_mode": "single_class",
+            "model_policy": "single_class_pohon_sono",
+            "active_detection_target": "pohon_sono",
+            "active_class_names": ["pohon_sono"],
+            "multi_class_runtime": False,
+            "conductor_detection_enabled": False,
+            "structure_detection_enabled": False,
+            "conductor_required_for_detection": False,
+            "detections": detections,
+            "detection_count": len(detections),
+            "operator_output_format": "YOLOv8 single-class",
+            "tree_species_status": "pohon_sono" if detections else "unknown",
+            "conductor_status": "manual/reference only",
+            "structure_status": "manual/reference only",
+            "manual_review_required": True,
+        }
+    )
+    return result
+
+
+def _restore_single_class_runtime_detection(result: dict[str, Any], *, yolo_raw: dict[str, Any]) -> dict[str, Any]:
+    detections = [
+        dict(item)
+        for item in result.get("detections", [])
+        if isinstance(item, dict) and str(item.get("class_name") or "") == "pohon_sono"
+    ]
+    model_status = str(yolo_raw.get("status") or result.get("status") or "YOLO_MODEL_NOT_READY")
+    result.update(
+        {
+            "status": model_status,
+            "pipeline_status": "PLAN_C_SINGLE_CLASS_YOLOV8_RUNTIME",
+            "runtime_mode": "PLAN_C_SINGLE_CLASS_POHON_SONO",
+            "detector": "YOLOv8",
+            "yolo_mode": "single_class",
+            "model_policy": "single_class_pohon_sono",
+            "active_detection_target": "pohon_sono",
+            "active_class_names": ["pohon_sono"],
+            "multi_class_runtime": False,
+            "conductor_detection_enabled": False,
+            "structure_detection_enabled": False,
+            "conductor_required_for_detection": False,
+            "detections": detections,
+            "detection_count": len(detections),
+            "tree_species_status": "pohon_sono" if detections else "unknown",
+            "conductor_status": "manual/reference only",
+            "structure_status": "manual/reference only",
+            "zone_status": "manual_review_required",
+            "operator_output_format": "YOLOv8 single-class",
+            "review_status": "MANUAL_REVIEW_REQUIRED" if not detections else "REVIEW",
+            "manual_review_required": True,
+        }
+    )
+    return result
 
 
 def _adjust_growth_for_species(growth: dict[str, Any], detection_result: dict[str, Any]) -> dict[str, Any]:
