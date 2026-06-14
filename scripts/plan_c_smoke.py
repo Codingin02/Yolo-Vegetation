@@ -95,8 +95,13 @@ def main() -> int:
     ui_version = client.get("/api/plan-c/runtime/ui-version")
     _assert(ui_version.status_code == 200, "runtime ui-version HTTP 200")
     ui_json = ui_version.get_json()
-    _assert(ui_json.get("runtime_mode") == "PLAN_C_SINGLE_CLASS_POHON_SONO", "runtime mode single class")
+    _assert(
+        ui_json.get("runtime_mode")
+        in {"PLAN_C_SYSTEM_C_SINGLE_CLASS_POHON_SONO", "PLAN_C_SINGLE_CLASS_POHON_SONO"},
+        "runtime mode single class",
+    )
     _assert(ui_json.get("detector") == "YOLOv8", "runtime detector YOLOv8")
+    _assert(ui_json.get("ai_core_mode") in {None, "THREE_PROVIDER_CONSENSUS"}, "runtime ai core compatible")
     _assert(ui_json.get("active_class") == "pohon_sono", "active class pohon_sono")
     _assert(ui_json.get("multi_class_runtime") is False, "multi_class_runtime false")
     checks.append("GET /api/plan-c/runtime/ui-version")
@@ -133,7 +138,7 @@ def main() -> int:
             "latitude": "-7.231",
             "longitude": "112.735",
             "gps_accuracy_m": "8.5",
-            "snapshot": (BytesIO(JPEG_BYTES), "snapshot.jpg"),
+            "snapshot": (BytesIO(_build_test_image_bytes()), "snapshot.jpg"),
         },
         content_type="multipart/form-data",
     )
@@ -150,12 +155,34 @@ def main() -> int:
     result_json = result_api.get_json()
     _assert(result_json.get("status") == "PLAN_C_RESULT_READY", "result status ready")
     result_payload_text = json.dumps(result_json, ensure_ascii=False)
-    _assert(result_json.get("runtime_mode") == "PLAN_C_SINGLE_CLASS_POHON_SONO", "result runtime mode single class")
+    _assert(
+        result_json.get("runtime_mode")
+        in {"PLAN_C_SYSTEM_C_SINGLE_CLASS_POHON_SONO", "PLAN_C_SINGLE_CLASS_POHON_SONO"},
+        "result runtime mode single class",
+    )
     _assert(result_json.get("detector") == "YOLOv8", "result detector YOLOv8")
     _assert(result_json.get("yolo_mode") == "single_class", "result yolo mode single_class")
+    _assert(result_json.get("ai_core_mode") == "THREE_PROVIDER_CONSENSUS", "result ai core consensus")
     _assert(result_json.get("detected_primary_object") == "pohon_sono", "detected primary object pohon_sono")
     _assert(result_json.get("multi_class_runtime") is False, "result multi_class_runtime false")
     _assert(result_json.get("conductor_required_for_detection") is False, "conductor not required for detection")
+    _assert(result_json.get("zone_overlay_status") == "ZONE_OVERLAY_RENDERED", "zone overlay rendered")
+    _assert(result_json.get("zone_method"), "zone method present")
+    _assert(result_json.get("zone_final"), "zone final present")
+    _assert(result_json.get("prediction_window") is not None, "prediction window present")
+    _assert(
+        result_json.get("risk_status")
+        in {
+            "ZONA_TEBANG",
+            "ZONA_PANTAU",
+            "ZONA_AMAN",
+            "DATA_TIDAK_CUKUP",
+            "POHON_SONO_DETECTED_REVIEW_REQUIRED",
+            "ZONA_TEBANG_REVIEW",
+            "ZONA_TEBANG_MANUAL_REVIEW",
+        },
+        f"unexpected risk_status: {result_json.get('risk_status')}",
+    )
     _assert("AI detected" not in result_payload_text, "result json must not contain AI detected")
     _assert(
         "DATA_TIDAK_CUKUP_KONDUKTOR_TIDAK_TERVALIDASI" not in result_payload_text,
@@ -192,7 +219,10 @@ def main() -> int:
         "ai_raw.json",
         "geometry.json",
     ]:
-        _assert(session_file(session_id, filename).exists(), f"{filename} created")
+        path = session_file(session_id, filename)
+        _assert(path.exists(), f"{filename} created")
+        if filename == "annotated.jpg":
+            _assert(path.stat().st_size > 0, "annotated.jpg non-empty")
     checks.append("session_files_created")
 
     yolo_raw = _read_json(session_file(session_id, "yolo_raw.json"))
@@ -263,6 +293,11 @@ def main() -> int:
     print(f"growth_excel_status={growth.get('excel_status')}")
     print(f"yolo_status={result_json.get('yolo_status')}")
     print(f"ai_validator_status={result_json.get('ai_validator_status')}")
+    print(f"ai_core_mode={result_json.get('ai_core_mode')}")
+    print(f"final_detection_source={result_json.get('final_detection_source')}")
+    print(f"zone_overlay_status={result_json.get('zone_overlay_status')}")
+    print(f"risk_status={result_json.get('risk_status')}")
+    print(f"annotated_image_path={session_file(session_id, 'annotated.jpg')}")
     print(f"geometry_status={result_json.get('geometry_status')}")
     return 0
 
@@ -274,6 +309,25 @@ def _assert(condition: bool, message: str) -> None:
 
 def _read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _build_test_image_bytes() -> bytes:
+    try:
+        from PIL import Image, ImageDraw
+
+        image = Image.new("RGB", (640, 900), (190, 210, 230))
+        draw = ImageDraw.Draw(image)
+        draw.rectangle([0, 0, 640, 300], fill=(170, 190, 210))
+        draw.rectangle([0, 300, 640, 610], fill=(184, 176, 130))
+        draw.rectangle([0, 610, 640, 900], fill=(92, 128, 76))
+        draw.rectangle([302, 360, 338, 820], fill=(96, 62, 38))
+        draw.ellipse([150, 130, 500, 560], fill=(32, 132, 64))
+        draw.ellipse([210, 80, 450, 360], fill=(38, 150, 73))
+        buffer = BytesIO()
+        image.save(buffer, format="JPEG", quality=90)
+        return buffer.getvalue()
+    except Exception:
+        return JPEG_BYTES
 
 
 def _is_forbidden_staged(path: str) -> bool:

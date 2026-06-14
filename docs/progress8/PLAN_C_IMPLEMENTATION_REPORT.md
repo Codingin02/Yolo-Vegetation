@@ -195,3 +195,42 @@ Manual:
 .\venv\Scripts\python.exe scripts\run_plan_c_server.py --host 0.0.0.0 --port 5000
 ngrok http 5000
 ```
+
+## Progress 8 System C AI Backend Finalizer
+
+Plan C runtime tetap single-class `pohon_sono`, tetapi backend sekarang menjalankan
+alur System C finalizer:
+
+- YOLOv8 lokal tetap menjadi detector utama `pohon_sono`.
+- Gemini, Grok/xAI, dan OpenRouter dipakai sebagai validator visual opsional, bukan
+  pembuat bbox multi-class.
+- Jika provider gagal, rate-limit, timeout, atau tidak punya key, pipeline tetap
+  memakai detector lokal dan status provider dicatat tanpa secret.
+- Annotated image dirender backend dengan tiga zona visual: `ZONA TEBANG`,
+  `ZONA PANTAU`, dan `ZONA AMAN`.
+- Jika tidak ada manual clearance atau konduktor reference, zone method menjadi
+  `heuristic_band_without_manual_clearance` dan hasil wajib review manual.
+- Ketiadaan konduktor tidak lagi menjadi hard blocker utama single-class runtime.
+- `clearance_estimate_m` tetap `null` jika tidak benar-benar dihitung.
+
+File utama:
+
+- `src/ulp_project/plan_c_ai_core_consensus.py`
+- `src/ulp_project/plan_c_processor.py`
+- `src/ulp_project/plan_c_yolo_compatible_renderer.py`
+- `scripts/plan_c_ai_backend_smoke.py`
+- `docs/progress8/PLAN_C_AI_BACKEND_FINALIZER.md`
+
+Validasi yang diharapkan:
+
+```text
+PLAN_C_SINGLE_CLASS_POHON_SONO_SMOKE_PASS
+PLAN_C_AI_BACKEND_SYSTEM_C_SMOKE_PASS
+```
+
+Runner final:
+
+```powershell
+Set-Location E:\Projects\ULP_Project
+.\scripts\run_plan_c_system.ps1
+```

@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 from typing import Any
 
+from .plan_c_ai_core_consensus import run_ai_consensus, validate_ai_bbox
 from .plan_c_free_vision_config import load_free_vision_config, redact_config
 from .plan_c_free_vision_schema import normalize_detection_payload
 from .plan_c_geometry import DEFAULT_GEOMETRY_PARAMETERS, compute_plan_c_geometry
@@ -68,7 +69,24 @@ def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload:
     detection_result = apply_plan_c_quality_layer(detection_result, image_width=image_width, image_height=image_height)
     detection_result = _restore_single_class_runtime_detection(detection_result, yolo_raw=yolo_raw)
 
-    ai_raw = _disabled_legacy_visual_validator(original_path, metadata=metadata)
+    capture_month = _capture_month(metadata.get("snapshot_captured_at"))
+    preliminary_growth = build_growth_summary(
+        clearance_m=None,
+        threshold_m=DEFAULT_GEOMETRY_PARAMETERS["vegetation_clearance_threshold_m"],
+        month=capture_month,
+    )
+    ai_raw = run_ai_consensus(
+        original_path,
+        detection_result.get("detections", []),
+        preliminary_growth,
+        metadata,
+    )
+    detection_result = _apply_ai_consensus_tree_bbox(
+        detection_result,
+        ai_raw=ai_raw,
+        image_width=image_width,
+        image_height=image_height,
+    )
     write_json(session_file(session_id, "ai_raw.json"), ai_raw)
 
     geometry = compute_plan_c_geometry(
@@ -78,7 +96,6 @@ def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload:
     )
     write_json(session_file(session_id, "geometry.json"), geometry)
 
-    capture_month = _capture_month(metadata.get("snapshot_captured_at"))
     growth = build_growth_summary(
         clearance_m=geometry.get("clearance_estimate_m"),
         threshold_m=DEFAULT_GEOMETRY_PARAMETERS["vegetation_clearance_threshold_m"],
@@ -94,6 +111,21 @@ def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload:
         "gps_distance_from_anchor_m": (metadata.get("gps") or {}).get("gps_distance_from_anchor_m"),
         "estimated_steps_from_anchor": (metadata.get("gps") or {}).get("estimated_steps_from_anchor"),
     }
+    zone_decision = _finalize_system_c_zone_decision(
+        detections=detection_result.get("detections", []),
+        geometry=geometry,
+        growth=growth,
+        ai_raw=ai_raw,
+        metadata=metadata,
+        image_width=image_width,
+        image_height=image_height,
+    )
+    risk_status = zone_decision["risk_status"]
+    prediction_window = zone_decision["prediction_window"]
+    geometry.update(zone_decision["geometry_updates"])
+    growth.update(zone_decision["growth_updates"])
+    detection_result.update(zone_decision["detection_updates"])
+    write_json(session_file(session_id, "geometry.json"), geometry)
 
     render_status = render_yolo_compatible_annotation(
         original_path,
@@ -103,6 +135,10 @@ def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload:
         growth=growth,
         risk_status=risk_status,
         prediction_window=prediction_window,
+        zone_bands=zone_decision["zone_bands"],
+        final_detection_source=detection_result.get("final_detection_source", "NONE"),
+        zone_method=zone_decision["zone_method"],
+        zone_final=zone_decision["zone_final"],
     )
 
     result = _build_result_payload(
@@ -389,9 +425,13 @@ def _build_result_payload(
     detection_status = str(detection_result.get("status") or detection_result.get("pipeline_status") or "DATA_TIDAK_CUKUP")
     return {
         "status": "PLAN_C_RESULT_READY",
-        "runtime_mode": "PLAN_C_SINGLE_CLASS_POHON_SONO",
+        "runtime_mode": "PLAN_C_SYSTEM_C_SINGLE_CLASS_POHON_SONO",
         "detector": "YOLOv8",
         "yolo_mode": "single_class",
+        "ai_core_mode": ai_raw.get("ai_core_mode", "THREE_PROVIDER_CONSENSUS"),
+        "ai_providers_enabled": ai_raw.get("providers_enabled", []),
+        "ai_provider_statuses": ai_raw.get("provider_statuses", []),
+        "final_detection_source": detection_result.get("final_detection_source", "NONE"),
         "detected_primary_object": "pohon_sono",
         "multi_class_runtime": False,
         "conductor_required_for_detection": False,
@@ -425,7 +465,9 @@ def _build_result_payload(
         "structure_status": detection_result.get("structure_status") or geometry.get("structure_status") or "manual/reference only",
         "zone_status": render_status.get("zone_summary", {}).get("zone_status") or detection_result.get("zone_status") or "unavailable",
         "zone_precision": render_status.get("zone_summary", {}).get("zone_precision") or geometry.get("zone_precision") or "unavailable",
-        "zone_overlay_status": render_status.get("zone_overlay_status"),
+        "zone_overlay_status": render_status.get("zone_overlay_status") or geometry.get("zone_overlay_status"),
+        "zone_method": geometry.get("zone_method") or render_status.get("zone_summary", {}).get("zone_method"),
+        "zone_final": geometry.get("zone_final") or render_status.get("zone_summary", {}).get("zone_final"),
         "zone_summary": render_status.get("zone_summary", {}),
         "ground_reference_y": geometry.get("ground_reference_y"),
         "ground_reference_status": render_status.get("zone_summary", {}).get("ground_reference_status") or geometry.get("ground_reference_status"),
@@ -456,10 +498,12 @@ def _build_result_payload(
             "active_detection_target": yolo_raw.get("active_detection_target", "pohon_sono"),
             "multi_class_runtime": yolo_raw.get("multi_class_runtime", False),
         },
+        "ai_consensus_summary": ai_raw.get("summary", {}),
         "detection_summary": {
             "status": detection_status,
             "detection_count": detection_count,
             "detection_target": "pohon_sono",
+            "final_detection_source": detection_result.get("final_detection_source", "NONE"),
             "operator_output_format": detection_result.get("operator_output_format", "YOLOv8 single-class"),
             "manual_review_required": detection_result.get("manual_review_required", True),
             "render_status": render_status.get("status"),
@@ -845,6 +889,203 @@ def _restore_single_class_runtime_detection(result: dict[str, Any], *, yolo_raw:
         }
     )
     return result
+
+
+def _apply_ai_consensus_tree_bbox(
+    detection_result: dict[str, Any],
+    *,
+    ai_raw: dict[str, Any],
+    image_width: int,
+    image_height: int,
+) -> dict[str, Any]:
+    detections = [
+        dict(item)
+        for item in detection_result.get("detections", [])
+        if isinstance(item, dict) and str(item.get("class_name") or "") == "pohon_sono"
+    ]
+    chosen_source = str(ai_raw.get("chosen_bbox_source") or ("YOLOV8_LOCAL" if detections else "NONE"))
+    if detections:
+        detection_result.update(
+            {
+                "detections": detections,
+                "detection_count": len(detections),
+                "final_detection_source": "YOLOV8_LOCAL",
+                "tree_species_status": "pohon_sono",
+            }
+        )
+        return detection_result
+
+    chosen_bbox = ai_raw.get("chosen_bbox")
+    if chosen_source == "AI_CONSENSUS" and isinstance(chosen_bbox, list):
+        validity = validate_ai_bbox({"bbox_xyxy": chosen_bbox}, image_width, image_height)
+        if validity.get("valid"):
+            provider = str(ai_raw.get("summary", {}).get("provider") or "ai_consensus")
+            detection = {
+                "id": 0,
+                "class_id": 0,
+                "class_name": "pohon_sono",
+                "operator_label": "pohon_sono",
+                "confidence": _ai_consensus_confidence(ai_raw),
+                "bbox_format": "xyxy",
+                "bbox_xyxy": validity["bbox_xyxy"],
+                "source": "ai_consensus_tree_bbox_review",
+                "label": "AI+YOLOv8 pohon_sono review",
+                "review_status": "REVIEW",
+                "reason": "AI consensus bbox dipakai hanya karena YOLOv8 lokal tidak menghasilkan bbox pohon_sono.",
+            }
+            detection_result.update(
+                {
+                    "detections": [detection],
+                    "detection_count": 1,
+                    "final_detection_source": "AI_CONSENSUS",
+                    "tree_species_status": "pohon_sono",
+                    "manual_review_required": True,
+                    "ai_bbox_provider": provider,
+                }
+            )
+            return detection_result
+
+    detection_result.update(
+        {
+            "detections": [],
+            "detection_count": 0,
+            "final_detection_source": "NONE",
+            "tree_species_status": "unknown",
+            "manual_review_required": True,
+        }
+    )
+    return detection_result
+
+
+def _finalize_system_c_zone_decision(
+    *,
+    detections: list[dict[str, Any]],
+    geometry: dict[str, Any],
+    growth: dict[str, Any],
+    ai_raw: dict[str, Any],
+    metadata: dict[str, Any],
+    image_width: int,
+    image_height: int,
+) -> dict[str, Any]:
+    zone_bands = _build_heuristic_zone_bands(image_width, image_height)
+    manual_inputs = metadata.get("manual_inputs") if isinstance(metadata.get("manual_inputs"), dict) else {}
+    manual_clearance = to_float((manual_inputs or {}).get("manual_clearance_m"))
+    tree_bbox = _best_tree_bbox(detections)
+    zone_method = "heuristic_band_without_manual_clearance"
+    zone_final = "REVIEW_REQUIRED"
+    manual_review_required = True
+    geometry_status = str(geometry.get("geometry_status") or "INSUFFICIENT_GEOMETRY_DATA")
+
+    if manual_clearance is not None:
+        risk_status, prediction_window = _risk_from_manual_clearance(manual_clearance)
+        zone_method = "manual_clearance"
+        zone_final = risk_status
+        manual_review_required = bool(geometry.get("manual_review_required"))
+    elif tree_bbox:
+        risk_status, prediction_window, zone_final = _risk_from_tree_bbox(tree_bbox, zone_bands, growth)
+        geometry_status = "HEURISTIC_ZONE_REVIEW_REQUIRED"
+        ai_zone = str(ai_raw.get("risk_zone_guess") or ai_raw.get("summary", {}).get("risk_zone_guess") or "REVIEW_REQUIRED")
+        if ai_zone == zone_final and ai_raw.get("summary", {}).get("ok_count", 0):
+            zone_method = "ai_assisted_zone_consensus"
+    else:
+        risk_status = "DATA_TIDAK_CUKUP"
+        prediction_window = "data tidak cukup"
+        geometry_status = "DATA_TIDAK_CUKUP_POHON_TIDAK_TERDETEKSI"
+
+    return {
+        "risk_status": risk_status,
+        "prediction_window": prediction_window,
+        "zone_method": zone_method,
+        "zone_final": zone_final,
+        "zone_bands": zone_bands,
+        "geometry_updates": {
+            "geometry_status": geometry_status,
+            "risk_status": risk_status,
+            "zone_status": "rendered",
+            "zone_overlay_status": "ZONE_OVERLAY_RENDERED",
+            "zone_method": zone_method,
+            "zone_final": zone_final,
+            "zone_bands": zone_bands,
+            "clearance_estimate_m": geometry.get("clearance_estimate_m"),
+            "manual_review_required": manual_review_required,
+            "conductor_required_for_detection": False,
+        },
+        "growth_updates": {
+            "risk_status": risk_status,
+            "prediction_window": prediction_window,
+            "prediction_status": "HEURISTIC_ZONE_PREDICTION_READY" if tree_bbox or manual_clearance is not None else "DATA_TIDAK_CUKUP",
+        },
+        "detection_updates": {
+            "zone_overlay_status": "ZONE_OVERLAY_RENDERED",
+            "zone_method": zone_method,
+            "zone_final": zone_final,
+            "manual_review_required": manual_review_required,
+            "conductor_required_for_detection": False,
+        },
+    }
+
+
+def _build_heuristic_zone_bands(image_width: int, image_height: int) -> list[dict[str, Any]]:
+    height = max(int(image_height or 0), 1)
+    width = max(int(image_width or 0), 1)
+    tebang_y2 = int(round(height * 0.34))
+    pantau_y2 = int(round(height * 0.67))
+    return [
+        {"zone": "ZONA_TEBANG", "label": "ZONA TEBANG", "x1": 0, "y1": 0, "x2": width, "y2": tebang_y2},
+        {"zone": "ZONA_PANTAU", "label": "ZONA PANTAU", "x1": 0, "y1": tebang_y2, "x2": width, "y2": pantau_y2},
+        {"zone": "ZONA_AMAN", "label": "ZONA AMAN", "x1": 0, "y1": pantau_y2, "x2": width, "y2": height},
+    ]
+
+
+def _risk_from_tree_bbox(
+    bbox: list[float],
+    zone_bands: list[dict[str, Any]],
+    growth: dict[str, Any],
+) -> tuple[str, str, str]:
+    x1, y1, x2, y2 = [float(value) for value in bbox]
+    del x1, x2
+    tebang_y2 = float(zone_bands[0]["y2"])
+    pantau_y2 = float(zone_bands[1]["y2"])
+    if y1 <= tebang_y2:
+        return "ZONA_TEBANG", "0-3 bulan", "ZONA_TEBANG"
+    if y1 <= pantau_y2 or y2 <= pantau_y2:
+        rate = to_float(growth.get("growth_rate_m_per_quarter"))
+        return "ZONA_PANTAU", "3-6 bulan" if rate is None or rate > 0 else "6-9 bulan", "ZONA_PANTAU"
+    return "ZONA_AMAN", ">12 bulan", "ZONA_AMAN"
+
+
+def _risk_from_manual_clearance(clearance_m: float) -> tuple[str, str]:
+    if clearance_m <= 3.0:
+        return "ZONA_TEBANG", "0-3 bulan"
+    if clearance_m <= 4.5:
+        return "ZONA_PANTAU", "3-6 bulan"
+    return "ZONA_AMAN", ">12 bulan"
+
+
+def _best_tree_bbox(detections: list[dict[str, Any]]) -> list[float] | None:
+    candidates = []
+    for item in detections:
+        if not isinstance(item, dict) or str(item.get("class_name") or "") != "pohon_sono":
+            continue
+        bbox = item.get("bbox_xyxy")
+        if not isinstance(bbox, list) or len(bbox) != 4:
+            continue
+        try:
+            candidates.append((float(item.get("confidence") or 0.0), [float(value) for value in bbox]))
+        except (TypeError, ValueError):
+            continue
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
+
+
+def _ai_consensus_confidence(ai_raw: dict[str, Any]) -> float:
+    provider_results = ai_raw.get("provider_results")
+    if not isinstance(provider_results, list):
+        return 0.5
+    values = [float(item.get("confidence") or 0.0) for item in provider_results if isinstance(item, dict) and item.get("status") == "OK"]
+    return round(max(values), 4) if values else 0.5
 
 
 def _adjust_growth_for_species(growth: dict[str, Any], detection_result: dict[str, Any]) -> dict[str, Any]:

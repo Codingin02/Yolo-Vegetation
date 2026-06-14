@@ -42,7 +42,7 @@ def main() -> int:
     print("PLAN C server starting")
     print(f"Local URL: http://127.0.0.1:{args.port}/plan-c")
     print("HP tunnel URL format: https://<ngrok-url>/plan-c")
-    print("Runtime: PLAN_C_SINGLE_CLASS_POHON_SONO")
+    print("Runtime: PLAN_C_SYSTEM_C_SINGLE_CLASS_POHON_SONO")
     print("Detector: YOLOv8 single-class")
     app.run(host=args.host, port=args.port, debug=False, threaded=True)
     return 0

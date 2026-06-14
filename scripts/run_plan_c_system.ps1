@@ -15,6 +15,30 @@ if (-not (Test-Path $Python)) {
 Write-Host "PLAN_C_SINGLE_CLASS_SYSTEM_START"
 Write-Host "Working directory: $Root"
 
+$SecretsFile = Join-Path $Root "config\secrets.env"
+if (Test-Path $SecretsFile) {
+    Get-Content $SecretsFile | ForEach-Object {
+        $line = $_.Trim()
+        if (-not $line -or $line.StartsWith("#") -or -not $line.Contains("=")) {
+            return
+        }
+        $parts = $line.Split("=", 2)
+        $key = $parts[0].Trim()
+        $value = $parts[1].Trim().Trim('"').Trim("'")
+        if ($key -and -not [Environment]::GetEnvironmentVariable($key, "Process")) {
+            [Environment]::SetEnvironmentVariable($key, $value, "Process")
+        }
+    }
+    Write-Host "PLAN_C_SECRETS_ENV_LOADED"
+}
+
+if ($env:GROK_API_KEY -and -not $env:XAI_API_KEY) {
+    $env:XAI_API_KEY = $env:GROK_API_KEY
+}
+if ($env:XAI_API_KEY -and -not $env:GROK_API_KEY) {
+    $env:GROK_API_KEY = $env:XAI_API_KEY
+}
+
 Get-Process ngrok -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
 $listeners = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
@@ -26,13 +50,17 @@ foreach ($listener in $listeners) {
 
 & $Python -m py_compile `
     src\ulp_project\plan_c_yolo.py `
+    src\ulp_project\plan_c_ai_core_consensus.py `
     src\ulp_project\plan_c_processor.py `
     src\ulp_project\plan_c_geometry.py `
+    src\ulp_project\plan_c_yolo_compatible_renderer.py `
     src\ulp_project\plan_c_routes.py `
     scripts\plan_c_smoke.py `
+    scripts\plan_c_ai_backend_smoke.py `
     scripts\run_plan_c_server.py
 
 & $Python scripts\plan_c_smoke.py
+& $Python scripts\plan_c_ai_backend_smoke.py
 
 $LogDir = Join-Path $Root "data\runtime\plan_c\server_logs"
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
