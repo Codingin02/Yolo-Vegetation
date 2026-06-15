@@ -1,4 +1,4 @@
-"""Render Plan C single-class YOLOv8 pohon_sono annotations."""
+"""Render Plan C YOLOv8 System C annotations."""
 
 from __future__ import annotations
 
@@ -7,6 +7,9 @@ import shutil
 from typing import Any
 
 TREE_COLOR = (22, 163, 74)
+CONDUCTOR_COLOR = (245, 158, 11)
+STRUCTURE_COLOR = (37, 99, 235)
+NON_SONO_COLOR = (132, 204, 22)
 REVIEW_COLOR = (31, 41, 55)
 TEBANG_COLOR = (220, 38, 38)
 PANTAU_COLOR = (202, 138, 4)
@@ -65,10 +68,11 @@ def render_plan_c_annotated_image(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     geometry = geometry or {}
     growth = growth or {}
-    pohon_detections = [
+    target_detections = [
         detection
         for detection in detections
-        if isinstance(detection, dict) and str(detection.get("class_name") or "") == "pohon_sono"
+        if isinstance(detection, dict)
+        and str(detection.get("class_name") or "") in {"pohon_sono", "konduktor", "struktur_penyangga", "pohon_non_sono"}
     ]
     zone_summary = _single_class_zone_summary(
         geometry,
@@ -85,11 +89,11 @@ def render_plan_c_annotated_image(
         font = ImageFont.load_default()
         zone_summary["zone_bands"] = _ensure_zone_bands(zone_bands, int(image.width), int(image.height))
         _draw_zone_bands(draw, zone_summary["zone_bands"], font)
-        if pohon_detections:
-            for detection in pohon_detections:
-                _draw_tree_detection(draw, detection, font, final_detection_source=final_detection_source)
+        if target_detections:
+            for detection in target_detections:
+                _draw_detection(draw, detection, font, final_detection_source=final_detection_source)
         elif final_tree_bbox:
-            _draw_tree_detection(
+            _draw_detection(
                 draw,
                 {"bbox_xyxy": final_tree_bbox, "confidence": None, "class_name": "pohon_sono"},
                 font,
@@ -121,7 +125,7 @@ def render_plan_c_annotated_image(
         return {
             "status": "PLAN_C_ANNOTATED_IMAGE_READY",
             "annotated_path": str(output_path),
-            "detection_count": len(pohon_detections),
+            "detection_count": len(target_detections),
             "zone_overlay_status": "ZONE_OVERLAY_RENDERED",
             "zone_summary": zone_summary,
         }
@@ -130,7 +134,7 @@ def render_plan_c_annotated_image(
         return {
             "status": "PLAN_C_ANNOTATED_IMAGE_FALLBACK_COPY",
             "annotated_path": str(output_path),
-            "detection_count": len(pohon_detections),
+            "detection_count": len(target_detections),
             "zone_overlay_status": "ZONE_OVERLAY_RENDER_FALLBACK",
             "zone_summary": zone_summary,
             "error": f"{type(exc).__name__}: {exc}",
@@ -153,7 +157,7 @@ def _single_class_zone_summary(
     else:
         zone_label = risk_status or "DATA_TIDAK_CUKUP"
     return {
-        "runtime_mode": "PLAN_C_SYSTEM_C_SINGLE_CLASS_POHON_SONO",
+        "runtime_mode": "PLAN_C_SYSTEM_C",
         "detector": "YOLOv8",
         "zone_status": zone_status,
         "zone_precision": geometry.get("zone_precision") or "manual_review",
@@ -188,23 +192,35 @@ def _draw_zone_bands(draw: Any, zone_bands: list[dict[str, Any]], font: Any) -> 
         draw.text((x1 + 14, y1 + 14), label, fill=(255, 255, 255, 255), font=font)
 
 
-def _draw_tree_detection(draw: Any, detection: dict[str, Any], font: Any, *, final_detection_source: str) -> None:
+def _draw_detection(draw: Any, detection: dict[str, Any], font: Any, *, final_detection_source: str) -> None:
     bbox = detection.get("bbox_xyxy") or []
     if not isinstance(bbox, list) or len(bbox) != 4:
         return
     x1, y1, x2, y2 = [float(value) for value in bbox]
+    class_name = str(detection.get("class_name") or "pohon_sono")
+    color = _class_color(class_name)
     for offset in range(3):
-        draw.rectangle([x1 - offset, y1 - offset, x2 + offset, y2 + offset], outline=(*TREE_COLOR, 255))
+        draw.rectangle([x1 - offset, y1 - offset, x2 + offset, y2 + offset], outline=(*color, 255))
     confidence = detection.get("confidence")
     label_conf = f"{float(confidence):.2f}" if isinstance(confidence, (int, float)) else "review"
-    prefix = "AI+YOLOv8" if final_detection_source == "AI_CONSENSUS" else "YOLOv8"
-    label = f"{prefix} pohon_sono {label_conf}"
+    prefix = "AI+YOLOv8" if final_detection_source == "AI_CONSENSUS" and class_name == "pohon_sono" else "YOLOv8"
+    label = f"{prefix} {class_name} {label_conf}"
     text_box = draw.textbbox((x1, y1), label, font=font)
     text_w = text_box[2] - text_box[0]
     text_h = text_box[3] - text_box[1]
     label_y = max(y1 - text_h - 8, 0)
-    draw.rectangle([x1, label_y, x1 + text_w + 10, label_y + text_h + 8], fill=(*TREE_COLOR, 230))
+    draw.rectangle([x1, label_y, x1 + text_w + 10, label_y + text_h + 8], fill=(*color, 230))
     draw.text((x1 + 5, label_y + 4), label, fill=(255, 255, 255, 255), font=font)
+
+
+def _class_color(class_name: str) -> tuple[int, int, int]:
+    if class_name == "konduktor":
+        return CONDUCTOR_COLOR
+    if class_name == "struktur_penyangga":
+        return STRUCTURE_COLOR
+    if class_name == "pohon_non_sono":
+        return NON_SONO_COLOR
+    return TREE_COLOR
 
 
 def _draw_status_card(

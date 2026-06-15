@@ -1,7 +1,7 @@
-"""Three-provider visual consensus for Plan C single-class pohon_sono runtime.
+"""Three-provider visual consensus for Plan C System C runtime.
 
 Cloud AI providers are inference validators, not trained locally by our label
-dataset. The trained label dataset is reflected in the local YOLOv8 tree
+dataset. The trained label dataset is reflected in the local YOLOv8 System C
 detector and reference examples. The AI consensus refines/reviews visual
 interpretation and zone decision without replacing YOLOv8 bounding boxes or
 Python geometry.
@@ -17,34 +17,37 @@ import socket
 from typing import Any
 from urllib import error, request
 
-DEFAULT_TIMEOUT_SECONDS = 12
-PROMPT_VERSION = "plan_c_system_c_single_class_pohon_sono_v1"
+DEFAULT_TIMEOUT_SECONDS = 75
+PROMPT_VERSION = "plan_c_system_c_gemini_groq_openrouter_v2"
 
 
 def load_provider_config() -> dict[str, Any]:
     gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
-    grok_key = os.getenv("GROK_API_KEY", "").strip() or os.getenv("XAI_API_KEY", "").strip()
+    groq_key = os.getenv("GROQ_API_KEY", "").strip()
     openrouter_key = os.getenv("OPENROUTER_API_KEY", "").strip()
     return {
-        "provider_priority": ["gemini", "grok", "openrouter"],
+        "provider_priority": ["gemini", "groq", "openrouter"],
         "gemini": {
             "configured": bool(gemini_key),
-            "model": os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash",
+            "model": os.getenv("GEMINI_VISION_MODEL", "").strip()
+            or os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+            or "gemini-2.5-flash",
         },
-        "grok": {
-            "configured": bool(grok_key),
-            "model": (
-                os.getenv("GROK_MODEL", "").strip()
-                or os.getenv("XAI_MODEL", "").strip()
-                or "grok-2-vision-latest"
-            ),
+        "groq": {
+            "configured": bool(groq_key),
+            "model": os.getenv("GROQ_VISION_MODEL", "").strip()
+            or os.getenv("GROQ_MODEL", "").strip()
+            or "meta-llama/llama-4-scout-17b-16e-instruct",
+            "endpoint": "https://api.groq.com/openai/v1/chat/completions",
         },
         "openrouter": {
             "configured": bool(openrouter_key),
-            "model": os.getenv("OPENROUTER_MODEL", "qwen/qwen2.5-vl-72b-instruct:free").strip()
+            "model": os.getenv("OPENROUTER_VISION_MODEL", "").strip()
+            or os.getenv("OPENROUTER_MODEL", "qwen/qwen2.5-vl-72b-instruct:free").strip()
             or "qwen/qwen2.5-vl-72b-instruct:free",
         },
         "openai_ignored_for_plan_c": bool(os.getenv("OPENAI_API_KEY", "").strip()),
+        "ignored_optional_legacy_key": {"XAI_API_KEY": bool(os.getenv("XAI_API_KEY", "").strip())},
         "no_secret_logged": True,
     }
 
@@ -55,7 +58,7 @@ def encode_image_base64(path: Path | str) -> str:
 
 def call_gemini_vision(image_path: Path | str, context: dict[str, Any]) -> dict[str, Any]:
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+    model = os.getenv("GEMINI_VISION_MODEL", "").strip() or os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
     if not api_key:
         return _provider_result("gemini", "SKIPPED_NO_KEY")
     prompt = _build_prompt(context)
@@ -84,25 +87,31 @@ def call_gemini_vision(image_path: Path | str, context: dict[str, Any]) -> dict[
     return normalize_provider_response("gemini", text)
 
 
-def call_grok_vision(image_path: Path | str, context: dict[str, Any]) -> dict[str, Any]:
-    api_key = os.getenv("GROK_API_KEY", "").strip() or os.getenv("XAI_API_KEY", "").strip()
-    model = os.getenv("GROK_MODEL", "").strip() or os.getenv("XAI_MODEL", "").strip() or "grok-2-vision-latest"
+def call_groq_vision(image_path: Path | str, context: dict[str, Any]) -> dict[str, Any]:
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    model = os.getenv("GROQ_VISION_MODEL", "").strip() or os.getenv("GROQ_MODEL", "").strip() or "meta-llama/llama-4-scout-17b-16e-instruct"
     if not api_key:
-        return _provider_result("grok", "SKIPPED_NO_KEY")
+        return _provider_result("groq", "SKIPPED_NO_KEY")
     payload = _chat_vision_payload(model, image_path, context)
     raw = _post_json(
-        "https://api.x.ai/v1/chat/completions",
+        "https://api.groq.com/openai/v1/chat/completions",
         payload,
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
     )
     if raw.get("status") != "OK":
-        return _provider_result("grok", raw.get("status", "HTTP_ERROR"), reason=raw.get("error", ""), raw=raw)
-    return normalize_provider_response("grok", _chat_text(raw))
+        return _provider_result("groq", raw.get("status", "HTTP_ERROR"), reason=raw.get("error", ""), raw=raw)
+    return normalize_provider_response("groq", _chat_text(raw))
+
+
+def call_grok_vision(image_path: Path | str, context: dict[str, Any]) -> dict[str, Any]:
+    """Compatibility alias for older code; uses Groq Console, not xAI."""
+
+    return call_groq_vision(image_path, context)
 
 
 def call_openrouter_vision(image_path: Path | str, context: dict[str, Any]) -> dict[str, Any]:
     api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
-    model = os.getenv("OPENROUTER_MODEL", "qwen/qwen2.5-vl-72b-instruct:free").strip()
+    model = os.getenv("OPENROUTER_VISION_MODEL", "").strip() or os.getenv("OPENROUTER_MODEL", "qwen/qwen2.5-vl-72b-instruct:free").strip()
     if not api_key:
         return _provider_result("openrouter", "SKIPPED_NO_KEY")
     if ":free" not in model and "free" not in model.lower():
@@ -131,7 +140,7 @@ def run_ai_consensus(
 ) -> dict[str, Any]:
     image_width, image_height = _read_image_size(image_path)
     context = {
-        "runtime_mode": "PLAN_C_SYSTEM_C_SINGLE_CLASS_POHON_SONO",
+        "runtime_mode": "PLAN_C_SYSTEM_C",
         "detector": "YOLOv8",
         "yolo_detections": _redact_detection_list(yolo_detections),
         "growth_summary": {
@@ -149,7 +158,7 @@ def run_ai_consensus(
     }
     provider_results = [
         call_gemini_vision(image_path, context),
-        call_grok_vision(image_path, context),
+        call_groq_vision(image_path, context),
         call_openrouter_vision(image_path, context),
     ]
     summary = build_ai_consensus_summary(provider_results)
@@ -307,8 +316,20 @@ def _post_json(url: str, payload: dict[str, Any], *, headers: dict[str, str]) ->
             body = response.read().decode("utf-8", errors="replace")
             return {"status": "OK", "json": json.loads(body)}
     except error.HTTPError as exc:
-        status = "RATE_LIMIT" if exc.code == 429 else "HTTP_ERROR"
-        return {"status": status, "http_status": exc.code, "error": str(exc)}
+        if exc.code == 429:
+            status = "RATE_LIMIT"
+        elif exc.code in {401, 403}:
+            status = "AUTH_ERROR"
+        elif exc.code == 400:
+            status = "MODEL_UNSUPPORTED_OR_BAD_REQUEST"
+        else:
+            status = "HTTP_ERROR"
+        preview = ""
+        try:
+            preview = exc.read().decode("utf-8", errors="replace")[:500]
+        except Exception:
+            preview = ""
+        return {"status": status, "http_status": exc.code, "error": str(exc), "body_preview": preview}
     except (TimeoutError, socket.timeout):
         return {"status": "TIMEOUT", "error": "provider timeout"}
     except Exception as exc:

@@ -12,7 +12,7 @@ if (-not (Test-Path $Python)) {
     throw "Python venv tidak ditemukan: $Python"
 }
 
-Write-Host "PLAN_C_SINGLE_CLASS_SYSTEM_START"
+Write-Host "PLAN_C_SYSTEM_C_START"
 Write-Host "Working directory: $Root"
 
 $SecretsFile = Join-Path $Root "config\secrets.env"
@@ -32,12 +32,9 @@ if (Test-Path $SecretsFile) {
     Write-Host "PLAN_C_SECRETS_ENV_LOADED"
 }
 
-if ($env:GROK_API_KEY -and -not $env:XAI_API_KEY) {
-    $env:XAI_API_KEY = $env:GROK_API_KEY
-}
-if ($env:XAI_API_KEY -and -not $env:GROK_API_KEY) {
-    $env:GROK_API_KEY = $env:XAI_API_KEY
-}
+Write-Host ("GEMINI_API_KEY " + [bool]$env:GEMINI_API_KEY)
+Write-Host ("GROQ_API_KEY " + [bool]$env:GROQ_API_KEY)
+Write-Host ("OPENROUTER_API_KEY " + [bool]$env:OPENROUTER_API_KEY)
 
 Get-Process ngrok -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
@@ -57,6 +54,9 @@ foreach ($listener in $listeners) {
     src\ulp_project\plan_c_routes.py `
     scripts\plan_c_smoke.py `
     scripts\plan_c_ai_backend_smoke.py `
+    scripts\plan_c_training_dataset_audit.py `
+    scripts\plan_c_build_training_dataset.py `
+    scripts\plan_c_train_system_c_detector.py `
     scripts\run_plan_c_server.py
 
 & $Python scripts\plan_c_smoke.py

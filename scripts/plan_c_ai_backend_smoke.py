@@ -35,10 +35,11 @@ ALLOWED_RISKS = {
 def main() -> int:
     import ulp_project.plan_c_ai_core_consensus as consensus  # noqa: F401
 
+    _load_local_secrets_env()
     provider_config = load_provider_config()
     provider_keys = {
         "Gemini": bool(os.getenv("GEMINI_API_KEY", "").strip()),
-        "Grok/xAI": bool(os.getenv("GROK_API_KEY", "").strip() or os.getenv("XAI_API_KEY", "").strip()),
+        "Groq": bool(os.getenv("GROQ_API_KEY", "").strip()),
         "OpenRouter": bool(os.getenv("OPENROUTER_API_KEY", "").strip()),
     }
 
@@ -85,7 +86,8 @@ def main() -> int:
     payload_text = json.dumps(result_json, ensure_ascii=False)
     _assert(result_json.get("ai_core_mode") == "THREE_PROVIDER_CONSENSUS", "ai_core_mode")
     _assert(result_json.get("detector") == "YOLOv8", "detector")
-    _assert(result_json.get("runtime_mode") == "PLAN_C_SYSTEM_C_SINGLE_CLASS_POHON_SONO", "runtime_mode")
+    _assert(result_json.get("runtime_mode") == "PLAN_C_SYSTEM_C", "runtime_mode")
+    _assert(result_json.get("model_policy") in {"system_c_detector", "single_class_pohon_sono"}, "model_policy")
     _assert(result_json.get("zone_overlay_status") == "ZONE_OVERLAY_RENDERED", "zone overlay rendered")
     _assert(result_json.get("risk_status") in ALLOWED_RISKS, f"risk_status {result_json.get('risk_status')}")
     _assert("prediction_window" in result_json, "prediction_window exists")
@@ -94,6 +96,9 @@ def main() -> int:
     _assert(result_json.get("conductor_required_for_detection") is not True, "no conductor_required_for_detection true")
     _assert("AI detected" not in payload_text, "no AI detected wording")
     _assert(ai_raw.get("ai_core_mode") == "THREE_PROVIDER_CONSENSUS", "ai_raw core mode")
+    provider_names = {item.get("provider") for item in ai_raw.get("provider_results", []) if isinstance(item, dict)}
+    _assert({"gemini", "groq", "openrouter"}.issubset(provider_names), f"provider set {provider_names}")
+    _assert("xai" not in provider_names and "grok/xai" not in provider_names, "xAI is not an active provider")
     _assert(geometry.get("zone_overlay_status") == "ZONE_OVERLAY_RENDERED", "geometry zone overlay rendered")
     _assert(count_csv_rows(PLAN_C_RECORDS_CSV) == csv_before + 1, "CSV append-only")
     _assert(count_jsonl_rows(PLAN_C_RECORDS_JSONL) == jsonl_before + 1, "JSONL append-only")
@@ -130,6 +135,21 @@ def _build_tree_image_bytes() -> bytes:
     buffer = BytesIO()
     image.save(buffer, format="JPEG", quality=91)
     return buffer.getvalue()
+
+
+def _load_local_secrets_env() -> None:
+    path = ROOT / "config" / "secrets.env"
+    if not path.exists():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
 
 
 def _read_json(path: Path) -> dict:

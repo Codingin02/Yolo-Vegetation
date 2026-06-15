@@ -202,7 +202,7 @@ Plan C runtime tetap single-class `pohon_sono`, tetapi backend sekarang menjalan
 alur System C finalizer:
 
 - YOLOv8 lokal tetap menjadi detector utama `pohon_sono`.
-- Gemini, Grok/xAI, dan OpenRouter dipakai sebagai validator visual opsional, bukan
+- Gemini, Groq Console/GroqCloud, dan OpenRouter dipakai sebagai validator visual opsional, bukan
   pembuat bbox multi-class.
 - Jika provider gagal, rate-limit, timeout, atau tidak punya key, pipeline tetap
   memakai detector lokal dan status provider dicatat tanpa secret.
@@ -233,4 +233,52 @@ Runner final:
 ```powershell
 Set-Location E:\Projects\ULP_Project
 .\scripts\run_plan_c_system.ps1
+```
+
+## Progress 8 System C Detector Training And Integration
+
+Plan C backend sekarang memakai model lokal YOLOv8 System C jika tersedia:
+
+- `models/plan_c_system_c_detector/best.pt`
+- `models/plan_c_system_c_detector/registry.json`
+- `runtime_mode = PLAN_C_SYSTEM_C`
+- `model_policy = system_c_detector`
+
+Dataset source yang diaudit:
+
+- image_count: `905`
+- label_file_count: `939`
+- valid_label_lines: `1564`
+- struktur_penyangga: `659`
+- konduktor: `592`
+- pohon_sono: `313`
+
+Dataset final training:
+
+- `data/dataset_yolo/plan_c_system_c_detector_v2`
+- split train/val/test: `726/141/43`
+- class mapping: `0 struktur_penyangga`, `1 konduktor`, `2 pohon_sono`
+
+Training YOLOv8 lokal selesai 100 epoch pada:
+
+- `runs/detect/plan_c_system_c_detector_v2_20260615_022850`
+- precision: `0.74723`
+- recall: `0.59932`
+- mAP50: `0.58888`
+- mAP50-95: `0.54877`
+
+Provider consensus final:
+
+- Gemini via `GEMINI_API_KEY`
+- Groq Console/GroqCloud via `GROQ_API_KEY`
+- OpenRouter via `OPENROUTER_API_KEY`
+
+Cloud AI provider tidak dilatih dengan dataset lokal. Dataset label dipakai untuk
+training model lokal YOLOv8; provider cloud hanya dipakai untuk consensus validation.
+
+Smoke final:
+
+```text
+PLAN_C_SYSTEM_C_BACKEND_SMOKE_PASS
+PLAN_C_AI_BACKEND_SYSTEM_C_SMOKE_PASS
 ```

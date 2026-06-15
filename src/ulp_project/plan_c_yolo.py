@@ -1,4 +1,4 @@
-"""YOLOv8 single-class pohon_sono adapter for Plan C snapshots."""
+"""YOLOv8 adapter for Plan C System C snapshots."""
 
 from __future__ import annotations
 
@@ -9,17 +9,27 @@ from typing import Any
 
 from .paths import PROJECT_ROOT
 
-RUNTIME_MODE = "PLAN_C_SINGLE_CLASS_POHON_SONO"
-MODEL_POLICY = "single_class_pohon_sono"
+RUNTIME_MODE = "PLAN_C_SYSTEM_C"
+SYSTEM_C_MODEL_POLICY = "system_c_detector"
+SINGLE_CLASS_MODEL_POLICY = "single_class_pohon_sono"
 ACTIVE_CLASS_NAME = "pohon_sono"
 DETECTOR_NAME = "YOLOv8"
+SYSTEM_C_READY_STATUS = "PLAN_C_SYSTEM_C_DETECTOR_READY"
 READY_STATUS = "YOLOV8_SINGLE_CLASS_POHON_SONO_READY"
 REVIEW_STATUS = "YOLOV8_MODEL_READY_CLASS_MAPPING_REVIEW_REQUIRED"
 MODEL_NOT_READY_STATUS = "YOLO_MODEL_NOT_READY"
+TARGET_CLASS_NAMES = {
+    0: "struktur_penyangga",
+    1: "konduktor",
+    2: "pohon_sono",
+    3: "pohon_non_sono",
+}
 
 MODEL_CANDIDATES = [
+    PROJECT_ROOT / "models" / "plan_c_system_c_detector" / "best.pt",
     PROJECT_ROOT / "models" / "plan_c_ai_detector" / "best.pt",
     PROJECT_ROOT / "models" / "plan_c_ai_detector" / "weights" / "best.pt",
+    PROJECT_ROOT / "runs" / "detect" / "plan_c_system_c_detector_v2" / "weights" / "best.pt",
     PROJECT_ROOT / "runs" / "detect" / "v001_pohon_sono_only_v2" / "weights" / "best.pt",
     PROJECT_ROOT / "runs" / "detect" / "v001_pohon_sono_only_v1" / "weights" / "best.pt",
     PROJECT_ROOT / "weights" / "best.pt",
@@ -30,14 +40,16 @@ MULTICLASS_FALLBACK_CANDIDATES = [
 ]
 
 PLAN_C_AI_REGISTRY = PROJECT_ROOT / "models" / "plan_c_ai_detector" / "registry.json"
+PLAN_C_SYSTEM_C_REGISTRY = PROJECT_ROOT / "models" / "plan_c_system_c_detector" / "registry.json"
 
 
 def resolve_plan_c_yolo_model() -> dict[str, Any]:
-    """Resolve the current Plan C YOLOv8 model without enabling multi-class runtime."""
+    """Resolve the current Plan C YOLOv8 model with System C priority and safe fallback."""
 
     registry = _read_registry()
-    checked = [str(path) for path in [*MODEL_CANDIDATES, *MULTICLASS_FALLBACK_CANDIDATES]]
-    candidates = _candidate_paths_from_registry(registry) + MODEL_CANDIDATES
+    system_run_candidates = _system_c_run_candidates()
+    checked = [str(path) for path in [*MODEL_CANDIDATES, *system_run_candidates, *MULTICLASS_FALLBACK_CANDIDATES]]
+    candidates = _candidate_paths_from_registry(registry) + MODEL_CANDIDATES + system_run_candidates
     seen: set[Path] = set()
     for path in candidates:
         resolved = path.resolve()
@@ -47,19 +59,22 @@ def resolve_plan_c_yolo_model() -> dict[str, Any]:
         if path.exists():
             names = _registry_class_names(registry)
             warnings: list[str] = []
-            status = READY_STATUS
-            if names and ACTIVE_CLASS_NAME not in {_normalize_name(value) for value in names.values()}:
+            model_policy = _model_policy_for_path(path, registry)
+            status = SYSTEM_C_READY_STATUS if model_policy == SYSTEM_C_MODEL_POLICY else READY_STATUS
+            normalized_names = {_normalize_name(value) for value in names.values()}
+            if model_policy == SINGLE_CLASS_MODEL_POLICY and names and ACTIVE_CLASS_NAME not in normalized_names:
                 status = REVIEW_STATUS
                 warnings.append("MODEL_CLASS_MAPPING_REVIEW_REQUIRED_FOR_POHON_SONO_ONLY_RUNTIME")
-            if len(names) > 1:
+            if model_policy == SINGLE_CLASS_MODEL_POLICY and len(names) > 1:
                 warnings.append("MODEL_REGISTRY_HAS_MULTIPLE_CLASSES_FILTERED_TO_POHON_SONO_RUNTIME")
             return _model_status_payload(
                 status=status,
                 model_path=path,
                 checked_paths=checked,
-                model_source="plan_c_registered_or_single_class_candidate",
+                model_source="plan_c_system_c_or_single_class_candidate",
                 registry=registry,
                 warnings=warnings,
+                model_policy=model_policy,
             )
 
     for path in MULTICLASS_FALLBACK_CANDIDATES:
@@ -71,6 +86,7 @@ def resolve_plan_c_yolo_model() -> dict[str, Any]:
                 model_source="legacy_multiclass_fallback",
                 registry=registry,
                 warnings=["MULTICLASS_MODEL_FALLBACK_NOT_RECOMMENDED_FOR_CURRENT_SINGLE_CLASS_RUNTIME"],
+                model_policy=SINGLE_CLASS_MODEL_POLICY,
             )
 
     return _base_policy_payload(
@@ -137,7 +153,7 @@ def run_yolo_post_capture(
             verbose=False,
         )
         result = results[0] if results else None
-        detections = _parse_pohon_sono_detections(result, status=str(model_info.get("status") or ""))
+        detections = _parse_plan_c_detections(result, model_info=model_info)
         _save_single_class_annotation(original_path, annotated_path, detections)
         return {
             **model_info,
@@ -145,6 +161,7 @@ def run_yolo_post_capture(
             "runtime": {"conf": conf, "iou": iou, "imgsz": imgsz, "max_det": max_det},
             "detections": detections,
             "detection_count": len(detections),
+            "class_counts": _class_counts(detections),
             "annotated_path": str(annotated_path),
             "manual_review_required": len(detections) == 0 or model_info["status"] == REVIEW_STATUS,
             "not_accuracy_claim": True,
@@ -164,47 +181,65 @@ def run_yolo_post_capture(
         }
 
 
-def _parse_pohon_sono_detections(result: Any, *, status: str) -> list[dict[str, Any]]:
+def _parse_plan_c_detections(result: Any, *, model_info: dict[str, Any]) -> list[dict[str, Any]]:
     if result is None or getattr(result, "boxes", None) is None:
         return []
     names = getattr(result, "names", {}) or {}
-    pohon_ids = _pohon_sono_model_class_ids(names)
+    model_policy = str(model_info.get("model_policy") or SINGLE_CLASS_MODEL_POLICY)
+    class_map = _runtime_class_map(names, model_policy=model_policy, status=str(model_info.get("status") or ""))
     detections: list[dict[str, Any]] = []
     for index, box in enumerate(result.boxes):
         model_cls_id = int(box.cls[0].item()) if getattr(box, "cls", None) is not None else -1
-        if model_cls_id not in pohon_ids and not _accept_unclear_single_class(model_cls_id, names, status):
+        target_name = class_map.get(model_cls_id)
+        if not target_name:
             continue
         confidence = float(box.conf[0].item()) if getattr(box, "conf", None) is not None else None
         xyxy = box.xyxy[0].tolist() if getattr(box, "xyxy", None) is not None else []
         xywhn = box.xywhn[0].tolist() if getattr(box, "xywhn", None) is not None else []
         label_conf = f"{float(confidence):.2f}" if confidence is not None else "review"
+        output_class_id = _target_class_id(target_name)
         detections.append(
             {
                 "id": index,
-                "class_id": 0,
+                "class_id": output_class_id,
                 "model_class_id": model_cls_id,
-                "class_name": ACTIVE_CLASS_NAME,
-                "operator_label": ACTIVE_CLASS_NAME,
+                "class_name": target_name,
+                "operator_label": target_name,
                 "confidence": round(confidence, 4) if confidence is not None else None,
                 "bbox_format": "xyxy",
                 "bbox_xyxy": [round(float(value), 2) for value in xyxy],
                 "bbox_xywhn": [round(float(value), 6) for value in xywhn],
-                "source": "yolo_v8_single_class",
-                "label": f"YOLOv8 pohon_sono {label_conf}",
+                "source": "yolo_v8_system_c_detector" if model_policy == SYSTEM_C_MODEL_POLICY else "yolo_v8_single_class",
+                "label": f"YOLOv8 {target_name} {label_conf}",
                 "review_status": "REVIEW",
-                "reason": "Runtime Plan C hanya memakai target pohon_sono.",
+                "reason": "Runtime Plan C memakai target System C yang tersedia pada model lokal.",
             }
         )
     return detections
 
 
-def _pohon_sono_model_class_ids(names: Any) -> set[int]:
+def _runtime_class_map(names: Any, *, model_policy: str, status: str) -> dict[int, str]:
+    if model_policy == SYSTEM_C_MODEL_POLICY:
+        if not isinstance(names, dict) or not names:
+            return {0: "struktur_penyangga", 1: "konduktor", 2: "pohon_sono"}
+        mapped: dict[int, str] = {}
+        for key, value in names.items():
+            try:
+                class_id = int(key)
+            except (TypeError, ValueError):
+                continue
+            normalized = _normalize_name(value)
+            if normalized in {"struktur_penyangga", "konduktor", "pohon_sono", "pohon_non_sono"}:
+                mapped[class_id] = normalized
+        return mapped
     if not isinstance(names, dict):
-        return {0}
-    ids = {int(key) for key, value in names.items() if _normalize_name(value) == ACTIVE_CLASS_NAME}
+        return {0: ACTIVE_CLASS_NAME}
+    mapped = {int(key): ACTIVE_CLASS_NAME for key, value in names.items() if _normalize_name(value) == ACTIVE_CLASS_NAME}
     if len(names) == 1 and _normalize_name(next(iter(names.values()), "")) in {ACTIVE_CLASS_NAME, "tree"}:
-        ids.add(0)
-    return ids
+        mapped[0] = ACTIVE_CLASS_NAME
+    if not mapped and _accept_unclear_single_class(0, names, status):
+        mapped[0] = ACTIVE_CLASS_NAME
+    return mapped
 
 
 def _accept_unclear_single_class(model_cls_id: int, names: Any, status: str) -> bool:
@@ -222,7 +257,7 @@ def _save_single_class_annotation(original_path: Path, annotated_path: Path, det
         if detections:
             for detection in detections:
                 _draw_pohon_box(draw, detection, font)
-            _draw_badge(draw, image.size, f"YOLOv8 pohon_sono: {len(detections)}", font, fill=(18, 102, 48, 220))
+            _draw_badge(draw, image.size, f"YOLOv8 detections: {len(detections)}", font, fill=(18, 102, 48, 220))
         else:
             _draw_badge(
                 draw,
@@ -241,17 +276,17 @@ def _draw_pohon_box(draw: Any, detection: dict[str, Any], font: Any) -> None:
     if not isinstance(bbox, list) or len(bbox) != 4:
         return
     x1, y1, x2, y2 = [float(value) for value in bbox]
-    color = (22, 163, 74, 255)
+    color = _class_color(str(detection.get("class_name") or "pohon_sono"))
     for offset in range(3):
         draw.rectangle([x1 - offset, y1 - offset, x2 + offset, y2 + offset], outline=color)
     confidence = detection.get("confidence")
     label_conf = f"{float(confidence):.2f}" if isinstance(confidence, (int, float)) else "review"
-    label = f"YOLOv8 pohon_sono {label_conf}"
+    label = f"YOLOv8 {detection.get('class_name') or 'pohon_sono'} {label_conf}"
     text_box = draw.textbbox((x1, y1), label, font=font)
     text_w = text_box[2] - text_box[0]
     text_h = text_box[3] - text_box[1]
     label_y = max(y1 - text_h - 8, 0)
-    draw.rectangle([x1, label_y, x1 + text_w + 8, label_y + text_h + 6], fill=(22, 163, 74, 230))
+    draw.rectangle([x1, label_y, x1 + text_w + 8, label_y + text_h + 6], fill=(*color[:3], 230))
     draw.text((x1 + 4, label_y + 3), label, fill=(255, 255, 255, 255), font=font)
 
 
@@ -286,6 +321,7 @@ def _model_status_payload(
     model_source: str,
     registry: dict[str, Any],
     warnings: list[str],
+    model_policy: str,
 ) -> dict[str, Any]:
     return _base_policy_payload(
         {
@@ -295,7 +331,10 @@ def _model_status_payload(
             "model_source": model_source,
             "registry_status": _single_class_registry_status(registry.get("status") if registry else "REGISTRY_NOT_FOUND"),
             "registry_path": str(PLAN_C_AI_REGISTRY),
-            "manual_review_required": status != READY_STATUS,
+            "system_c_registry_path": str(PLAN_C_SYSTEM_C_REGISTRY),
+            "model_policy": model_policy,
+            "active_model_path": str(model_path),
+            "manual_review_required": status not in {READY_STATUS, SYSTEM_C_READY_STATUS},
             "warnings": warnings,
             "not_accuracy_claim": True,
         }
@@ -303,18 +342,20 @@ def _model_status_payload(
 
 
 def _base_policy_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    model_policy = str(payload.get("model_policy") or SINGLE_CLASS_MODEL_POLICY)
+    active_names = _active_class_names_for_policy(model_policy)
     payload.update(
         {
             "runtime_mode": RUNTIME_MODE,
             "detector": DETECTOR_NAME,
             "runtime_detector": DETECTOR_NAME,
-            "model_policy": MODEL_POLICY,
-            "active_class_names": [ACTIVE_CLASS_NAME],
+            "model_policy": model_policy,
+            "active_class_names": active_names,
             "active_detection_target": ACTIVE_CLASS_NAME,
-            "yolo_mode": "single_class",
+            "yolo_mode": "object_detection",
             "multi_class_runtime": False,
-            "conductor_detection_enabled": False,
-            "structure_detection_enabled": False,
+            "conductor_detection_enabled": model_policy == SYSTEM_C_MODEL_POLICY,
+            "structure_detection_enabled": model_policy == SYSTEM_C_MODEL_POLICY,
             "conductor_required_for_detection": False,
         }
     )
@@ -322,10 +363,18 @@ def _base_policy_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _read_registry() -> dict[str, Any]:
-    if not PLAN_C_AI_REGISTRY.exists():
+    system_registry = _read_registry_file(PLAN_C_SYSTEM_C_REGISTRY)
+    if system_registry:
+        system_registry["_registry_path"] = str(PLAN_C_SYSTEM_C_REGISTRY)
+        return system_registry
+    return _read_registry_file(PLAN_C_AI_REGISTRY)
+
+
+def _read_registry_file(path: Path) -> dict[str, Any]:
+    if not path.exists():
         return {}
     try:
-        return json.loads(PLAN_C_AI_REGISTRY.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {"status": "REGISTRY_READ_FAILED"}
 
@@ -339,6 +388,18 @@ def _candidate_paths_from_registry(registry: dict[str, Any]) -> list[Path]:
         path = Path(value)
         candidates.append(path if path.is_absolute() else PROJECT_ROOT / path)
     return candidates
+
+
+def _system_c_run_candidates() -> list[Path]:
+    runs_dir = PROJECT_ROOT / "runs" / "detect"
+    if not runs_dir.exists():
+        return []
+    candidates = [
+        path / "weights" / "best.pt"
+        for path in runs_dir.glob("plan_c_system_c_detector_v2*")
+        if path.is_dir() and (path / "weights" / "best.pt").exists()
+    ]
+    return sorted(candidates, key=lambda item: item.stat().st_mtime, reverse=True)
 
 
 def _registry_class_names(registry: dict[str, Any]) -> dict[int, str]:
@@ -365,3 +426,43 @@ def _single_class_registry_status(value: Any) -> str:
     if text == "PLAN_C_AI_MODEL_NOT_READY":
         return "PLAN_C_REGISTERED_MODEL_NOT_READY_FOR_YOLOV8_SINGLE_CLASS_RUNTIME"
     return text or "REGISTRY_STATUS_UNKNOWN"
+
+
+def _model_policy_for_path(path: Path, registry: dict[str, Any]) -> str:
+    normalized = str(path).replace("\\", "/").lower()
+    registry_status = str(registry.get("status") or "")
+    class_policy = str(registry.get("class_policy") or "")
+    if "plan_c_system_c_detector" in normalized or registry_status == SYSTEM_C_READY_STATUS or class_policy == "system_c_tree_conductor_structure":
+        return SYSTEM_C_MODEL_POLICY
+    return SINGLE_CLASS_MODEL_POLICY
+
+
+def _active_class_names_for_policy(model_policy: str) -> list[str]:
+    if model_policy == SYSTEM_C_MODEL_POLICY:
+        return ["struktur_penyangga", "konduktor", "pohon_sono"]
+    return [ACTIVE_CLASS_NAME]
+
+
+def _target_class_id(class_name: str) -> int:
+    for class_id, name in TARGET_CLASS_NAMES.items():
+        if name == class_name:
+            return class_id
+    return 2
+
+
+def _class_counts(detections: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for detection in detections:
+        name = str(detection.get("class_name") or "unknown")
+        counts[name] = counts.get(name, 0) + 1
+    return counts
+
+
+def _class_color(class_name: str) -> tuple[int, int, int, int]:
+    if class_name == "konduktor":
+        return (245, 158, 11, 255)
+    if class_name == "struktur_penyangga":
+        return (37, 99, 235, 255)
+    if class_name == "pohon_non_sono":
+        return (132, 204, 22, 255)
+    return (22, 163, 74, 255)

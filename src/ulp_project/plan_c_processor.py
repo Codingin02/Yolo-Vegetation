@@ -421,16 +421,20 @@ def _build_result_payload(
     idempotency_key: str = "",
 ) -> dict[str, Any]:
     gps = metadata.get("gps", {})
+    class_counts = _detection_class_counts(detection_result.get("detections", []))
+    model_policy = str(detection_result.get("model_policy") or yolo_raw.get("model_policy") or "single_class_pohon_sono")
     detection_count = int(detection_result.get("detection_count") or len(detection_result.get("detections") or []))
     detection_status = str(detection_result.get("status") or detection_result.get("pipeline_status") or "DATA_TIDAK_CUKUP")
     return {
         "status": "PLAN_C_RESULT_READY",
-        "runtime_mode": "PLAN_C_SYSTEM_C_SINGLE_CLASS_POHON_SONO",
+        "runtime_mode": "PLAN_C_SYSTEM_C",
         "detector": "YOLOv8",
-        "yolo_mode": "single_class",
+        "yolo_mode": detection_result.get("yolo_mode") or yolo_raw.get("yolo_mode") or "object_detection",
+        "model_policy": model_policy,
         "ai_core_mode": ai_raw.get("ai_core_mode", "THREE_PROVIDER_CONSENSUS"),
         "ai_providers_enabled": ai_raw.get("providers_enabled", []),
         "ai_provider_statuses": ai_raw.get("provider_statuses", []),
+        "providers": ai_raw.get("provider_statuses", []),
         "final_detection_source": detection_result.get("final_detection_source", "NONE"),
         "detected_primary_object": "pohon_sono",
         "multi_class_runtime": False,
@@ -459,6 +463,7 @@ def _build_result_payload(
         ),
         "detection_status": detection_status,
         "detection_count": detection_count,
+        "class_counts": class_counts,
         "detections": _operator_detections(detection_result.get("detections", [])),
         "tree_species_status": detection_result.get("tree_species_status") or geometry.get("tree_species_status") or "unknown",
         "conductor_status": detection_result.get("conductor_status") or geometry.get("conductor_status") or "manual/reference only",
@@ -492,9 +497,10 @@ def _build_result_payload(
         "yolo_summary": {
             "status": yolo_raw.get("status"),
             "detection_count": yolo_raw.get("detection_count", 0),
+            "class_counts": yolo_raw.get("class_counts", class_counts),
             "manual_review_required": yolo_raw.get("manual_review_required", True),
             "model_path": yolo_raw.get("model_path", ""),
-            "model_policy": yolo_raw.get("model_policy", "single_class_pohon_sono"),
+            "model_policy": yolo_raw.get("model_policy", model_policy),
             "active_detection_target": yolo_raw.get("active_detection_target", "pohon_sono"),
             "multi_class_runtime": yolo_raw.get("multi_class_runtime", False),
         },
@@ -502,9 +508,10 @@ def _build_result_payload(
         "detection_summary": {
             "status": detection_status,
             "detection_count": detection_count,
+            "class_counts": class_counts,
             "detection_target": "pohon_sono",
             "final_detection_source": detection_result.get("final_detection_source", "NONE"),
-            "operator_output_format": detection_result.get("operator_output_format", "YOLOv8 single-class"),
+            "operator_output_format": detection_result.get("operator_output_format", "YOLOv8 System C"),
             "manual_review_required": detection_result.get("manual_review_required", True),
             "render_status": render_status.get("status"),
             "tree_species_status": detection_result.get("tree_species_status") or geometry.get("tree_species_status") or "unknown",
@@ -780,12 +787,12 @@ def _detect_snapshot(
 
 
 def _single_class_detection_from_yolo(*, yolo_raw: dict[str, Any], image_width: int, image_height: int) -> dict[str, Any]:
-    detections = [
-        dict(item)
-        for item in yolo_raw.get("detections", [])
-        if isinstance(item, dict) and str(item.get("class_name") or "") == "pohon_sono"
-    ]
+    detections = _target_runtime_detections(yolo_raw.get("detections", []), model_policy=str(yolo_raw.get("model_policy") or "single_class_pohon_sono"))
+    class_counts = _detection_class_counts(detections)
+    model_policy = str(yolo_raw.get("model_policy") or "single_class_pohon_sono")
+    active_class_names = list(yolo_raw.get("active_class_names") or (["struktur_penyangga", "konduktor", "pohon_sono"] if model_policy == "system_c_detector" else ["pohon_sono"]))
     model_ready = str(yolo_raw.get("status") or "") in {
+        "PLAN_C_SYSTEM_C_DETECTOR_READY",
         "YOLOV8_SINGLE_CLASS_POHON_SONO_READY",
         "YOLOV8_POHON_SONO_READY",
         "YOLOV8_MODEL_READY_CLASS_MAPPING_REVIEW_REQUIRED",
@@ -795,33 +802,35 @@ def _single_class_detection_from_yolo(*, yolo_raw: dict[str, Any], image_width: 
         status = "YOLO_MODEL_NOT_READY" if status in {"", "AI_MODEL_NOT_READY"} else status
     return {
         "status": status,
-        "pipeline_status": "PLAN_C_SINGLE_CLASS_YOLOV8_RUNTIME",
-        "runtime_mode": "PLAN_C_SINGLE_CLASS_POHON_SONO",
+        "pipeline_status": "PLAN_C_SYSTEM_C_YOLOV8_RUNTIME" if model_policy == "system_c_detector" else "PLAN_C_SINGLE_CLASS_YOLOV8_RUNTIME",
+        "runtime_mode": "PLAN_C_SYSTEM_C",
         "detector": "YOLOv8",
-        "yolo_mode": "single_class",
-        "model_policy": "single_class_pohon_sono",
+        "yolo_mode": "object_detection",
+        "model_policy": model_policy,
         "active_detection_target": "pohon_sono",
-        "active_class_names": ["pohon_sono"],
+        "active_class_names": active_class_names,
         "multi_class_runtime": False,
-        "conductor_detection_enabled": False,
-        "structure_detection_enabled": False,
+        "conductor_detection_enabled": model_policy == "system_c_detector",
+        "structure_detection_enabled": model_policy == "system_c_detector",
         "conductor_required_for_detection": False,
         "detections": detections,
         "detection_count": len(detections),
+        "class_counts": class_counts,
         "image_width": image_width,
         "image_height": image_height,
-        "tree_species_status": "pohon_sono" if detections else "unknown",
-        "conductor_status": "manual/reference only",
-        "structure_status": "manual/reference only",
+        "tree_species_status": "pohon_sono" if class_counts.get("pohon_sono", 0) else "unknown",
+        "conductor_status": "detected" if class_counts.get("konduktor", 0) else "not_detected_review_optional",
+        "structure_status": "detected" if class_counts.get("struktur_penyangga", 0) else "not_detected_review_optional",
+        "conductor_group_count": class_counts.get("konduktor", 0),
         "zone_status": "manual_review_required",
         "operator_detection_label": "Detection",
-        "operator_output_format": "YOLOv8 single-class",
-        "review_status": "MANUAL_REVIEW_REQUIRED" if not detections else "REVIEW",
+        "operator_output_format": "YOLOv8 System C" if model_policy == "system_c_detector" else "YOLOv8 single-class",
+        "review_status": "MANUAL_REVIEW_REQUIRED" if not class_counts.get("pohon_sono", 0) else "REVIEW",
         "manual_review_required": True,
         "warnings": list(yolo_raw.get("warnings") or []),
         "limitations": [
-            "Runtime ini hanya memakai bounding box YOLOv8 untuk pohon_sono.",
-            "Konduktor dan struktur penyangga hanya konteks manual/reference, bukan class YOLO aktif.",
+            "Model lokal YOLOv8 memberi bounding box target System C yang tersedia; hasil tetap perlu validasi lapangan.",
+            "Konduktor/struktur tidak menjadi syarat wajib risiko visual; jika tidak terdeteksi sistem memakai zona heuristic dan review manual.",
         ],
     }
 
@@ -857,34 +866,36 @@ def _filter_to_single_class_pohon_sono(result: dict[str, Any]) -> dict[str, Any]
 
 
 def _restore_single_class_runtime_detection(result: dict[str, Any], *, yolo_raw: dict[str, Any]) -> dict[str, Any]:
-    detections = [
-        dict(item)
-        for item in result.get("detections", [])
-        if isinstance(item, dict) and str(item.get("class_name") or "") == "pohon_sono"
-    ]
+    model_policy = str(yolo_raw.get("model_policy") or result.get("model_policy") or "single_class_pohon_sono")
+    source_detections = result.get("detections") if result.get("detections") else yolo_raw.get("detections")
+    detections = _target_runtime_detections(source_detections, model_policy=model_policy)
+    class_counts = _detection_class_counts(detections)
+    active_class_names = list(yolo_raw.get("active_class_names") or result.get("active_class_names") or (["struktur_penyangga", "konduktor", "pohon_sono"] if model_policy == "system_c_detector" else ["pohon_sono"]))
     model_status = str(yolo_raw.get("status") or result.get("status") or "YOLO_MODEL_NOT_READY")
     result.update(
         {
             "status": model_status,
-            "pipeline_status": "PLAN_C_SINGLE_CLASS_YOLOV8_RUNTIME",
-            "runtime_mode": "PLAN_C_SINGLE_CLASS_POHON_SONO",
+            "pipeline_status": "PLAN_C_SYSTEM_C_YOLOV8_RUNTIME" if model_policy == "system_c_detector" else "PLAN_C_SINGLE_CLASS_YOLOV8_RUNTIME",
+            "runtime_mode": "PLAN_C_SYSTEM_C",
             "detector": "YOLOv8",
-            "yolo_mode": "single_class",
-            "model_policy": "single_class_pohon_sono",
+            "yolo_mode": "object_detection",
+            "model_policy": model_policy,
             "active_detection_target": "pohon_sono",
-            "active_class_names": ["pohon_sono"],
+            "active_class_names": active_class_names,
             "multi_class_runtime": False,
-            "conductor_detection_enabled": False,
-            "structure_detection_enabled": False,
+            "conductor_detection_enabled": model_policy == "system_c_detector",
+            "structure_detection_enabled": model_policy == "system_c_detector",
             "conductor_required_for_detection": False,
             "detections": detections,
             "detection_count": len(detections),
-            "tree_species_status": "pohon_sono" if detections else "unknown",
-            "conductor_status": "manual/reference only",
-            "structure_status": "manual/reference only",
+            "class_counts": class_counts,
+            "tree_species_status": "pohon_sono" if class_counts.get("pohon_sono", 0) else "unknown",
+            "conductor_status": "detected" if class_counts.get("konduktor", 0) else "not_detected_review_optional",
+            "structure_status": "detected" if class_counts.get("struktur_penyangga", 0) else "not_detected_review_optional",
+            "conductor_group_count": class_counts.get("konduktor", 0),
             "zone_status": "manual_review_required",
-            "operator_output_format": "YOLOv8 single-class",
-            "review_status": "MANUAL_REVIEW_REQUIRED" if not detections else "REVIEW",
+            "operator_output_format": "YOLOv8 System C" if model_policy == "system_c_detector" else "YOLOv8 single-class",
+            "review_status": "MANUAL_REVIEW_REQUIRED" if not class_counts.get("pohon_sono", 0) else "REVIEW",
             "manual_review_required": True,
         }
     )
@@ -898,17 +909,22 @@ def _apply_ai_consensus_tree_bbox(
     image_width: int,
     image_height: int,
 ) -> dict[str, Any]:
-    detections = [
+    all_detections = _target_runtime_detections(
+        detection_result.get("detections", []),
+        model_policy=str(detection_result.get("model_policy") or "single_class_pohon_sono"),
+    )
+    tree_detections = [
         dict(item)
-        for item in detection_result.get("detections", [])
+        for item in all_detections
         if isinstance(item, dict) and str(item.get("class_name") or "") == "pohon_sono"
     ]
-    chosen_source = str(ai_raw.get("chosen_bbox_source") or ("YOLOV8_LOCAL" if detections else "NONE"))
-    if detections:
+    chosen_source = str(ai_raw.get("chosen_bbox_source") or ("YOLOV8_LOCAL" if tree_detections else "NONE"))
+    if tree_detections:
         detection_result.update(
             {
-                "detections": detections,
-                "detection_count": len(detections),
+                "detections": all_detections,
+                "detection_count": len(all_detections),
+                "class_counts": _detection_class_counts(all_detections),
                 "final_detection_source": "YOLOV8_LOCAL",
                 "tree_species_status": "pohon_sono",
             }
@@ -935,8 +951,9 @@ def _apply_ai_consensus_tree_bbox(
             }
             detection_result.update(
                 {
-                    "detections": [detection],
-                    "detection_count": 1,
+                    "detections": [*all_detections, detection],
+                    "detection_count": len(all_detections) + 1,
+                    "class_counts": _detection_class_counts([*all_detections, detection]),
                     "final_detection_source": "AI_CONSENSUS",
                     "tree_species_status": "pohon_sono",
                     "manual_review_required": True,
@@ -947,8 +964,9 @@ def _apply_ai_consensus_tree_bbox(
 
     detection_result.update(
         {
-            "detections": [],
-            "detection_count": 0,
+            "detections": all_detections,
+            "detection_count": len(all_detections),
+            "class_counts": _detection_class_counts(all_detections),
             "final_detection_source": "NONE",
             "tree_species_status": "unknown",
             "manual_review_required": True,
@@ -971,6 +989,7 @@ def _finalize_system_c_zone_decision(
     manual_inputs = metadata.get("manual_inputs") if isinstance(metadata.get("manual_inputs"), dict) else {}
     manual_clearance = to_float((manual_inputs or {}).get("manual_clearance_m"))
     tree_bbox = _best_tree_bbox(detections)
+    conductor_bbox = _best_conductor_bbox(detections)
     zone_method = "heuristic_band_without_manual_clearance"
     zone_final = "REVIEW_REQUIRED"
     manual_review_required = True
@@ -981,6 +1000,16 @@ def _finalize_system_c_zone_decision(
         zone_method = "manual_clearance"
         zone_final = risk_status
         manual_review_required = bool(geometry.get("manual_review_required"))
+    elif conductor_bbox:
+        zone_bands = _build_conductor_zone_bands(image_width, image_height, conductor_bbox)
+        zone_method = "conductor_based"
+        if tree_bbox:
+            risk_status, prediction_window, zone_final = _risk_from_tree_bbox(tree_bbox, zone_bands, growth)
+            geometry_status = "CONDUCTOR_BASED_ZONE_REVIEW_REQUIRED"
+        else:
+            risk_status = "DATA_TIDAK_CUKUP"
+            prediction_window = "data tidak cukup"
+            geometry_status = "DATA_TIDAK_CUKUP_POHON_TIDAK_TERDETEKSI"
     elif tree_bbox:
         risk_status, prediction_window, zone_final = _risk_from_tree_bbox(tree_bbox, zone_bands, growth)
         geometry_status = "HEURISTIC_ZONE_REVIEW_REQUIRED"
@@ -1006,6 +1035,7 @@ def _finalize_system_c_zone_decision(
             "zone_method": zone_method,
             "zone_final": zone_final,
             "zone_bands": zone_bands,
+            "conductor_bbox_reference": conductor_bbox,
             "clearance_estimate_m": geometry.get("clearance_estimate_m"),
             "manual_review_required": manual_review_required,
             "conductor_required_for_detection": False,
@@ -1037,6 +1067,22 @@ def _build_heuristic_zone_bands(image_width: int, image_height: int) -> list[dic
     ]
 
 
+def _build_conductor_zone_bands(image_width: int, image_height: int, conductor_bbox: list[float]) -> list[dict[str, Any]]:
+    height = max(int(image_height or 0), 1)
+    width = max(int(image_width or 0), 1)
+    _x1, y1, _x2, y2 = [float(value) for value in conductor_bbox]
+    conductor_y = max(0, min(height, int(round((y1 + y2) / 2.0))))
+    band_px = max(int(round(height * 0.18)), 48)
+    tebang_y1 = max(0, conductor_y - int(round(band_px * 0.35)))
+    tebang_y2 = min(height, conductor_y + band_px)
+    pantau_y2 = min(height, tebang_y2 + band_px)
+    return [
+        {"zone": "ZONA_TEBANG", "label": "ZONA TEBANG", "x1": 0, "y1": tebang_y1, "x2": width, "y2": tebang_y2},
+        {"zone": "ZONA_PANTAU", "label": "ZONA PANTAU", "x1": 0, "y1": tebang_y2, "x2": width, "y2": pantau_y2},
+        {"zone": "ZONA_AMAN", "label": "ZONA AMAN", "x1": 0, "y1": pantau_y2, "x2": width, "y2": height},
+    ]
+
+
 def _risk_from_tree_bbox(
     bbox: list[float],
     zone_bands: list[dict[str, Any]],
@@ -1046,12 +1092,18 @@ def _risk_from_tree_bbox(
     del x1, x2
     tebang_y2 = float(zone_bands[0]["y2"])
     pantau_y2 = float(zone_bands[1]["y2"])
-    if y1 <= tebang_y2:
+    tebang_y1 = float(zone_bands[0].get("y1") or 0)
+    pantau_y1 = float(zone_bands[1].get("y1") or tebang_y2)
+    if _vertical_intersects(y1, y2, tebang_y1, tebang_y2):
         return "ZONA_TEBANG", "0-3 bulan", "ZONA_TEBANG"
-    if y1 <= pantau_y2 or y2 <= pantau_y2:
+    if _vertical_intersects(y1, y2, pantau_y1, pantau_y2) or y1 <= pantau_y2:
         rate = to_float(growth.get("growth_rate_m_per_quarter"))
         return "ZONA_PANTAU", "3-6 bulan" if rate is None or rate > 0 else "6-9 bulan", "ZONA_PANTAU"
     return "ZONA_AMAN", ">12 bulan", "ZONA_AMAN"
+
+
+def _vertical_intersects(y1: float, y2: float, zone_y1: float, zone_y2: float) -> bool:
+    return max(y1, zone_y1) <= min(y2, zone_y2)
 
 
 def _risk_from_manual_clearance(clearance_m: float) -> tuple[str, str]:
@@ -1078,6 +1130,52 @@ def _best_tree_bbox(detections: list[dict[str, Any]]) -> list[float] | None:
         return None
     candidates.sort(key=lambda item: item[0], reverse=True)
     return candidates[0][1]
+
+
+def _best_conductor_bbox(detections: list[dict[str, Any]]) -> list[float] | None:
+    candidates = []
+    for item in detections:
+        if not isinstance(item, dict) or str(item.get("class_name") or "") != "konduktor":
+            continue
+        bbox = item.get("bbox_xyxy")
+        if not isinstance(bbox, list) or len(bbox) != 4:
+            continue
+        try:
+            x1, y1, x2, y2 = [float(value) for value in bbox]
+            center_y = (y1 + y2) / 2.0
+            confidence = float(item.get("confidence") or 0.0)
+            candidates.append((center_y, confidence, [x1, y1, x2, y2]))
+        except (TypeError, ValueError):
+            continue
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return candidates[0][2]
+
+
+def _target_runtime_detections(raw_detections: Any, *, model_policy: str) -> list[dict[str, Any]]:
+    if not isinstance(raw_detections, list):
+        return []
+    allowed = {"pohon_sono"}
+    if model_policy == "system_c_detector":
+        allowed.update({"konduktor", "struktur_penyangga", "pohon_non_sono"})
+    return [
+        dict(item)
+        for item in raw_detections
+        if isinstance(item, dict) and str(item.get("class_name") or "") in allowed
+    ]
+
+
+def _detection_class_counts(detections: Any) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    if not isinstance(detections, list):
+        return counts
+    for detection in detections:
+        if not isinstance(detection, dict):
+            continue
+        class_name = str(detection.get("class_name") or "unknown")
+        counts[class_name] = counts.get(class_name, 0) + 1
+    return counts
 
 
 def _ai_consensus_confidence(ai_raw: dict[str, Any]) -> float:
@@ -1118,6 +1216,9 @@ def _operator_detections(detections: list[dict[str, Any]]) -> list[dict[str, Any
         "is_target_species",
         "review_status",
         "reason",
+        "source",
+        "label",
+        "model_class_id",
     }
     return [{key: value for key, value in detection.items() if key in allowed} for detection in detections if isinstance(detection, dict)]
 

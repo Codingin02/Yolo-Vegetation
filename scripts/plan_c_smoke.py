@@ -95,11 +95,7 @@ def main() -> int:
     ui_version = client.get("/api/plan-c/runtime/ui-version")
     _assert(ui_version.status_code == 200, "runtime ui-version HTTP 200")
     ui_json = ui_version.get_json()
-    _assert(
-        ui_json.get("runtime_mode")
-        in {"PLAN_C_SYSTEM_C_SINGLE_CLASS_POHON_SONO", "PLAN_C_SINGLE_CLASS_POHON_SONO"},
-        "runtime mode single class",
-    )
+    _assert(ui_json.get("runtime_mode") in {"PLAN_C_SYSTEM_C", "PLAN_C_SINGLE_CLASS_POHON_SONO"}, "runtime mode Plan C System C")
     _assert(ui_json.get("detector") == "YOLOv8", "runtime detector YOLOv8")
     _assert(ui_json.get("ai_core_mode") in {None, "THREE_PROVIDER_CONSENSUS"}, "runtime ai core compatible")
     _assert(ui_json.get("active_class") == "pohon_sono", "active class pohon_sono")
@@ -155,13 +151,10 @@ def main() -> int:
     result_json = result_api.get_json()
     _assert(result_json.get("status") == "PLAN_C_RESULT_READY", "result status ready")
     result_payload_text = json.dumps(result_json, ensure_ascii=False)
-    _assert(
-        result_json.get("runtime_mode")
-        in {"PLAN_C_SYSTEM_C_SINGLE_CLASS_POHON_SONO", "PLAN_C_SINGLE_CLASS_POHON_SONO"},
-        "result runtime mode single class",
-    )
+    _assert(result_json.get("runtime_mode") in {"PLAN_C_SYSTEM_C", "PLAN_C_SINGLE_CLASS_POHON_SONO"}, "result runtime mode System C")
     _assert(result_json.get("detector") == "YOLOv8", "result detector YOLOv8")
-    _assert(result_json.get("yolo_mode") == "single_class", "result yolo mode single_class")
+    _assert(result_json.get("yolo_mode") in {"object_detection", "single_class"}, "result yolo mode compatible")
+    _assert(result_json.get("model_policy") in {"system_c_detector", "single_class_pohon_sono"}, "result model policy compatible")
     _assert(result_json.get("ai_core_mode") == "THREE_PROVIDER_CONSENSUS", "result ai core consensus")
     _assert(result_json.get("detected_primary_object") == "pohon_sono", "detected primary object pohon_sono")
     _assert(result_json.get("multi_class_runtime") is False, "result multi_class_runtime false")
@@ -226,13 +219,14 @@ def main() -> int:
     checks.append("session_files_created")
 
     yolo_raw = _read_json(session_file(session_id, "yolo_raw.json"))
-    _assert(yolo_raw.get("model_policy") == "single_class_pohon_sono", "yolo_raw model policy single class")
+    _assert(yolo_raw.get("model_policy") in {"system_c_detector", "single_class_pohon_sono"}, "yolo_raw model policy compatible")
     _assert(yolo_raw.get("multi_class_runtime") is False, "yolo_raw multi_class_runtime false")
     _assert(yolo_raw.get("active_detection_target") == "pohon_sono", "yolo_raw active target pohon_sono")
-    if (ROOT / "models" / "plan_c_ai_detector" / "best.pt").exists():
+    if (ROOT / "models" / "plan_c_system_c_detector" / "best.pt").exists() or (ROOT / "models" / "plan_c_ai_detector" / "best.pt").exists():
         _assert(
             yolo_raw.get("status")
             in {
+                "PLAN_C_SYSTEM_C_DETECTOR_READY",
                 "YOLOV8_SINGLE_CLASS_POHON_SONO_READY",
                 "YOLOV8_POHON_SONO_READY",
                 "YOLOV8_MODEL_READY_CLASS_MAPPING_REVIEW_REQUIRED",
@@ -243,7 +237,7 @@ def main() -> int:
     else:
         _assert(yolo_raw.get("status") == "YOLO_MODEL_NOT_READY", "missing model status")
         _assert(yolo_raw.get("detections") == [], "missing model detections empty")
-    checks.append("single_class_yolo_raw")
+    checks.append("system_c_yolo_raw")
 
     _assert(count_csv_rows(PLAN_C_RECORDS_CSV) == csv_before + 1, "CSV appended one row")
     _assert(count_jsonl_rows(PLAN_C_RECORDS_JSONL) == jsonl_before + 1, "JSONL appended one line")
@@ -282,6 +276,7 @@ def main() -> int:
     _assert(not forbidden, f"forbidden staged path: {forbidden}")
     checks.append("forbidden_path_not_staged")
 
+    print("PLAN_C_SYSTEM_C_BACKEND_SMOKE_PASS")
     print("PLAN_C_SINGLE_CLASS_POHON_SONO_SMOKE_PASS")
     print(f"session_id={session_id}")
     print(f"csv_path={PLAN_C_RECORDS_CSV}")
