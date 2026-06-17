@@ -15,6 +15,7 @@ from .plan_c_free_vision_config import load_free_vision_config, redact_config
 from .plan_c_free_vision_schema import normalize_detection_payload
 from .plan_c_geometry import DEFAULT_GEOMETRY_PARAMETERS, compute_plan_c_geometry
 from .plan_c_growth_model import build_growth_summary, load_growth_profile
+from .plan_c_inference_optimizer import calibrate_detection_confidences, summarize_detection_quality
 from .plan_c_quality_layer import apply_plan_c_quality_layer
 from .plan_c_session import load_plan_c_metadata, save_plan_c_metadata, update_plan_c_status
 from .plan_c_storage import (
@@ -86,6 +87,19 @@ def process_plan_c_snapshot(session_id: str, *, image_file: Any | None, payload:
         ai_raw=ai_raw,
         image_width=image_width,
         image_height=image_height,
+    )
+    image_quality = yolo_raw.get("image_quality") or detection_result.get("image_quality") or {}
+    detection_result["detections"] = calibrate_detection_confidences(
+        detection_result.get("detections", []),
+        image_quality=image_quality if isinstance(image_quality, dict) else {},
+        ai_raw=ai_raw,
+    )
+    detection_result["detection_count"] = len(detection_result["detections"])
+    detection_result["class_counts"] = _detection_class_counts(detection_result["detections"])
+    detection_result["confidence_calibration_status"] = "PLAN_C_CONFIDENCE_CALIBRATION_READY"
+    detection_result["detection_quality_summary"] = summarize_detection_quality(
+        detection_result["detections"],
+        image_quality if isinstance(image_quality, dict) else {},
     )
     write_json(session_file(session_id, "ai_raw.json"), ai_raw)
 
@@ -503,7 +517,18 @@ def _build_result_payload(
             "model_policy": yolo_raw.get("model_policy", model_policy),
             "active_detection_target": yolo_raw.get("active_detection_target", "pohon_sono"),
             "multi_class_runtime": yolo_raw.get("multi_class_runtime", False),
+            "raw_detection_count": yolo_raw.get("raw_detection_count", 0),
+            "merged_detection_count": yolo_raw.get("merged_detection_count", 0),
+            "inference_optimization": yolo_raw.get("inference_optimization", {}),
         },
+        "image_quality": detection_result.get("image_quality") or yolo_raw.get("image_quality", {}),
+        "image_quality_status": detection_result.get("image_quality_status") or yolo_raw.get("image_quality_status"),
+        "image_quality_reasons": detection_result.get("image_quality_reasons") or yolo_raw.get("image_quality_reasons", []),
+        "low_image_quality": (detection_result.get("image_quality_status") or yolo_raw.get("image_quality_status")) == "LOW_IMAGE_QUALITY",
+        "inference_optimization": detection_result.get("inference_optimization") or yolo_raw.get("inference_optimization", {}),
+        "confidence_calibration_status": detection_result.get("confidence_calibration_status"),
+        "detection_quality_summary": detection_result.get("detection_quality_summary") or yolo_raw.get("detection_quality_summary", {}),
+        "rejected_detections_redacted": detection_result.get("rejected_detections_redacted") or yolo_raw.get("rejected_detections_redacted", []),
         "ai_consensus_summary": ai_raw.get("summary", {}),
         "detection_summary": {
             "status": detection_status,
@@ -832,6 +857,14 @@ def _single_class_detection_from_yolo(*, yolo_raw: dict[str, Any], image_width: 
             "Model lokal YOLOv8 memberi bounding box target System C yang tersedia; hasil tetap perlu validasi lapangan.",
             "Konduktor/struktur tidak menjadi syarat wajib risiko visual; jika tidak terdeteksi sistem memakai zona heuristic dan review manual.",
         ],
+        "image_quality": yolo_raw.get("image_quality", {}),
+        "image_quality_status": yolo_raw.get("image_quality_status"),
+        "image_quality_reasons": yolo_raw.get("image_quality_reasons", []),
+        "inference_optimization": yolo_raw.get("inference_optimization", {}),
+        "raw_detection_count": yolo_raw.get("raw_detection_count", 0),
+        "merged_detection_count": yolo_raw.get("merged_detection_count", 0),
+        "rejected_detections_redacted": yolo_raw.get("rejected_detections_redacted", []),
+        "detection_quality_summary": yolo_raw.get("detection_quality_summary", {}),
     }
 
 
@@ -897,6 +930,14 @@ def _restore_single_class_runtime_detection(result: dict[str, Any], *, yolo_raw:
             "operator_output_format": "YOLOv8 System C" if model_policy == "system_c_detector" else "YOLOv8 single-class",
             "review_status": "MANUAL_REVIEW_REQUIRED" if not class_counts.get("pohon_sono", 0) else "REVIEW",
             "manual_review_required": True,
+            "image_quality": yolo_raw.get("image_quality", result.get("image_quality", {})),
+            "image_quality_status": yolo_raw.get("image_quality_status", result.get("image_quality_status")),
+            "image_quality_reasons": yolo_raw.get("image_quality_reasons", result.get("image_quality_reasons", [])),
+            "inference_optimization": yolo_raw.get("inference_optimization", result.get("inference_optimization", {})),
+            "raw_detection_count": yolo_raw.get("raw_detection_count", result.get("raw_detection_count", 0)),
+            "merged_detection_count": yolo_raw.get("merged_detection_count", result.get("merged_detection_count", 0)),
+            "rejected_detections_redacted": yolo_raw.get("rejected_detections_redacted", result.get("rejected_detections_redacted", [])),
+            "detection_quality_summary": result.get("detection_quality_summary") or yolo_raw.get("detection_quality_summary", {}),
         }
     )
     return result

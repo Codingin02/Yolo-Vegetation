@@ -8,6 +8,7 @@ import shutil
 from typing import Any
 
 from .paths import PROJECT_ROOT
+from .plan_c_inference_optimizer import run_optimized_yolo_inference, summarize_detection_quality
 
 RUNTIME_MODE = "PLAN_C_SYSTEM_C"
 SYSTEM_C_MODEL_POLICY = "system_c_detector"
@@ -143,17 +144,29 @@ def run_yolo_post_capture(
 
     try:
         model = YOLO(model_info["model_path"])
-        results = model.predict(
-            source=str(original_path),
+        def _predict_variant(path: Path, variant_conf: float, variant_iou: float, variant_imgsz: int, variant_max_det: int) -> list[dict[str, Any]]:
+            results = model.predict(
+                source=str(path),
+                conf=variant_conf,
+                iou=variant_iou,
+                imgsz=variant_imgsz,
+                max_det=variant_max_det,
+                save=False,
+                verbose=False,
+            )
+            result = results[0] if results else None
+            return _parse_plan_c_detections(result, model_info=model_info)
+
+        optimized = run_optimized_yolo_inference(
+            original_path,
+            predict_callback=_predict_variant,
             conf=conf,
             iou=iou,
             imgsz=imgsz,
             max_det=max_det,
-            save=False,
-            verbose=False,
+            model_policy=str(model_info.get("model_policy") or SINGLE_CLASS_MODEL_POLICY),
         )
-        result = results[0] if results else None
-        detections = _parse_plan_c_detections(result, model_info=model_info)
+        detections = optimized["detections"]
         _save_single_class_annotation(original_path, annotated_path, detections)
         return {
             **model_info,
@@ -165,6 +178,14 @@ def run_yolo_post_capture(
             "annotated_path": str(annotated_path),
             "manual_review_required": len(detections) == 0 or model_info["status"] == REVIEW_STATUS,
             "not_accuracy_claim": True,
+            "image_quality": optimized.get("image_quality", {}),
+            "image_quality_status": optimized.get("image_quality", {}).get("status"),
+            "image_quality_reasons": optimized.get("image_quality", {}).get("reasons", []),
+            "inference_optimization": optimized.get("inference_optimization", {}),
+            "raw_detection_count": optimized.get("raw_detection_count", 0),
+            "merged_detection_count": optimized.get("merged_detection_count", 0),
+            "rejected_detections_redacted": optimized.get("rejected_detections_redacted", []),
+            "detection_quality_summary": summarize_detection_quality(detections, optimized.get("image_quality", {})),
         }
     except Exception as exc:
         _copy_with_label(original_path, annotated_path, "YOLOV8_INFERENCE_FAILED - manual review required")

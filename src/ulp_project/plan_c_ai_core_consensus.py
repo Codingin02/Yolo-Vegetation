@@ -199,6 +199,11 @@ def normalize_provider_response(provider_name: str, raw_response: Any) -> dict[s
         "confidence": _clamp_confidence(payload.get("confidence")),
         "reason": str(payload.get("reason") or "")[:500],
         "retake_recommendation": str(payload.get("retake_recommendation") or "")[:500],
+        "false_positive_likelihood": _clamp_confidence(payload.get("false_positive_likelihood")),
+        "false_negative_likelihood": _clamp_confidence(payload.get("false_negative_likelihood")),
+        "confidence_adjustment": _clamp_adjustment(payload.get("confidence_adjustment")),
+        "image_quality_flags": _normalize_string_list(payload.get("image_quality_flags")),
+        "bbox_sanity": str(payload.get("bbox_sanity") or "REVIEW_REQUIRED")[:120],
         "raw_redacted": _redact_raw(payload),
     }
     return candidate
@@ -269,23 +274,37 @@ def build_ai_consensus_summary(provider_results: list[dict[str, Any]]) -> dict[s
         "risk_zone_guess": _normalize_zone(risk_zone),
         "tree_visible_consensus": _majority_bool(tree_votes),
         "retake_recommendation": retake,
+        "false_positive_likelihood_mean": _mean_conf(ok_results, "false_positive_likelihood"),
+        "false_negative_likelihood_mean": _mean_conf(ok_results, "false_negative_likelihood"),
+        "confidence_adjustment_mean": _mean_adjustment(ok_results),
+        "image_quality_flags": sorted(
+            {
+                flag
+                for item in ok_results
+                for flag in (item.get("image_quality_flags") or [])
+                if isinstance(flag, str) and flag
+            }
+        ),
     }
 
 
 def _build_prompt(context: dict[str, Any]) -> str:
     return (
         "Return strict JSON only. No prose outside JSON. "
-        "Plan C uses YOLOv8 as the active single-class detector for pohon_sono only. "
-        "You are a visual validator, not the final bounding-box detector. "
-        "Identify whether the main tree appears pohon_sono/angsana-like. "
-        "Locate the main tree only; do not detect conductor, pole, person, vehicle, wall, or indoor object as classes. "
-        "Estimate whether canopy intersects the upper electrical-risk area. "
+        "Plan C uses a local YOLOv8 System C detector for pohon_sono, conductor, and support structure. "
+        "You are a visual validator and second opinion, not the final bounding-box detector. "
+        "Identify whether the main tree appears pohon_sono/angsana-like and whether YOLO detections look plausible. "
+        "Do not create final conductor or pole bounding boxes. If you provide bbox, provide the main tree bbox only. "
+        "Estimate whether canopy intersects the upper electrical-risk area and flag possible false positives or false negatives. "
         "Use pixel bbox [x1,y1,x2,y2] if confident; otherwise bbox_xyxy must be null. "
         "If unsure return REVIEW_REQUIRED. "
         f"Image size: {context.get('image_width')}x{context.get('image_height')}. "
         "Schema: {\"tree_visible\":true|false|null,\"tree_species_guess\":\"pohon_sono|unknown\","
         "\"risk_zone_guess\":\"ZONA_TEBANG|ZONA_PANTAU|ZONA_AMAN|REVIEW_REQUIRED\","
         "\"bbox_xyxy\":[x1,y1,x2,y2]|null,\"confidence\":0.0,\"reason\":\"short\","
+        "\"false_positive_likelihood\":0.0,\"false_negative_likelihood\":0.0,"
+        "\"confidence_adjustment\":-0.2,\"bbox_sanity\":\"OK|SUSPICIOUS|REVIEW_REQUIRED\","
+        "\"image_quality_flags\":[\"blur|dark|low_contrast|backlight|rain|fog|low_resolution\"],"
         "\"retake_recommendation\":\"short\"}"
     )
 
@@ -354,6 +373,11 @@ def _provider_result(provider: str, status: str, *, reason: str = "", raw: dict[
         "confidence": 0.0,
         "reason": reason,
         "retake_recommendation": "",
+        "false_positive_likelihood": 0.0,
+        "false_negative_likelihood": 0.0,
+        "confidence_adjustment": 0.0,
+        "image_quality_flags": [],
+        "bbox_sanity": "REVIEW_REQUIRED",
         "raw_redacted": _redact_raw(raw or {}),
     }
 
@@ -402,6 +426,39 @@ def _clamp_confidence(value: Any) -> float:
     except (TypeError, ValueError):
         return 0.0
     return round(max(0.0, min(1.0, number)), 4)
+
+
+def _clamp_adjustment(value: Any) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return round(max(-0.25, min(0.25, number)), 4)
+
+
+def _normalize_string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    output = []
+    for item in value:
+        text = str(item or "").strip().lower()
+        if text:
+            output.append(text[:60])
+    return output[:12]
+
+
+def _mean_conf(items: list[dict[str, Any]], key: str) -> float:
+    values = [float(item.get(key) or 0.0) for item in items if isinstance(item, dict)]
+    if not values:
+        return 0.0
+    return round(sum(values) / len(values), 4)
+
+
+def _mean_adjustment(items: list[dict[str, Any]]) -> float:
+    values = [float(item.get("confidence_adjustment") or 0.0) for item in items if isinstance(item, dict)]
+    if not values:
+        return 0.0
+    return round(sum(values) / len(values), 4)
 
 
 def _to_optional_bool(value: Any) -> bool | None:
