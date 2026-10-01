@@ -41,11 +41,6 @@
     const stopButton = byId("retry-button");
     const saveButton = byId("submit-button");
     const galleryInput = byId("gallery-input");
-    const supportReference = byId("support-reference");
-    const supportStandardInstallation = byId("support-standard-installation");
-    const supportBuriedLength = byId("support-buried-length");
-    const supportFullHeight = byId("support-full-height");
-    const treeBaseVisible = byId("tree-base-visible");
     let running = false;
     let inferenceBusy = false;
     let inferenceAnimation = null;
@@ -66,29 +61,6 @@
       {value: "low_light", label: "Low Light"}
     ];
     startButton.disabled = true;
-    supportReference.addEventListener("change", updateSupportInputs);
-    supportStandardInstallation.addEventListener("change", updateSupportInputs);
-
-    function updateSupportInputs() {
-      const concrete = supportReference.selectedOptions[0]?.dataset.family === "beton_pratekan";
-      supportStandardInstallation.disabled = !concrete;
-      if (!concrete) supportStandardInstallation.checked = false;
-      supportFullHeight.disabled = !concrete;
-      if (!concrete) supportFullHeight.checked = false;
-      supportBuriedLength.disabled = !concrete || supportStandardInstallation.checked;
-      if (supportBuriedLength.disabled) supportBuriedLength.value = "";
-    }
-
-    function appendSupportReference(form) {
-      const family = supportReference.selectedOptions[0]?.dataset.family || "unknown";
-      form.append("support_family", family);
-      if (treeBaseVisible.checked) form.append("tree_base_visible_confirmed", "true");
-      if (family !== "beton_pratekan") return;
-      form.append("support_spec", supportReference.value);
-      if (supportFullHeight.checked) form.append("support_full_height_confirmed", "true");
-      if (supportStandardInstallation.checked) form.append("support_standard_installation_confirmed", "true");
-      else if (supportBuriedLength.value) form.append("support_buried_length_m", supportBuriedLength.value);
-    }
 
     try {
       stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: "environment"}}, audio: false});
@@ -144,7 +116,6 @@
         const form = new FormData();
         form.append("session_id", sessionId);
         form.append("lighting_mode", lightingModes[lightingIndex].value);
-        appendSupportReference(form);
         form.append("frame", frame, "frame.jpg");
         const response = await fetch("/api/vegetation/realtime/frame", {method: "POST", body: form});
         const payload = await response.json();
@@ -264,7 +235,6 @@
       const form = new FormData();
       form.append("session_id", sessionId);
       form.append("lighting_mode", lightingModes[lightingIndex].value);
-      appendSupportReference(form);
       form.append("snapshot", blob, "capture.jpg");
       form.append("capture_source", source);
       try {
@@ -342,20 +312,21 @@
         const y2 = Math.max(rect.top, Math.min(rect.top + bbox[3] * scaleY, rect.top + rect.height));
         if (x2 <= x1 || y2 <= y1) continue;
 
-        const className = String(detection.class_name || detection.class || "");
-        const treeGeometry = className === "angsana" ? geometryTrees.find((tree) => (
+        const rawClassName = String(detection.class_name || detection.class || "");
+        const isAngsana = rawClassName.toLowerCase() === "angsana";
+        const treeGeometry = isAngsana ? geometryTrees.find((tree) => (
           tree.track_id != null && detection.track_id != null
             ? String(tree.track_id) === String(detection.track_id)
             : Number(tree.detection_index) === detectionIndex
         )) : null;
-        const prediction = detection.prediction;
-        const rawRiskStatus = String(
+        const prediction = isAngsana ? detection.prediction : null;
+        const rawRiskStatus = isAngsana ? String(
           prediction ? (prediction.operational_status || prediction.prediction_status || "") : (treeGeometry?.risk_status || "")
-        );
-        const operationalStatus = ["AMAN", "PANTAU", "TEBANG"].includes(rawRiskStatus.toUpperCase())
+        ) : "";
+        const operationalStatus = isAngsana && ["AMAN", "PANTAU", "TEBANG"].includes(rawRiskStatus.toUpperCase())
           ? rawRiskStatus.toUpperCase()
           : null;
-        const technicalStatus = {
+        const technicalStatus = isAngsana ? {
           threshold_not_configured: "Ambang risiko belum dikonfigurasi",
           uncalibrated_device: "Perangkat belum dikalibrasi",
           capture_protocol_required: "Protokol pengambilan belum terpenuhi",
@@ -363,13 +334,13 @@
           insufficient_data: "Data belum cukup",
           geometry_unreliable: "Geometri belum cukup andal",
           threshold_incompatible: "Jenis ambang tidak cocok"
-        }[rawRiskStatus];
-        const statusStyle = {
+        }[rawRiskStatus] : null;
+        const statusStyle = isAngsana ? {
           AMAN: {stroke: "#4aa316", label: "rgba(23, 98, 55, .9)"},
           PANTAU: {stroke: "#f59e0b", label: "rgba(146, 88, 0, .92)"},
           TEBANG: {stroke: "#dc2626", label: "rgba(153, 27, 27, .92)"}
-        }[operationalStatus];
-        const color = statusStyle?.stroke || (className === "konduktor" ? "#f59e0b" : "#4aa316");
+        }[operationalStatus] : null;
+        const color = statusStyle?.stroke || (rawClassName === "konduktor" ? "#f59e0b" : "#4aa316");
         const polygon = Array.isArray(detection.mask_polygon_xyn)
           ? detection.mask_polygon_xyn.map((point) => Array.isArray(point) ? point.map(Number) : [])
           : [];
@@ -387,20 +358,22 @@
         }
         overlayContext.strokeStyle = color;
         overlayContext.strokeRect(x1, y1, x2 - x1, y2 - y1);
-        const name = String(detection.display_name || detection.class || "Objek");
+        const name = String(detection.display_name || detection.class_name || detection.class || "Objek");
         const confidence = Math.round((Number(detection.confidence) || 0) * 100);
         const track = detection.track_id == null ? "" : ` #${detection.track_id}`;
         const lines = [`${name} ${confidence}%${track}`];
-        const days = prediction?.days_to_prune == null ? null : Number(prediction.days_to_prune);
-        const statusParts = [];
-        if (operationalStatus) statusParts.push(operationalStatus);
-        if (Number.isFinite(days) && days >= 0) statusParts.push(`${days > 0 ? "~" : ""}${Math.round(days)} HARI`);
-        if (statusParts.length) lines[0] += ` | ${statusParts.join(" | ")}`;
-        if (!statusParts.length && prediction?.prediction_status === "insufficient_growth_reference") {
-          lines[0] += " | DATA PERTUMBUHAN KURANG";
+        if (isAngsana) {
+          const days = prediction?.days_to_prune == null ? null : Number(prediction.days_to_prune);
+          const statusParts = [];
+          if (operationalStatus) statusParts.push(operationalStatus);
+          if (Number.isFinite(days) && days >= 0) statusParts.push(`${days > 0 ? "~" : ""}${Math.round(days)} HARI`);
+          if (statusParts.length) lines[0] += ` | ${statusParts.join(" | ")}`;
+          if (!statusParts.length && prediction?.prediction_status === "insufficient_growth_reference") {
+            lines[0] += " | DATA PERTUMBUHAN KURANG";
+          }
+          if (!operationalStatus && technicalStatus) lines.push(technicalStatus);
+          else if (!statusParts.length && prediction?.display_status) lines.push(String(prediction.display_status));
         }
-        if (!operationalStatus && technicalStatus) lines.push(technicalStatus);
-        else if (!statusParts.length && prediction?.display_status) lines.push(String(prediction.display_status));
         const lineHeight = 18;
         const labelWidth = Math.min(rect.width, Math.max(...lines.map((line) => overlayContext.measureText(line).width)) + 12);
         const labelHeight = lineHeight * lines.length + 4;

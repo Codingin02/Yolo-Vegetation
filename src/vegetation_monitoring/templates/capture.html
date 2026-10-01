@@ -23,25 +23,6 @@
       <label class="secondary-button">Pilih dari galeri
         <input id="gallery-input" type="file" accept="image/jpeg,image/png" capture="environment" hidden>
       </label>
-      <select id="support-reference" aria-label="Spesifikasi struktur penyangga yang terkonfirmasi" title="Pilih hanya spesifikasi fisik yang diketahui; model deteksi tidak menebaknya.">
-        <option value="" data-family="unknown">Struktur: Unknown</option>
-        <option value="baja" data-family="baja">Struktur: Baja (dimensi unknown)</option>
-        <option value="9/200 (157)" data-family="beton_pratekan">Beton 9/200 (157)</option>
-        <option value="9/350 (190)" data-family="beton_pratekan">Beton 9/350 (190)</option>
-        <option value="11/200 (190)" data-family="beton_pratekan">Beton 11/200 (190)</option>
-        <option value="11/350 (190)" data-family="beton_pratekan">Beton 11/350 (190)</option>
-        <option value="12/200 (190)" data-family="beton_pratekan">Beton 12/200 (190)</option>
-        <option value="12/350 (190)" data-family="beton_pratekan">Beton 12/350 (190)</option>
-        <option value="12/500 (190)" data-family="beton_pratekan">Beton 12/500 (190)</option>
-        <option value="13/350 (190)" data-family="beton_pratekan">Beton 13/350 (190)</option>
-        <option value="13/500 (190)" data-family="beton_pratekan">Beton 13/500 (190)</option>
-        <option value="14/350 (190)" data-family="beton_pratekan">Beton 14/350 (190)</option>
-        <option value="14/500 (190)" data-family="beton_pratekan">Beton 14/500 (190)</option>
-      </select>
-      <label class="secondary-button"><input id="support-standard-installation" type="checkbox" disabled> Tanam standar 1/6 terkonfirmasi</label>
-      <input id="support-buried-length" type="number" min="0.1" step="0.1" inputmode="decimal" placeholder="Tanam aktual (m)" aria-label="Kedalaman tanam struktur penyangga yang terkonfirmasi" disabled>
-      <label class="secondary-button"><input id="support-full-height" type="checkbox" disabled> Struktur utuh dalam mask</label>
-      <label class="secondary-button"><input id="tree-base-visible" type="checkbox"> Pangkal pohon dalam mask</label>
       <button id="lighting-button" type="button" class="secondary-button" disabled>Cahaya: Auto</button>
       <button id="capture-button" type="button">Mulai deteksi</button>
       <button id="flash-button" type="button" class="secondary-button" aria-pressed="false" disabled>Flash Mati</button>
