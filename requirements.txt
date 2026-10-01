@@ -1,11 +1,7 @@
-ultralytics
-opencv-python
-pandas
+Flask
+Flask-Limiter
 numpy
-pyyaml
-flask
-flask-sock
-folium
-gpxpy
-openpyxl
+opencv-python
+ultralytics
 pytest
+waitress

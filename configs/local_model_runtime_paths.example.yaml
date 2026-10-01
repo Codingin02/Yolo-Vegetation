@@ -1,6 +1,0 @@
-# Copy to configs/local_model_runtime_paths.yaml if an operator needs a local override.
-# Do not commit local_model_runtime_paths.yaml if it contains local private paths.
-candidate_model_paths:
-  - models/field/best.pt
-  - runs/field_multiclass/yolov8n_v1/weights/best.pt
-env_override: ULP_YOLO_MODEL_PATH

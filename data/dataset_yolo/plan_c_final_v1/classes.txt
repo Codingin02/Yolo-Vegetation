@@ -1,4 +1,0 @@
-struktur_penyangga
-konduktor
-pohon_sono
-pohon_non_sono

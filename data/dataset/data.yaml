@@ -1,0 +1,8 @@
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: angsana
+  1: konduktor
+  2: struktur_penyangga_sutm

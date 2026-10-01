@@ -1,7 +1,0 @@
-result_update_interval_ms: 1000
-max_allowed_latency_ms: 3000
-smoothing_window: 5
-max_clearance_jump_m_per_update: 0.75
-track_hold_ms: 2000
-frame_process_fps: 1
-overlay_target_fps: 5

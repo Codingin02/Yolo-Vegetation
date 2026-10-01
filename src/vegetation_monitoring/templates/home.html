@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sistem Monitoring Vegetasi</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body data-page="home">
+  <header class="topbar">
+    <span></span>
+    <strong>Sistem Monitoring Vegetasi</strong>
+    <span></span>
+  </header>
+  <main class="page narrow">
+    <h1>Monitoring vegetasi realtime</h1>
+    <p>Gunakan kamera untuk melihat deteksi dan status langsung. Foto JPEG atau PNG tetap dapat diproses sebagai fallback.</p>
+    <form id="start-form" class="stack">
+      <label>Nama operator
+        <input name="operator_name" autocomplete="name">
+      </label>
+      <label>Nama lokasi
+        <select id="location" name="location" required>
+          <option value="">Pilih lokasi</option>
+          <option value="surabaya">Surabaya</option>
+        </select>
+      </label>
+      <button type="submit">Buka kamera</button>
+    </form>
+    <p id="form-status" class="status" aria-live="polite"></p>
+  </main>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>

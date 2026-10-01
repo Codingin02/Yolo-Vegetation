@@ -1,1 +1,0 @@
-calibration_id,timestamp,point_id,reference_type,known_height_m,reference_bbox_height_px,image_width_px,image_height_px,estimated_m_per_px,camera_facing,distance_reference_m,operator_notes,quality_status

@@ -1,117 +1,109 @@
-﻿# AGENTS.md — ULP Project Progress 8 / Plan C
+# Vegetation_Monitoring
 
-Instruksi ini wajib dibaca Codex sebelum mengubah kode.
+Canonical project: `E:\Projects\Vegetation_Monitoring`
 
-Folder kerja tunggal:
-E:\Projects\ULP_Project
+Product: Sistem Monitoring Vegetasi
 
-Branch kerja:
-progress8-plan-c-snapshot-processing
+## Engineering Style
 
-## Keputusan Final
+- Gunakan prinsip Ponytail.
+- Prioritas: correctness > simplicity > maintainability > performance > feature count.
+- Gunakan satu canonical implementation dan jangan overengineering.
+- Jangan membuat abstraction, manager, provider, service layer, adapter, factory, validator, atau wrapper jika implementasi langsung yang kecil sudah cukup.
+- Reuse file dan dependency yang sudah ada bila sehat.
+- Komentar hanya untuk constraint, formula, unit, security issue, atau workaround yang tidak obvious.
+- Jangan menulis tutorial comment atau development diary di source code.
 
-Progress 8 adalah Plan C.
+## Product Scope
 
-Plan A = YOLO-only realtime. Simpan sebagai history riset. Jangan dihapus.  
-Plan B = YOLO + AI realtime. Simpan sebagai history riset. Jangan dihapus.  
-Plan C = snapshot/manual capture + backend processing. Ini jalur utama untuk laporan akhir magang riset.
+Kemampuan utama:
 
-Plan C tidak realtime. HP hanya menjadi kamera, GPS client, dan uploader foto. Laptop/Flask backend memproses foto setelah shutter.
+1. deteksi pohon realtime menggunakan OpenCV, YOLOv8, dan ByteTrack melalui Ultralytics;
+2. prediksi waktu menuju pemangkasan menggunakan data yang dapat dipertanggungjawabkan.
 
-## Larangan Mutlak
+Core runtime:
 
-Jangan membuat folder project baru di luar E:\Projects\ULP_Project.  
-Jangan memakai git worktree.  
-Jangan menambal /field-camera lama.  
-Jangan menghapus Plan A atau Plan B.  
-Jangan memakai YOLO-FIRST.  
-Jangan memakai AI realtime switch.  
-Jangan membuat realtime detection loop.  
-Jangan menyentuh data/raw, dataset, labels, runs, weights, models, file .pt, file .onnx, atau secret.  
-Jangan membuat fake detection.  
-Jangan membuat fake GPS.  
-Jangan membuat fake bounding box.  
-Jangan membuat fake prediction.  
-Jangan menjalankan git add .  
-Jangan commit API key.  
-Jangan mengklaim akurasi absolut PLN.
+- Python
+- Flask
+- OpenCV
+- YOLOv8
+- ByteTrack melalui Ultralytics
+- prediction logic
 
-## Definisi Sistem Plan C
+Canonical web route: `/vegetation`
 
-Flow:
-1. Operator membuka /plan-c.
-2. Operator membaca instruksi.
-3. Operator klik Get Started.
-4. Browser meminta izin kamera dan GPS.
-5. Operator berdiri dekat atau bawah pohon untuk mengambil tree anchor.
-6. Operator mundur agar pohon, konduktor, dan struktur penyangga terlihat.
-7. Operator menekan shutter.
-8. Foto dikirim ke Flask backend.
-9. Backend menyimpan original.jpg.
-10. Backend menjalankan YOLO post-capture.
-11. Backend menjalankan AI vision validator jika tersedia.
-12. Backend menjalankan Python geometry.
-13. Backend menjalankan growth prediction.
-14. Backend membuat annotated.jpg, result.json, developer.json.
-15. Backend append CSV, append JSONL, append map marker.
-16. Result page menampilkan ringkasan risiko.
+Canonical API root: `/api/vegetation`
 
-## Peran Teknologi
+Canonical production detector: `models/detector.pt`
 
-YOLO:
-- deteksi objek setelah foto diambil,
-- bounding box,
-- class confidence,
-- annotated image.
+Deployment model dapat diekspor ke ONNX tanpa membuat pipeline kedua.
 
-AI vision:
-- validator visual tambahan,
-- second opinion,
-- narasi ringkas,
-- rekomendasi ambil ulang foto jika objek tidak jelas.
+## Vision Classes
 
-Python geometry:
-- sumber utama perhitungan,
-- estimasi jarak,
-- estimasi tinggi,
-- clearance,
-- risk status,
-- prediksi kuartal.
+Canonical segmentation classes for SUTM 20 kV, 3 fasa:
 
-AI tidak boleh menggantikan Python geometry.
+- `0: angsana`
+- `1: konduktor`
+- `2: struktur_penyangga_sutm`
 
-## Objek Target
+Scientific metadata:
 
-- pohon_sono
-- konduktor
-- struktur_penyangga
+- `angsana = Pterocarpus indicus`
 
-Objek lain seperti orang, mobil, keyboard, meja, tas, ruangan, laptop, dan dompet diabaikan untuk core result.
+Jangan gunakan `pohon_sono` sebagai canonical production class.
 
-## Status Risiko
+Species baru harus memperluas dataset, biology data, dan detector yang sama, bukan membuat sistem atau model paralel.
 
-- AMAN
-- PANTAU
-- SIAGA
-- PERLU_PEMANGKASAN
-- DATA_TIDAK_CUKUP
+## Geographic Dataset Scope
 
-## Prinsip UI
+Dataset lapangan difokuskan pada Surabaya Utara, Surabaya Timur, dan Surabaya Barat. Surabaya Selatan yang terlalu dekat atau beririsan dengan arah Sidoarjo tidak masuk acquisition scope.
 
-Capture page harus bersih:
-- instruksi singkat,
-- camera preview,
-- shutter,
-- retry,
-- processing/loading.
+Acquisition mencakup Angsana, konduktor, dan struktur penyangga SUTM. Species lain tidak masuk class map produksi.
 
-Tidak boleh ada:
-- YOLO-FIRST,
-- AI realtime switch,
-- lens selector custom,
-- debug chips,
-- MODEL_STATUS_UNKNOWN,
-- realtime bounding overlay.
+Jangan mengarang persentase populasi wilayah tanpa census yang memadai.
 
-Developer page boleh menampilkan debug.
-Frontend animasi 3D ditunda sampai core system stabil.
+## Prediction Integrity
+
+- Jangan membuat data biologis, growth rate, climate value, training label, atau prediction accuracy palsu.
+- Jangan menganggap DBH increment sama dengan branch-extension rate.
+- Jangan menggunakan satu growth rate universal untuk semua species atau tahap pertumbuhan.
+- Local repeated observations mempunyai prioritas tertinggi.
+- Literature prior hanya fallback ketika compatible.
+- Jika evidence tidak cukup, hasil yang benar adalah `insufficient_growth_reference`.
+- Month, temperature, humidity, dan rainfall boleh menjadi context atau data feature, tetapi multiplier atau coefficient biologis harus didukung data.
+- Jangan menggunakan generic `0.50 m/quarter` sebagai universal growth constant.
+
+## Scope Lock
+
+Jangan menambah atau mengaktifkan kembali tanpa instruksi eksplisit:
+
+- GPS, Google Maps, maps, atau Google Sheets;
+- Gemini, Groq, OpenRouter, atau external generative AI;
+- MQTT atau Digital Twin integration;
+- multi-agent runtime;
+- database tambahan;
+- monocular distance estimation;
+- microservices.
+
+External AI tetap disabled.
+
+Gunakan OpenCV secara sederhana untuk decode, resize bila perlu, image handling, dan annotation.
+
+Realtime menggunakan satu detector dan pipeline canonical. Tracking hanya menstabilkan identity; kegagalannya tidak boleh menghentikan deteksi YOLO.
+
+## Validation Discipline
+
+- Jangan audit repository berulang kali atau memvalidasi ulang komponen yang belum berubah.
+- Jangan melakukan validation setelah setiap langkah kecil.
+- Lakukan satu coherent validation pada jalur yang berubah; ulangi hanya untuk memperbaiki error nyata.
+- Jangan membuat validator, gate, checker, atau framework validation baru untuk membuktikan pekerjaan sendiri.
+- Gunakan canonical tests yang sudah ada.
+
+## Git
+
+- Jangan membuat branch otomatis.
+- Jangan commit kecuali diminta eksplisit oleh user.
+- Jangan push atau force push.
+- Jangan rebase, merge, cherry-pick, amend, atau rewrite history tanpa instruksi eksplisit.
+- Jangan gunakan `git add .` atau `git add -A` secara otomatis.
+- Pertahankan perubahan user yang sudah ada.

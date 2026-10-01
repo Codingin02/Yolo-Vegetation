@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hasil - Sistem Monitoring Vegetasi</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body data-page="result" data-session-id="{{ session_id }}">
+  <header class="topbar">
+    <a href="/vegetation">Beranda</a>
+    <strong>Hasil Monitoring</strong>
+    <span></span>
+  </header>
+  <main class="page result-page">
+    {% if result_ready %}
+      {% set prediction = result.prediction|default({}) %}
+      {% set prediction_status = prediction.prediction_status|default('insufficient_growth_reference') %}
+      <img class="result-image" src="{{ result.image_urls.annotated }}" alt="Foto dengan hasil deteksi">
+      <section class="summary-grid">
+        <article><h2>Deteksi</h2><strong>{{ result.detection_count|default(0) }} objek</strong><p>{{ 'Model belum tersedia' if result.detector_status == 'model_not_ready' else 'Inference gagal' if result.detector_status == 'inference_error' else 'Baseline COCO, bukan detector produksi' if result.detector_role == 'baseline_coco' else 'Detector species' }}</p>{% for detection in result.detections|default([]) %}<p>{{ detection.display_name }}: {{ (detection.confidence * 100)|round(1) }}%{% if detection.track_id is not none %} · ID {{ detection.track_id }}{% endif %}</p>{% else %}<p>Tidak ada objek terdeteksi</p>{% endfor %}</article>
+        <article><h2>Prediksi pemangkasan</h2><strong>{{ prediction.prediction_window or {'insufficient_growth_reference': 'REFERENSI PERTUMBUHAN BELUM CUKUP', 'insufficient_measurement': 'PENGUKURAN BELUM CUKUP'}.get(prediction_status, 'BELUM TERSEDIA') }}</strong><p>{{ result.species|default('Species belum terdeteksi', true)|replace('_', ' ')|title }}</p></article>
+        <article><h2>Pemeriksaan</h2><strong>{{ 'PERLU DITINJAU' if result.manual_review_required else 'SIAP DITINJAU OPERATOR' }}</strong><p>{{ result.limitations|join(' ') }}</p></article>
+      </section>
+      <section class="review-actions">
+        <h2>Pemeriksaan operator</h2>
+        <button type="button" data-decision="accepted">Benar, simpan referensi</button>
+        <button type="button" class="danger" data-decision="rejected">Salah, nonaktifkan hasil</button>
+        <p id="review-status" class="status" aria-live="polite"></p>
+      </section>
+    {% else %}
+      <h1>Hasil belum tersedia</h1>
+      <a href="/vegetation/processing/{{ session_id }}">Periksa status pemrosesan</a>
+    {% endif %}
+  </main>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>
