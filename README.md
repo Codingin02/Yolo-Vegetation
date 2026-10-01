@@ -13,7 +13,7 @@ Sistem Monitoring Vegetasi memantau Angsana di sekitar jaringan SUTM 20 kV 3 fas
 ## Setup dan development
 
 ```powershell
-Set-Location E:\Projects\Vegetation_Monitoring
+Set-Location E:\Projects\Yolo-Vegetation
 py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe scripts\run_server.py --dev

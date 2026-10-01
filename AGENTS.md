@@ -1,6 +1,6 @@
-# Vegetation_Monitoring
+# Yolo-Vegetation
 
-Canonical project: `E:\Projects\Vegetation_Monitoring`
+Canonical project: `E:\Projects\Yolo-Vegetation`
 
 Product: Sistem Monitoring Vegetasi
 
